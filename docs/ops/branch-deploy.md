@@ -41,6 +41,20 @@ A database that was created with the old default password is repaired on the nex
 cd ~/wolfbet && git pull --ff-only && wolfctl update
 ```
 
+## If the branch was rewritten
+
+A force-push (a rebase onto `main`, or history cleanup) leaves a checkout that is already on the branch unable to `git pull --ff-only`, because its local commits are no longer in the remote. Reset it once:
+
+```bash
+cd ~/wolfbet
+git status --short                 # must be empty; commit or stash anything real first
+git fetch origin
+git reset --hard origin/feat/casino-dashboard
+wolfctl update
+```
+
+`reset --hard` discards tracked changes in that checkout. Untracked files stay; `git clean -nd` shows what they are before you remove anything. Never run this on the live server's checkout.
+
 ## Back to live code
 
 ```bash
