@@ -1,0 +1,29 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node / SvelteKit
+node_modules/
+.svelte-kit/
+build/
+frontend/build/
+playwright-report/
+test-results/
+
+# Local data
+*.db
+*.sqlite
+*.log
