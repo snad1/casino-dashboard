@@ -8,6 +8,8 @@ WORKDIR /app
 COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --frozen --no-dev --no-install-project
 COPY app ./app
+COPY alembic.ini ./
+COPY alembic ./alembic
 
 FROM python:3.12.16-slim
 ENV PATH="/app/.venv/bin:$PATH" PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1

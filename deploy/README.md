@@ -44,7 +44,15 @@ Run from `casino-dashboard/` on the server, as the user that runs Docker.
    docker compose ps          # all five show (healthy)
    ```
 
-4. Check: `curl -s https://$WOLFBET_HOST/api/healthz` returns `{"status":"ok"}`.
+4. Apply database migrations, on first install and after every deploy that adds one:
+
+   ```bash
+   docker compose run --rm api alembic upgrade head
+   ```
+
+   Migrations never run on api start, so a failing one cannot crash-loop the api.
+
+5. Check: `curl -s https://$WOLFBET_HOST/api/healthz` returns `{"status":"ok"}`.
 
 After every `pnpm build`, run `docker compose restart caddy`: the build replaces `frontend/build`, and Caddy keeps serving the old directory until it remounts.
 

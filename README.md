@@ -24,7 +24,7 @@ make check               # lint, types, tests and security scans (Docker must be
 make dev-api             # API on http://localhost:8010 (writes random dev secrets to backend/.secrets/ once)
 ```
 
-`make lint type test` needs no Docker. The scanners, thresholds and how to suppress a finding are in [docs/security/scans.md](docs/security/scans.md).
+`make lint type` needs no Docker; `make test` starts a throwaway Timescale container for the database tests. The scanners, thresholds and how to suppress a finding are in [docs/security/scans.md](docs/security/scans.md).
 
 Single package, from inside its directory: `cd backend && uv run pytest`, `cd agent && uv run pytest`, `cd frontend && pnpm test`.
 

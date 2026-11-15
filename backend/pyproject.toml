@@ -27,6 +27,7 @@ dev = [
     "mypy>=2.4.1",
     "pyyaml>=6.0.3",
     "types-pyyaml>=6.0.12.20261113",
+    "testcontainers[postgres]>=4.15.0",
 ]
 
 [tool.uv]
@@ -44,6 +45,10 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "RUF"]
+
+[tool.ruff.lint.isort]
+# The local alembic/ directory holds migrations; the import is the installed package.
+known-third-party = ["alembic"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
