@@ -1,0 +1,18 @@
+title = "casino-dashboard"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Generated or third-party trees that hold no secrets of ours"
+paths = [
+  # Dependency and build output: scanned upstream, regenerated on install.
+  '''(^|/)node_modules/''',
+  '''(^|/)\.venv/''',
+  '''(^|/)\.svelte-kit/''',
+  '''(^|/)frontend/build/''',
+  '''(^|/)\.(mypy|ruff|pytest)_cache/''',
+  # Lockfiles carry integrity hashes that look like keys.
+  '''(^|/)uv\.lock$''',
+  '''(^|/)pnpm-lock\.yaml$''',
+]

@@ -8,7 +8,7 @@ import signal
 import threading
 from pathlib import Path
 
-HEARTBEAT = Path("/tmp/ingest.alive")  # noqa: S108  (tmpfs in the container)
+HEARTBEAT = Path("/tmp/ingest.alive")  # noqa: S108  # nosec B108: private tmpfs in the container
 INTERVAL_SECONDS = 30.0
 
 logger = logging.getLogger("ingest")

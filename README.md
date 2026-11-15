@@ -18,11 +18,13 @@ One deployment per service, each on its own subdomain (`wolfbet.<domain>`, `goat
 ## Quick start
 
 ```bash
-brew install uv          # Python packages (backend, agent)
+brew install uv gitleaks hadolint trivy
 make install             # uv sync for backend and agent, pnpm install for frontend
-make check               # lint, types and tests for all three
+make check               # lint, types, tests and security scans (Docker must be running)
 make dev-api             # API on http://localhost:8010
 ```
+
+`make lint type test` needs no Docker. The scanners, thresholds and how to suppress a finding are in [docs/security/scans.md](docs/security/scans.md).
 
 Single package, from inside its directory: `cd backend && uv run pytest`, `cd agent && uv run pytest`, `cd frontend && pnpm test`.
 
