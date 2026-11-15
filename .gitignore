@@ -22,6 +22,8 @@ build/
 frontend/build/
 playwright-report/
 test-results/
+frontend/.vite/
+coverage/
 
 # Local data
 *.db

@@ -15,6 +15,16 @@ One deployment per service, each on its own subdomain (`wolfbet.<domain>`, `goat
 | `deploy/` | Compose stack, Caddyfile, install and backup scripts |
 | `docs/` | ADRs, UX patterns, ops runbooks |
 
+## Quick start
+
+```bash
+brew install uv          # Python packages (backend, agent)
+make install             # uv sync for backend and agent, pnpm install for frontend
+make check               # lint, types and tests for all three
+```
+
+Single package: `uv run --project backend pytest`, `uv run --project agent pytest`, `pnpm -C frontend test`.
+
 ## Branches
 
 - `main` is the live line for the repo, never ahead of a proven build.
