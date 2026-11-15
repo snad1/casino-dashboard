@@ -3,7 +3,7 @@
 #   make check      lint + type + test + security (what CI runs)
 #   make security   scanners only; see docs/security/scans.md
 #   make e2e        Playwright against a production build (downloads browsers once)
-#   make dev-api    API on http://localhost:8010 with reload
+#   make dev-api    API on http://localhost:8010 with reload (creates local dev secrets once)
 
 SHELL       := /bin/bash
 .SHELLFLAGS := -eo pipefail -c
@@ -20,7 +20,7 @@ PIP_AUDIT_VERSION := 2.10.1
 SEMGREP_VERSION   := 1.185.0
 SCAN_IMAGE        := casino-dashboard-api:scan
 
-.PHONY: install lint type test check security bandit pip-audit pnpm-audit semgrep gitleaks hadolint image-scan e2e dev-api
+.PHONY: install lint type test check security bandit pip-audit pnpm-audit semgrep gitleaks hadolint image-scan e2e dev-secrets dev-api
 
 install:
 	uv sync --project backend
@@ -80,5 +80,14 @@ e2e:
 	$(PNPM) exec playwright install chromium
 	cd frontend && NODE_ENV=test pnpm e2e
 
-dev-api:
-	cd backend && uv run uvicorn app.main:app --reload --port 8010
+# Random local-only secrets, written once; the api refuses to start without them.
+dev-secrets:
+	@mkdir -p backend/.secrets && chmod 700 backend/.secrets
+	@for s in session_secret postgres_password redis_dashboard_password; do \
+		f=backend/.secrets/$$s; \
+		[ -s $$f ] || { (umask 077; openssl rand -base64 36 | tr -d '\n' > $$f); }; \
+	done
+
+dev-api: dev-secrets
+	cd backend && APP_ENV=local SECRETS_DIR=.secrets PUBLIC_HOST=localhost \
+		uv run uvicorn app.main:create_app --factory --reload --port 8010

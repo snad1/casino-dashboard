@@ -80,6 +80,24 @@ def test_no_secret_values_inline(compose: dict[str, Any], name: str) -> None:
             assert key.endswith("_FILE") and str(value).startswith("/run/secrets/")
 
 
+def test_api_gets_its_secrets_as_files_and_plain_settings_as_env(
+    compose: dict[str, Any],
+) -> None:
+    api = _service(compose, "api")
+    expected = {"session_secret", "postgres_password", "redis_dashboard_password"}
+    assert set(api["secrets"]) == expected
+    env = api["environment"]
+    assert env["APP_ENV"] == "production"
+    assert env["PUBLIC_HOST"].startswith("${WOLFBET_HOST:?")
+    assert env["POSTGRES_HOST"] == "timescale"
+    assert env["REDIS_HOST"] == "redis"
+
+
+def test_api_is_served_by_the_factory() -> None:
+    dockerfile = (DEPLOY.parent / "backend" / "Dockerfile").read_text()
+    assert '"app.main:create_app", "--factory"' in dockerfile
+
+
 def test_secrets_come_from_files(compose: dict[str, Any]) -> None:
     for secret in compose["secrets"].values():
         assert secret["file"].startswith("./secrets/")
@@ -96,6 +114,7 @@ def test_ingest_reads_the_bot_directory_read_only(compose: dict[str, Any]) -> No
 def test_secrets_directory_is_ignored_by_git() -> None:
     ignored = (DEPLOY.parent / ".gitignore").read_text().splitlines()
     assert "deploy/secrets/" in ignored
+    assert "backend/.secrets/" in ignored
     assert ".env" in ignored
 
 

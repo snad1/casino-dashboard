@@ -21,7 +21,7 @@ One deployment per service, each on its own subdomain (`wolfbet.<domain>`, `goat
 brew install uv gitleaks hadolint trivy
 make install             # uv sync for backend and agent, pnpm install for frontend
 make check               # lint, types, tests and security scans (Docker must be running)
-make dev-api             # API on http://localhost:8010
+make dev-api             # API on http://localhost:8010 (writes random dev secrets to backend/.secrets/ once)
 ```
 
 `make lint type test` needs no Docker. The scanners, thresholds and how to suppress a finding are in [docs/security/scans.md](docs/security/scans.md).

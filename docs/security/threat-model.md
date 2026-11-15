@@ -1,0 +1,70 @@
+# Threat model
+
+STRIDE per trust boundary. Each row names the threat, the control, and whether that control exists today or is planned. Planned controls are built by the story that adds the boundary, together with a negative test. Update this file when a boundary or control changes.
+
+Assets: the casino `api_key` and bot config on the host, control over the bots (start, stop, config, terminal), bet history, user accounts and sessions, and the service secrets in `deploy/secrets/`.
+
+## Browser to Caddy to api
+
+| STRIDE | Threat | Control | Status |
+|---|---|---|---|
+| Spoofing | Stolen or forged session | `__Host-` httpOnly Secure SameSite=Strict cookie signed with `session_secret`; TOTP for owners | Planned (auth) |
+| Tampering | Cross-site state change | CSRF token on every state-changing request; CORS off; same-origin SPA | Planned (auth) |
+| Tampering | Injected script in the SPA | CSP without inline script in Caddy and the api; Svelte escaping, no `{@html}` on API data | Done |
+| Repudiation | A control action nobody can trace | Audit log per action with user and request id; `X-Request-ID` on every response and log line | Request id done; audit log planned |
+| Information disclosure | Errors leak internals | Generic 500 and 422 bodies outside local/development/testing; full exception only in logs | Done |
+| Information disclosure | Secrets in logs | Redaction of secret, token, password, api_key, cookie and authorization keys at any depth; paths logged without query strings; uvicorn access log off | Done |
+| Information disclosure | Traffic sniffing or downgrade | TLS by Caddy, HSTS one year, `-Server` header | Done |
+| Denial of service | Request floods | Container CPU and memory caps; rate limits on auth routes | Caps done; rate limits planned |
+| Elevation of privilege | Viewer reaches owner actions | Role checks as FastAPI dependencies; authz matrix test of every endpoint by every role | Planned (auth) |
+
+## WebSocket
+
+| STRIDE | Threat | Control | Status |
+|---|---|---|---|
+| Spoofing | Cross-site WebSocket hijack | Auth before upgrade, Origin allowlist (`allowed_origins`), one-time WS ticket | Planned (live stream) |
+| Denial of service | Connection or message floods | Per-user connection cap, message size cap | Planned (live stream) |
+
+## api to host agent
+
+| STRIDE | Threat | Control | Status |
+|---|---|---|---|
+| Spoofing | Another local process talks to the agent | Unix socket mode 0660 and group, `SO_PEERCRED` uid check, shared `agent_token` | Planned (agent) |
+| Tampering | Malformed or oversized requests | Versioned JSON-lines protocol, strict models, size and time limits, command allowlist | Planned (agent) |
+| Information disclosure | The casino `api_key` reaches the browser | Agent responses mask it | Planned (agent) |
+
+## Agent to host
+
+| STRIDE | Threat | Control | Status |
+|---|---|---|---|
+| Elevation of privilege | Command injection | `create_subprocess_exec` with argv only, fixed binary paths, scrubbed environment, no unvalidated user string in argv | Planned (agent) |
+
+## Bot daemon to Redis
+
+| STRIDE | Threat | Control | Status |
+|---|---|---|---|
+| Spoofing | Unauthenticated client | Default user off; `publisher` and `dashboard` users with passwords from secret files | Done |
+| Tampering | Publisher rewrites or deletes data | `publisher` may only `XADD` and `PING` on `wolfbet:*`; `dashboard` cannot write | Done |
+| Information disclosure | Redis reachable from outside | Bound to 127.0.0.1 and the docker bridge only | Done |
+| Denial of service | Memory exhaustion | `maxmemory 256mb`, container cap; live events are lossy by design | Done |
+
+## Ingest to bot SQLite
+
+| STRIDE | Threat | Control | Status |
+|---|---|---|---|
+| Tampering | Ingest writes to the bot database | Read-only bind mount of the bot directory; `mode=ro` URI | Mount done; reader planned |
+| Denial of service | Long reads block the bot | Short read transactions (under 200 ms), batched reads with sleeps | Planned (history ingest) |
+
+## api to Brevo, Telegram and Web Push
+
+| STRIDE | Threat | Control | Status |
+|---|---|---|---|
+| Information disclosure | Provider keys leak | Keys only from files in `/run/secrets`, never from the environment; placeholder and weak values refused at startup; redacted in logs | Done |
+| Spoofing | Lookalike provider endpoint | Fixed HTTPS endpoints with certificate verification | Planned (email, alerts) |
+
+## Service secrets
+
+| STRIDE | Threat | Control | Status |
+|---|---|---|---|
+| Information disclosure | Secrets in git, images or `docker inspect` | Files in a git-ignored, root-only `deploy/secrets/`; mounted as compose secrets; never env literals; gitleaks in `make check` and the commit hook | Done |
+| Spoofing | Default or weak credentials | Services refuse to start on a missing, short, placeholder or low-variety secret | Done (api, Redis) |
