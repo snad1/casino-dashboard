@@ -2,12 +2,16 @@
 #   make install   install backend, agent and frontend dependencies
 #   make check     lint + type + test for all three (what CI and hooks rely on)
 #   make e2e       Playwright against a production build (downloads browsers once)
+#   make dev-api   API on http://localhost:8010 with reload
+
+# uv uses each package's own .venv; an activated venv elsewhere only adds warnings.
+unexport VIRTUAL_ENV
 
 UV_BACKEND := uv run --project backend
 UV_AGENT   := uv run --project agent
 PNPM       := cd frontend && pnpm
 
-.PHONY: install lint type test check e2e
+.PHONY: install lint type test check e2e dev-api
 
 install:
 	uv sync --project backend
@@ -36,3 +40,6 @@ check: lint type test
 e2e:
 	$(PNPM) exec playwright install chromium
 	cd frontend && NODE_ENV=test pnpm e2e
+
+dev-api:
+	cd backend && uv run uvicorn app.main:app --reload --port 8010

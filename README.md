@@ -21,9 +21,10 @@ One deployment per service, each on its own subdomain (`wolfbet.<domain>`, `goat
 brew install uv          # Python packages (backend, agent)
 make install             # uv sync for backend and agent, pnpm install for frontend
 make check               # lint, types and tests for all three
+make dev-api             # API on http://localhost:8010
 ```
 
-Single package: `uv run --project backend pytest`, `uv run --project agent pytest`, `pnpm -C frontend test`.
+Single package, from inside its directory: `cd backend && uv run pytest`, `cd agent && uv run pytest`, `cd frontend && pnpm test`.
 
 ## Branches
 
