@@ -8,7 +8,8 @@ export default defineConfig({
 		tailwindcss(),
 		sveltekit({
 			adapter: adapter({ fallback: 'index.html', strict: true }),
-			compilerOptions: { runes: true }
+			compilerOptions: { runes: true },
+			csp: { mode: 'hash', directives: { 'script-src': ['self'] } }
 		})
 	],
 	test: {
