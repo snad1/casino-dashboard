@@ -28,7 +28,6 @@ from agent.protocol import (
     PROTO_VERSION,
     Error,
     ErrorCode,
-    Frame,
     Request,
     Response,
     Streaming,
@@ -172,7 +171,7 @@ class AgentServer:
         """Write each frame, then the final reply; False when the client went away."""
         try:
             async for item in s.frames:
-                writer.write(Frame(id=req_id, **item).wire())
+                writer.write(s.frame(id=req_id, **item).wire())
                 await writer.drain()
             writer.write(Response(id=req_id, ok=True, data=await s.final()).line())
             await writer.drain()

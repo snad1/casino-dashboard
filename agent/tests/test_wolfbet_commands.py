@@ -18,6 +18,7 @@ from typing import Any
 import pytest
 
 from agent.config import AgentConfig
+from agent.files import FileStore
 from agent.protocol import signed_request
 from agent.runner import CommandTimeout, RunResult, run
 from agent.server import DEFAULT_HANDLERS, AgentServer
@@ -34,6 +35,20 @@ PATHS = WolfBetPaths(
     export_dir=Path("/var/agent/exports"),
     journalctl=Path("/usr/bin/journalctl"),
 )
+FILE_ID = "f" * 32
+EXP = f"/var/agent/exports/{FILE_ID}"
+
+
+class StubFiles(FileStore):
+    """Hands out one fixed export directory so the export argv is predictable."""
+
+    def __init__(self) -> None:
+        super().__init__(Path(EXP).parent)
+
+    def allocate(self) -> tuple[str, Path]:
+        return FILE_ID, Path(EXP)
+
+
 PY, BOT, CTL, JCTL = (
     "/opt/wb/venv/bin/python3",
     "/opt/wb/wolfbet.py",
@@ -108,11 +123,11 @@ ARGV_CASES: list[tuple[str, dict[str, Any], list[str]]] = [
     ("session", {"session_id": 42}, [PY, BOT, "--session-bets", "42", "--json"]),
     ("presets", {}, [PY, BOT, "--list-presets"]),
     ("preset", {"name": "martingale-safe"}, [CTL, "preset", "martingale-safe"]),
-    ("export", {}, [PY, BOT, "--export", "/var/agent/exports/", "--json"]),
+    ("export", {}, [PY, BOT, "--export", f"{EXP}/", "--json"]),
     (
         "export",
         {"session_id": 7},
-        [PY, BOT, "--export", "/var/agent/exports/", "--export-session-id", "7", "--json"],
+        [PY, BOT, "--export", f"{EXP}/", "--export-session-id", "7", "--json"],
     ),
     (
         "export",
@@ -121,7 +136,7 @@ ARGV_CASES: list[tuple[str, dict[str, Any], list[str]]] = [
             PY,
             BOT,
             "--export",
-            "/var/agent/exports/wolfbet-session-7.json",
+            f"{EXP}/wolfbet-session-7.json",
             "--export-session-id",
             "7",
             "--json",
@@ -194,7 +209,7 @@ def test_every_command_has_an_argv_case() -> None:
 )
 async def test_argv(name: str, args: dict[str, Any], argv: list[str]) -> None:
     runner = FakeRunner()
-    await WolfBetService(PATHS, runner).run_command(name, args)
+    await WolfBetService(PATHS, runner, files=StubFiles()).run_command(name, args)
     assert runner.calls[0][0] == argv
     assert runner.calls[0][2] == (PATHS.repo if name == "update" else None)
 

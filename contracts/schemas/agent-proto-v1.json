@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "agent-proto-v1.json",
   "title": "Dashboard api <-> host agent, protocol version 1",
-  "description": "JSON lines over the agent's unix socket (mode 0660, group casino-agent). The agent first checks the peer's uid/gid against its allowlist. Each request line is at most 65536 bytes; mac is HMAC-SHA256 with the shared agent token over the canonical JSON of the other request fields (sorted keys, separators ',' and ':', ASCII escapes); ts is epoch milliseconds and must be within 30 s of the agent's clock; each id is accepted once. A connection idle for 5 s is closed. A command that runs past its timeout is killed and answered with timeout. Failures carry only a generic code, and the agent closes the connection after bad_request, unauthorized, replayed, too_large and busy. Long-running commands run as jobs: job.start {cmd, args} -> {job_id}; job.get / job.cancel {job_id} -> {job_id, cmd, status, exit_code, started_ms, duration_ms, lines}; job.stream {job_id, from_seq} -> frames, then that body; job.audit {after, limit} -> {records, next}. One mutating job per service: a second mutating job or command gets busy; an unknown job id gets not_found.",
+  "description": "JSON lines over the agent's unix socket (mode 0660, group casino-agent). The agent first checks the peer's uid/gid against its allowlist. Each request line is at most 65536 bytes; mac is HMAC-SHA256 with the shared agent token over the canonical JSON of the other request fields (sorted keys, separators ',' and ':', ASCII escapes); ts is epoch milliseconds and must be within 30 s of the agent's clock; each id is accepted once. A connection idle for 5 s is closed. A command that runs past its timeout is killed and answered with timeout. Failures carry only a generic code, and the agent closes the connection after bad_request, unauthorized, replayed, too_large and busy. Long-running commands run as jobs: job.start {cmd, args} -> {job_id}; job.get / job.cancel {job_id} -> {job_id, cmd, status, exit_code, started_ms, duration_ms, lines}; job.stream {job_id, from_seq} -> frames, then that body; job.audit {after, limit} -> {records, next}. One mutating job per service: a second mutating job or command gets busy; an unknown job id gets not_found. An export job's summary carries file_id once its file is registered; file.read {file_id} streams the file as chunk messages, then {file_id, name, bytes, sha256}. Files expire after 1 h; an unknown, expired or altered file gets not_found. Host paths never appear: export job lines show <export> in their place.",
   "oneOf": [
     {
       "$ref": "#/$defs/request"
@@ -12,6 +12,9 @@
     },
     {
       "$ref": "#/$defs/frame"
+    },
+    {
+      "$ref": "#/$defs/chunk"
     }
   ],
   "$defs": {
@@ -158,6 +161,30 @@
         "line": {
           "type": "string",
           "description": "At most 8 KiB, ANSI and control characters removed; a cut line ends with ' [truncated]'."
+        }
+      }
+    },
+    "chunk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "seq",
+        "data"
+      ],
+      "description": "One piece of an export file, sent only in answer to file.read, before its final reply {file_id, name, bytes, sha256}. A chunk line is up to about 88 KiB, so readers need a line limit above that.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "data": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "description": "Up to 64 KiB of the file, base64."
         }
       }
     }

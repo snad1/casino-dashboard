@@ -25,6 +25,7 @@ from typing import Any, Literal, Protocol
 from pydantic import Field
 
 from agent.errors import Busy, NotFound
+from agent.files import FileStore
 from agent.peercred import current_peer
 from agent.protocol import Streaming
 from agent.runner import spawn
@@ -60,6 +61,10 @@ class PreparedCommand(Protocol):
     def cwd(self) -> Path | None: ...
     @property
     def mutating(self) -> bool: ...
+    @property
+    def file_id(self) -> str | None: ...
+    @property
+    def redact(self) -> tuple[str, ...]: ...
 
 
 class JobService(Protocol):
@@ -100,6 +105,9 @@ class Job:
     lines: deque[tuple[int, str, str]] = field(init=False)
     next_seq: int = 0
     cancel_requested: bool = False
+    redact: tuple[str, ...] = ()
+    pending_file: str | None = None
+    file_id: str | None = None
     changed: asyncio.Condition = field(default_factory=asyncio.Condition)
     done: asyncio.Event = field(default_factory=asyncio.Event)
 
@@ -108,13 +116,16 @@ class Job:
 
     async def add(self, stream: str, raw: bytes) -> None:
         async with self.changed:
-            self.lines.append((self.next_seq, stream, clean_line(raw)))
+            line = clean_line(raw)
+            for host_path in self.redact:
+                line = line.replace(host_path, "<export>")
+            self.lines.append((self.next_seq, stream, line))
             self.next_seq += 1
             self.changed.notify_all()
 
     def summary(self) -> dict[str, Any]:
         end = self.finished_ms if self.finished_ms is not None else _now_ms()
-        return {
+        out: dict[str, Any] = {
             "job_id": self.id,
             "cmd": self.cmd,
             "status": self.status,
@@ -123,6 +134,9 @@ class Job:
             "duration_ms": end - self.started_ms,
             "lines": self.next_seq,
         }
+        if self.file_id is not None:
+            out["file_id"] = self.file_id
+        return out
 
 
 async def _pump(job: Job, reader: asyncio.StreamReader, stream: str) -> None:
@@ -168,7 +182,13 @@ class AuditArgs(Args):
 class JobManager:
     """Runs and tracks jobs for the registered services (`wolfbet` -> WolfBetService, ...)."""
 
-    def __init__(self, buffer_lines: int = BUFFER_LINES, cancel_grace_s: float = CANCEL_GRACE_S):
+    def __init__(
+        self,
+        buffer_lines: int = BUFFER_LINES,
+        cancel_grace_s: float = CANCEL_GRACE_S,
+        files: FileStore | None = None,
+    ) -> None:
+        self.files = files
         self.services: dict[str, JobService] = {}
         self.jobs: dict[str, Job] = {}
         self.audit_log: deque[dict[str, Any]] = deque(maxlen=AUDIT_RECORDS)
@@ -205,8 +225,14 @@ class JobManager:
             mutating=prepared.mutating,
             started_ms=_now_ms(),
             buffer_lines=self.buffer_lines,
+            redact=prepared.redact,
+            pending_file=prepared.file_id,
         )
-        proc = await spawn(prepared.argv, prepared.cwd)
+        try:
+            proc = await spawn(prepared.argv, prepared.cwd)
+        except OSError:
+            self._discard_file(job)
+            raise
         job.pid = proc.pid
         self.jobs[job.id] = job
         self._audit("start", job)
@@ -250,11 +276,18 @@ class JobManager:
             service.after_job(name)
         except Exception:
             log.exception("after_job failed for %s", job.cmd)
+        if job.pending_file is not None and self.files is not None:
+            stored = self.files.seal(job.pending_file, ok=job.status == "succeeded")
+            job.file_id = stored.file_id if stored else None
         self._audit("finish", job)
         log.info("job %s %s (exit %s)", job.id, job.status, job.exit_code)
         job.done.set()
         async with job.changed:
             job.changed.notify_all()
+
+    def _discard_file(self, job: Job) -> None:
+        if job.pending_file is not None and self.files is not None:
+            self.files.discard(job.pending_file)
 
     def _signal(self, job: Job, sig: signal.Signals) -> None:
         if job.pid is None:

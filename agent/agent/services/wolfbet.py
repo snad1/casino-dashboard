@@ -10,13 +10,14 @@ listed with long_running=True and only run as jobs.
 import json
 import os
 from collections.abc import Awaitable, Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
 from agent.errors import Busy
+from agent.files import FileStore
 from agent.runner import STDERR_TAIL, STDOUT_TAIL, RunResult, run, tail
 from agent.validators import (
     Args,
@@ -174,6 +175,7 @@ class CommandSpec:
     json_output: bool = False
     cwd_repo: bool = False
     clears_schema: bool = False
+    writes_file: bool = False
 
 
 def _bot(p: WolfBetPaths, *items: str) -> list[str]:
@@ -280,7 +282,9 @@ COMMANDS: dict[str, CommandSpec] = {
     ),
     "presets": CommandSpec(NoArgs, lambda _a, p: _bot(p, "--list-presets"), 30),
     "preset": CommandSpec(PresetArgs, lambda a, p: _ctl(p, "preset", a.name), 60, mutating=True),
-    "export": CommandSpec(ExportArgs, _export, 600, long_running=True, json_output=True),
+    "export": CommandSpec(
+        ExportArgs, _export, 600, long_running=True, json_output=True, writes_file=True
+    ),
     "cleanup": CommandSpec(
         CleanupArgs,
         lambda a, p: _ctl(p, "cleanup", "--yes", *([str(a.days)] if a.days else [])),
@@ -380,6 +384,8 @@ class Prepared:
     timeout_s: float
     cwd: Path | None
     mutating: bool
+    file_id: str | None = None
+    redact: tuple[str, ...] = ()
 
 
 def _never_busy() -> bool:
@@ -397,6 +403,7 @@ class WolfBetService:
     paths: WolfBetPaths
     runner: Runner = run
     busy: Callable[[], bool] = _never_busy
+    files: FileStore | None = None
     _schema: dict[str, Any] | None = field(default=None, repr=False)
 
     def long_running(self, name: str) -> bool:
@@ -408,13 +415,23 @@ class WolfBetService:
         if spec is None:
             raise InvalidArgs("unknown wolfbet command")
         args = parse_args(spec.args, raw_args)
+        paths, file_id = self.paths, None
+        redact: tuple[str, ...] = ()
+        if spec.writes_file:
+            if self.files is None:
+                raise RuntimeError(f"{name} needs a file store")
+            file_id, directory = self.files.allocate()
+            paths = replace(self.paths, export_dir=directory)
+            redact = tuple({str(directory), os.path.realpath(directory)})
         return Prepared(
             name=name,
             args=args.model_dump(mode="json"),
-            argv=spec.build(args, self.paths),
+            argv=spec.build(args, paths),
             timeout_s=spec.timeout_s,
             cwd=self.paths.repo if spec.cwd_repo else None,
             mutating=spec.mutating,
+            file_id=file_id,
+            redact=redact,
         )
 
     def after_job(self, name: str) -> None:

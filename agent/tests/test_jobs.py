@@ -201,7 +201,10 @@ async def test_cancel_kills_the_process_group(setup: Setup) -> None:
 async def test_cancel_escalates_to_sigkill(setup: Setup) -> None:
     _plan(setup.bin_dir, doctor={"ignore_term": True, "lines": ["stubborn"], "sleep": 60})
     job = await setup.jobs.start("wolfbet.doctor", {})
-    await asyncio.sleep(0.3)
+    for _ in range(500):  # its first line comes after it starts ignoring SIGTERM
+        if job.next_seq:
+            break
+        await asyncio.sleep(0.01)
     summary = (await asyncio.wait_for(setup.jobs.cancel(job.id), 10)).summary()
     assert summary["status"] == "cancelled" and summary["exit_code"] == -9
 

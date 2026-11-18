@@ -98,3 +98,6 @@ def test_schema_fields_match_the_models() -> None:
     from agent.protocol import Frame
 
     assert set(defs["frame"]["properties"]) == set(Frame.model_json_schema()["properties"])
+    from agent.protocol import Chunk
+
+    assert set(defs["chunk"]["properties"]) == set(Chunk.model_json_schema()["properties"])

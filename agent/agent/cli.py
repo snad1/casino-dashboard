@@ -12,6 +12,7 @@ from typing import Any
 
 from agent import __version__
 from agent.config import AgentConfig, ConfigError, load_config
+from agent.files import FileStore
 from agent.jobs import JobManager
 from agent.protocol import PROTO_VERSION, signed_request
 from agent.server import DEFAULT_HANDLERS, AgentServer
@@ -35,6 +36,22 @@ def call(
     return result
 
 
+async def _serve(config: AgentConfig) -> None:
+    """The agent with WolfBet's commands, jobs and the export store (swept now and every 10 min)."""
+    paths = WolfBetPaths.from_env()
+    files = FileStore(paths.export_dir)
+    files.sweep()
+    jobs = JobManager(files=files)
+    service = WolfBetService(paths, busy=lambda: jobs.mutating_running("wolfbet"), files=files)
+    jobs.register("wolfbet", service)
+    handlers = {**DEFAULT_HANDLERS, **service.handlers(), **jobs.handlers(), **files.handlers()}
+    sweeper = asyncio.create_task(files.sweep_forever())
+    try:
+        await AgentServer(config, handlers=handlers).serve_forever()
+    finally:
+        sweeper.cancel()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="casino-agent", description=__doc__)
     parser.add_argument("command", choices=("serve", "ping", "version"))
@@ -50,13 +67,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "serve":
         logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
         try:
-            jobs = JobManager()
-            service = WolfBetService(
-                WolfBetPaths.from_env(), busy=lambda: jobs.mutating_running("wolfbet")
-            )
-            jobs.register("wolfbet", service)
-            handlers = {**DEFAULT_HANDLERS, **service.handlers(), **jobs.handlers()}
-            asyncio.run(AgentServer(config, handlers=handlers).serve_forever())
+            asyncio.run(_serve(config))
         except KeyboardInterrupt:
             return 0
         return 0

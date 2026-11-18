@@ -78,12 +78,26 @@ class Frame(BaseModel):
         return self.model_dump_json().encode() + b"\n"
 
 
+class Chunk(BaseModel):
+    """One piece of a file (base64 of up to 64 KiB), sent before the final reply to file.read."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    seq: int
+    data: str
+
+    def wire(self) -> bytes:
+        return self.model_dump_json().encode() + b"\n"
+
+
 @dataclass(frozen=True)
 class Streaming:
-    """A handler result sent as frames (seq, stream, line) and then one final reply body."""
+    """A handler result sent as messages of type `frame` and then one final reply body."""
 
     frames: AsyncIterator[dict[str, Any]]
     final: Callable[[], Awaitable[dict[str, Any]]]
+    frame: type[Frame] | type[Chunk] = Frame
 
 
 def canonical_body(fields: dict[str, Any]) -> bytes:
