@@ -22,6 +22,8 @@ from app.errors import UnhandledErrorMiddleware, install_error_handlers
 from app.logging import RequestContextMiddleware, configure_logging
 from app.middleware.security import SecurityHeadersMiddleware
 from app.settings import Settings, load_settings
+from app.ws.auth import RECHECK_SECONDS, ConnectionRegistry
+from app.ws.routes import router as ws_router
 
 
 class Health(BaseModel):
@@ -54,6 +56,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.session_secret = session_secret
     app.state.totp_key = settings.totp_key.get_secret_value()
     app.state.public_origin = settings.public_origin
+    app.state.allowed_origins = settings.allowed_origins
+    app.state.ws_registry = ConnectionRegistry()
+    app.state.ws_recheck_seconds = RECHECK_SECONDS
     install_error_handlers(app, settings.exposes_error_detail)
     install_step_handler(app)
     # Added innermost first: headers wrap everything, including the generic 500.
@@ -75,5 +80,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(invites_router)
     app.include_router(reset_router)
     app.include_router(audit_router)
+    app.include_router(ws_router)
 
     return app

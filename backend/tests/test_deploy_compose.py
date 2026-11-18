@@ -146,6 +146,12 @@ def test_api_is_served_by_the_factory() -> None:
     assert '"app.main:create_app", "--factory"' in dockerfile
 
 
+def test_api_caps_websocket_frames_and_pings_idle_sockets() -> None:
+    dockerfile = (DEPLOY.parent / "backend" / "Dockerfile").read_text()
+    assert '"--ws-max-size", "16384"' in dockerfile
+    assert '"--ws-ping-interval", "20", "--ws-ping-timeout", "20"' in dockerfile
+
+
 def test_secrets_come_from_files(compose: dict[str, Any]) -> None:
     for secret in compose["secrets"].values():
         assert secret["file"].startswith("./secrets/")

@@ -103,11 +103,8 @@ def clear_session_cookie(response: Response) -> None:
     response.delete_cookie(SESSION_COOKIE, path="/", secure=True, httponly=True, samesite="strict")
 
 
-async def current_user(request: Request, db: Annotated[AsyncSession, Depends(get_session)]) -> User:
-    """The signed-in user; an expired, idle or disabled session is deleted and refused."""
-    raw = decode_session_id(request.cookies.get(SESSION_COOKIE))
-    if raw is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, NOT_SIGNED_IN)
+async def load_session(db: AsyncSession, raw: bytes) -> tuple[ApiSession, User] | None:
+    """The live session and its user; an expired, idle or disabled one is deleted instead."""
     row = (
         await db.execute(
             select(ApiSession, User)
@@ -116,17 +113,27 @@ async def current_user(request: Request, db: Annotated[AsyncSession, Depends(get
         )
     ).first()
     if row is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, NOT_SIGNED_IN)
+        return None
     session, user = row
     now = datetime.now(UTC)
     expired = now - session.created_at > ABSOLUTE_TTL or now - session.last_seen_at > IDLE_TTL
     if expired or user.disabled:
         await db.delete(session)
         await db.commit()
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, NOT_SIGNED_IN)
+        return None
     if now - session.last_seen_at > TOUCH_AFTER:
         session.last_seen_at = now
         await db.commit()
+    return session, user
+
+
+async def current_user(request: Request, db: Annotated[AsyncSession, Depends(get_session)]) -> User:
+    """The signed-in user; an expired, idle or disabled session is deleted and refused."""
+    raw = decode_session_id(request.cookies.get(SESSION_COOKIE))
+    loaded = await load_session(db, raw) if raw is not None else None
+    if raw is None or loaded is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, NOT_SIGNED_IN)
+    session, user = loaded
     request.state.session_id = raw
     request.state.api_session = session
     request.state.audit_actor = user

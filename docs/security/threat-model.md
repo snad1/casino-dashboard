@@ -23,8 +23,8 @@ Assets: the casino `api_key` and bot config on the host, control over the bots (
 
 | STRIDE | Threat | Control | Status |
 |---|---|---|---|
-| Spoofing | Cross-site WebSocket hijack | Auth before upgrade, Origin allowlist (`allowed_origins`), one-time WS ticket | Planned (live stream) |
-| Denial of service | Connection or message floods | Per-user connection cap, message size cap | Planned (live stream) |
+| Spoofing | Cross-site WebSocket hijack | Handshake refused before upgrade unless the session cookie is live, `Origin` is in `allowed_origins` and a 30 s one-time ticket from `POST /api/ws-ticket` matches that session; the session is re-checked every 60 s and the socket closes with 4401 when it ends; every connect and refusal is audited | Done |
+| Denial of service | Connection or message floods | 5 sockets per user (6th refused with 429); frames over 16 KiB close the socket (uvicorn `--ws-max-size` and the app); uvicorn pings every 20 s and drops silent peers | Done |
 
 ## api to host agent
 
