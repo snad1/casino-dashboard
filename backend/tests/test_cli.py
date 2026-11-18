@@ -70,7 +70,9 @@ async def test_create_owner_refuses_a_second_owner(db_session: AsyncSession) -> 
     await cli.create_owner(db_session, "first@example.test", STRONG)
     with pytest.raises(cli.OwnerError, match="An owner already exists"):
         await cli.create_owner(db_session, "second@example.test", STRONG)
-    assert await db_session.scalar(select(func.count()).select_from(User)) == 1
+    emails = ["first@example.test", "second@example.test"]
+    query = select(func.count()).select_from(User).where(User.email.in_(emails))
+    assert await db_session.scalar(query) == 1
 
 
 async def test_database_refuses_a_second_owner_row(db_session: AsyncSession) -> None:

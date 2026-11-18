@@ -8,13 +8,16 @@ import pytest
 import yaml
 
 DEPLOY = Path(__file__).resolve().parents[2] / "deploy"
-SERVICES = ("timescale", "redis", "api", "ingest", "mailer", "caddy")
+SERVICES = ("timescale", "redis", "api", "ingest", "mailer", "migrate", "caddy")
+# One-shot tools: started by hand with `docker compose run --rm`, never restarted.
+TOOLS = ("migrate",)
 CAPS = {
     "timescale": (1.0, "1g"),
     "redis": (0.25, "320m"),
     "api": (1.0, "512m"),
     "ingest": (0.5, "256m"),
     "mailer": (0.25, "128m"),
+    "migrate": (0.5, "256m"),
     "caddy": (0.25, "128m"),
 }
 SECRET_WORDS = re.compile(r"PASSWORD|SECRET|TOKEN|KEY", re.IGNORECASE)
@@ -31,6 +34,17 @@ def _service(compose: dict[str, Any], name: str) -> dict[str, Any]:
     return service
 
 
+def _secrets(service: dict[str, Any]) -> dict[str, str]:
+    """Each mounted secret as {source: name it has inside the container}."""
+    mounted: dict[str, str] = {}
+    for entry in service.get("secrets", []):
+        if isinstance(entry, str):
+            mounted[entry] = entry
+        else:
+            mounted[entry["source"]] = entry.get("target", entry["source"])
+    return mounted
+
+
 def test_exactly_the_planned_services(compose: dict[str, Any]) -> None:
     assert set(compose["services"]) == set(SERVICES)
 
@@ -42,12 +56,16 @@ def test_every_service_is_capped_and_hardened(compose: dict[str, Any], name: str
     assert service["cpus"] == cpus
     assert service["mem_limit"] == mem
     assert service["cpu_shares"] == 256
-    assert service["restart"] == "unless-stopped"
     assert "no-new-privileges:true" in service["security_opt"]
-    assert "test" in service["healthcheck"]
+    if name in TOOLS:
+        assert service["restart"] == "no"
+        assert service["profiles"] == ["tools"]
+    else:
+        assert service["restart"] == "unless-stopped"
+        assert "test" in service["healthcheck"]
 
 
-@pytest.mark.parametrize("name", ["api", "ingest", "mailer"])
+@pytest.mark.parametrize("name", ["api", "ingest", "mailer", "migrate"])
 def test_app_containers_are_locked_down(compose: dict[str, Any], name: str) -> None:
     service = _service(compose, name)
     assert service["read_only"] is True
@@ -77,10 +95,25 @@ def test_only_the_mailer_reaches_out_and_holds_the_mail_key(compose: dict[str, A
     for name in SERVICES:
         service = _service(compose, name)
         has_egress = "egress" in service.get("networks", [])
-        has_key = "brevo_api_key" in service.get("secrets", [])
+        has_key = "brevo_api_key" in _secrets(service)
         assert has_egress == (name == "mailer"), name
         assert has_key == (name == "mailer"), name
-    assert set(_service(compose, "mailer")["secrets"]) == {"postgres_password", "brevo_api_key"}
+    assert _secrets(_service(compose, "mailer")) == {
+        "postgres_app_password": "postgres_password",
+        "brevo_api_key": "brevo_api_key",
+    }
+
+
+def test_only_migrate_holds_the_database_owner_password(compose: dict[str, Any]) -> None:
+    for name in SERVICES:
+        if name in ("timescale", "migrate"):
+            continue
+        assert "postgres_password" not in _secrets(_service(compose, name)), name
+    migrate = _service(compose, "migrate")
+    assert migrate["environment"]["POSTGRES_USER"] == "dashboard"
+    assert set(_secrets(migrate)) == {"postgres_password", "postgres_app_password"}
+    for name in ("api", "mailer"):
+        assert _service(compose, name)["environment"]["POSTGRES_USER"] == "dashboard_app"
 
 
 @pytest.mark.parametrize("name", SERVICES)
@@ -95,8 +128,12 @@ def test_api_gets_its_secrets_as_files_and_plain_settings_as_env(
     compose: dict[str, Any],
 ) -> None:
     api = _service(compose, "api")
-    expected = {"session_secret", "totp_key", "postgres_password", "redis_dashboard_password"}
-    assert set(api["secrets"]) == expected
+    assert _secrets(api) == {
+        "session_secret": "session_secret",
+        "totp_key": "totp_key",
+        "postgres_app_password": "postgres_password",
+        "redis_dashboard_password": "redis_dashboard_password",
+    }
     env = api["environment"]
     assert env["APP_ENV"] == "production"
     assert env["PUBLIC_HOST"].startswith("${WOLFBET_HOST:?")

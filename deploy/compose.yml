@@ -98,13 +98,14 @@ services:
       PUBLIC_HOST: ${WOLFBET_HOST:?set WOLFBET_HOST in deploy/.env}
       POSTGRES_HOST: timescale
       POSTGRES_DB: dashboard
-      POSTGRES_USER: dashboard
+      POSTGRES_USER: dashboard_app
       REDIS_HOST: redis
       REDIS_USER: dashboard
     secrets:
       - session_secret
       - totp_key
-      - postgres_password
+      - source: postgres_app_password
+        target: postgres_password
       - redis_dashboard_password
     depends_on:
       timescale:
@@ -144,11 +145,12 @@ services:
       APP_ENV: production
       POSTGRES_HOST: timescale
       POSTGRES_DB: dashboard
-      POSTGRES_USER: dashboard
+      POSTGRES_USER: dashboard_app
       MAIL_BACKEND: brevo
       MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM in deploy/.env}
     secrets:
-      - postgres_password
+      - source: postgres_app_password
+        target: postgres_password
       - brevo_api_key
     networks:
       - internal
@@ -162,6 +164,26 @@ services:
       timeout: 3s
       retries: 3
       start_period: 15s
+
+  # One-shot: `docker compose run --rm migrate`. The only container with the owner password.
+  migrate:
+    <<: *app
+    profiles: ["tools"]
+    restart: "no"
+    cpus: 0.5
+    mem_limit: 256m
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      APP_ENV: production
+      POSTGRES_HOST: timescale
+      POSTGRES_DB: dashboard
+      POSTGRES_USER: dashboard
+    secrets:
+      - postgres_password
+      - postgres_app_password
+    depends_on:
+      timescale:
+        condition: service_healthy
 
   caddy:
     <<: *hardening
@@ -220,6 +242,8 @@ secrets:
     file: ./secrets/totp_key.txt
   postgres_password:
     file: ./secrets/postgres_password.txt
+  postgres_app_password:
+    file: ./secrets/postgres_app_password.txt
   redis_publisher_password:
     file: ./secrets/redis_publisher_password.txt
   redis_dashboard_password:

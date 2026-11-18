@@ -22,20 +22,21 @@ _VALID_REQUEST_ID = re.compile(r"[A-Za-z0-9-]{8,64}")
 log = structlog.get_logger("app.request")
 
 
-def _scrub(value: Any) -> Any:
+def scrub(value: Any) -> Any:
+    """Replace the value of every secret-looking key, at any depth."""
     if isinstance(value, Mapping):
         return {
-            key: REDACTED if isinstance(key, str) and _SENSITIVE_KEY.search(key) else _scrub(item)
+            key: REDACTED if isinstance(key, str) and _SENSITIVE_KEY.search(key) else scrub(item)
             for key, item in value.items()
         }
     if isinstance(value, list | tuple):
-        return [_scrub(item) for item in value]
+        return [scrub(item) for item in value]
     return value
 
 
 def redact(_: Any, __: str, event_dict: MutableMapping[str, Any]) -> MutableMapping[str, Any]:
     """structlog processor: replace the value of every secret-looking key, at any depth."""
-    scrubbed: MutableMapping[str, Any] = _scrub(event_dict)
+    scrubbed: MutableMapping[str, Any] = scrub(event_dict)
     return scrubbed
 
 

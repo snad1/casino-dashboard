@@ -8,6 +8,8 @@ from fastapi import FastAPI, status
 from pydantic import BaseModel
 from redis.asyncio import Redis
 
+from app.audit import AuditMiddleware
+from app.audit import router as audit_router
 from app.auth.csrf import CsrfMiddleware
 from app.auth.invites import router as invites_router
 from app.auth.reset import router as reset_router
@@ -58,6 +60,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         CsrfMiddleware, secret=session_secret, allowed_origins=settings.allowed_origins
     )
+    app.add_middleware(AuditMiddleware, sessionmaker=app.state.sessionmaker)
     app.add_middleware(UnhandledErrorMiddleware, expose_detail=settings.exposes_error_detail)
     app.add_middleware(RequestContextMiddleware)
     app.add_middleware(SecurityHeadersMiddleware, public_host=settings.public_host)
@@ -71,5 +74,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(step_up_router)
     app.include_router(invites_router)
     app.include_router(reset_router)
+    app.include_router(audit_router)
 
     return app

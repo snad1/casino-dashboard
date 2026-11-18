@@ -111,6 +111,7 @@ async def login(body: LoginIn, request: Request, response: Response, db: Db) -> 
     enqueue(db, user.email, notice)
     await db.commit()
     set_session_cookie(response, raw)
+    request.state.audit_actor = user
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

@@ -9,6 +9,7 @@ Docker Compose stack for one service's dashboard (WolfBet first), run on the sam
 | `api` | built from `../backend` | 1.0 | 512m | internal | none |
 | `ingest` | built from `../backend` | 0.5 | 256m | internal | none |
 | `mailer` | built from `../backend` | 0.25 | 128m | internal, egress | none |
+| `migrate` | built from `../backend` (one-shot, `tools` profile) | 0.5 | 256m | internal | none |
 | `caddy` | `caddy:2.11.9-alpine` | 0.25 | 128m | internal, edge | `80`, `443` |
 
 Every service runs with `cpu_shares: 256` (the bots keep the default 1024), `no-new-privileges`, a healthcheck and `restart: unless-stopped`. `api`, `ingest` and `mailer` run as uid 10001 on a read-only root filesystem with all capabilities dropped. The `internal` network has no route out; only `mailer` also joins `egress`, so it alone can reach the mail provider, and only it holds the mail key.
@@ -27,7 +28,7 @@ Run from `casino-dashboard/` on the server, as the user that runs Docker.
 
    ```bash
    mkdir -p deploy/secrets && chmod 700 deploy/secrets
-   for s in session_secret totp_key postgres_password redis_publisher_password redis_dashboard_password; do
+   for s in session_secret totp_key postgres_password postgres_app_password redis_publisher_password redis_dashboard_password; do
      openssl rand -base64 36 | tr -d '\n' > deploy/secrets/$s.txt
      chmod 644 deploy/secrets/$s.txt
    done
@@ -43,23 +44,26 @@ Run from `casino-dashboard/` on the server, as the user that runs Docker.
 
    The directory (mode 700, root only) is what keeps the files private on the host. The files themselves are world-readable because compose bind-mounts them unchanged and three different container users read them: Redis (uid 999), the api (uid 10001) and Postgres.
 
-   A missing file stops `docker compose up`. An empty Redis secret makes Redis refuse to start. A missing, short (under 32 bytes) or placeholder `session_secret`, `totp_key`, `postgres_password` or `redis_dashboard_password` makes the api exit; its log names the secret but never prints the value.
+   A missing file stops `docker compose up`. An empty Redis secret makes Redis refuse to start. A missing, short (under 32 bytes) or placeholder `session_secret`, `totp_key`, `postgres_app_password` or `redis_dashboard_password` makes the api exit; its log names the secret but never prints the value.
 
 3. Build the SPA, then start:
 
    ```bash
    (cd frontend && pnpm install --frozen-lockfile && pnpm build)
-   cd deploy && docker compose up -d --build
-   docker compose ps          # all five show (healthy)
+   cd deploy && docker compose build
+   docker compose up -d timescale
+   docker compose run --rm migrate
+   docker compose up -d
+   docker compose ps          # all six show (healthy)
    ```
 
-4. Apply database migrations, on first install and after every deploy that adds one:
+4. Apply database migrations after every pull, before restarting the api:
 
    ```bash
-   docker compose run --rm api alembic upgrade head
+   docker compose run --rm migrate && docker compose up -d
    ```
 
-   Migrations never run on api start, so a failing one cannot crash-loop the api.
+   Migrations never run on api start, so a failing one cannot crash-loop the api. `migrate` is the only container that gets the owner password (`postgres_password`). The api and mailer sign in to Postgres as `dashboard_app`, whose password (`postgres_app_password`) the migration sets; that role may read and write the app tables but only append to `audit_log`.
 
 5. Check: `curl -s https://$WOLFBET_HOST/api/healthz` returns `{"status":"ok"}`.
 

@@ -6,7 +6,9 @@ import secrets
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -20,8 +22,9 @@ from testcontainers.community.postgres import PostgresContainer
 from testcontainers.core.container import DockerContainer
 from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 
-from app.auth.models import Role, User, UserRole
+from app.auth.models import Role, Totp, User, UserRole
 from app.auth.passwords import hash_password
+from app.auth.sessions import current_user
 from app.main import create_app
 from app.settings import Settings, load_settings
 
@@ -88,9 +91,15 @@ def db_settings(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Settings]:
         )
 
 
+APP_ROLE = "dashboard_app"
+# One password per test run; every migration run (re)sets the api role to it.
+APP_ROLE_PASSWORD = secrets.token_urlsafe(48)
+
+
 def alembic_config(settings: Settings) -> Config:
     config = Config(str(ALEMBIC_INI))
     config.attributes["url"] = settings.database_url
+    config.attributes["app_password"] = APP_ROLE_PASSWORD
     config.attributes["configure_logger"] = False
     return config
 
@@ -143,7 +152,7 @@ def _sha256(value: str) -> str:
 def app_settings(
     migrated: Settings, tmp_path_factory: pytest.TempPathFactory
 ) -> Iterator[Settings]:
-    """Migrated Timescale plus a Redis running the deployed ACL, as the api connects to both."""
+    """Migrated Timescale (as the api's own role) plus a Redis running the deployed ACL."""
     dashboard_password = secrets.token_urlsafe(48)
     acl_dir = tmp_path_factory.mktemp("redis-acl")
     (acl_dir / "users.acl").write_text(
@@ -162,13 +171,14 @@ def app_settings(
         directory = tmp_path_factory.mktemp("app-secrets")
         for name in REQUIRED_SECRETS:
             (directory / name).write_text(secrets.token_urlsafe(48))
-        (directory / "postgres_password").write_text(migrated.postgres_password.get_secret_value())
+        (directory / "postgres_password").write_text(APP_ROLE_PASSWORD)
         (directory / "redis_dashboard_password").write_text(dashboard_password)
         yield Settings(
             app_env="testing",
             public_host=PUBLIC_HOST,
             postgres_host=migrated.postgres_host,
             postgres_port=migrated.postgres_port,
+            postgres_user=APP_ROLE,
             redis_host=container.get_container_host_ip(),
             redis_port=int(container.get_exposed_port(6379)),
             _secrets_dir=str(directory),
@@ -223,3 +233,40 @@ def account(app_settings: Settings) -> Iterator[Account]:
         yield created
     finally:
         run_in_session(app_settings, remove)
+
+
+NO_LOGIN = "!"
+
+
+def new_email() -> str:
+    return f"new-{uuid.uuid4().hex[:10]}@example.test"
+
+
+def make_user(settings: Settings, role: Role, *, two_factor: bool) -> User:
+    async def run(session: AsyncSession) -> User:
+        user = User(email=new_email(), password_hash=NO_LOGIN)
+        session.add(user)
+        await session.flush()
+        session.add(UserRole(user_id=user.id, service_id=None, role=role))
+        if two_factor:
+            session.add(Totp(user_id=user.id, secret_ciphertext=b"x", enabled_at=datetime.now(UTC)))
+        await session.commit()
+        return user
+
+    return run_in_session(settings, run)
+
+
+@pytest.fixture
+def as_user(app_settings: Settings) -> Iterator[Any]:
+    """A client whose requests run as a given user, without a sign-in round trip."""
+    clients: list[TestClient] = []
+
+    def make(user: User) -> TestClient:
+        client = make_client(app_settings)
+        client.app.dependency_overrides[current_user] = lambda: user  # type: ignore[attr-defined]
+        clients.append(client.__enter__())
+        return client
+
+    yield make
+    for client in clients:
+        client.__exit__(None, None, None)

@@ -129,4 +129,5 @@ async def current_user(request: Request, db: Annotated[AsyncSession, Depends(get
         await db.commit()
     request.state.session_id = raw
     request.state.api_session = session
+    request.state.audit_actor = user
     return user

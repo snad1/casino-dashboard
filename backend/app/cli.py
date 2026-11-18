@@ -14,6 +14,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit import verify_chain
 from app.auth.models import Role, User, UserRole
 from app.auth.passwords import hash_password, password_problem
 from app.db.engine import create_engine, create_sessionmaker
@@ -65,6 +66,15 @@ async def _create_owner_in_db(email: str, password: str) -> None:
         await engine.dispose()
 
 
+async def _verify_audit() -> int | None:
+    engine = create_engine(load_settings())
+    try:
+        async with create_sessionmaker(engine)() as session:
+            return await verify_chain(session)
+    finally:
+        await engine.dispose()
+
+
 def _valid_email(value: str) -> str:
     local, _, domain = value.strip().rpartition("@")
     if not local or "." not in domain or any(c.isspace() for c in value.strip()):
@@ -77,8 +87,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     owner = commands.add_parser("create-owner", help="create the first owner (once)")
     owner.add_argument("--email", required=True, type=_valid_email)
+    commands.add_parser("verify-audit", help="check the audit log hash chain; exit 1 if broken")
     args = parser.parse_args(argv)
 
+    if args.command == "verify-audit":
+        broken = asyncio.run(_verify_audit())
+        if broken is not None:
+            print(f"Audit log chain broken at id {broken}.", file=sys.stderr)
+            return 1
+        print("Audit log chain intact.")
+        return 0
     try:
         password = read_password(args.email, getpass.getpass)
         asyncio.run(_create_owner_in_db(args.email, password))

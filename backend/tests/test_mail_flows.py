@@ -16,20 +16,18 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from app.auth.invites import EMAIL_TAKEN, INVITE_INVALID
-from app.auth.models import Invite, PasswordReset, Role, Totp, User, UserRole
+from app.auth.models import Invite, PasswordReset, Role, User
 from app.auth.permissions import FORBIDDEN, TWO_FACTOR_NEEDED
 from app.auth.reset import RESET_INVALID, RESET_SENT
-from app.auth.sessions import current_user
 from app.mail import templates
 from app.mail.mailers import BREVO_URL, BrevoApiMailer, MailError, Message, SmtpMailer
 from app.mail.models import DEAD, PENDING, SENT, OutboxMessage
 from app.mail.outbox import enqueue
 from app.mail.worker import MAX_ATTEMPTS, process_once
 from app.settings import Settings
-from tests.conftest import PASSWORD, Account, make_client, run_in_session
+from tests.conftest import PASSWORD, Account, make_client, make_user, new_email, run_in_session
 
 NEW_PASSWORD = "lantern-orbit-" + uuid.uuid4().hex[:12]
-NO_LOGIN = "!"
 TOKEN = re.compile(r"#token=([A-Za-z0-9_-]+)")
 
 
@@ -48,46 +46,12 @@ def _token_sent_to(settings: Settings, to_email: str) -> str:
     return match.group(1)
 
 
-def _new_email() -> str:
-    return f"new-{uuid.uuid4().hex[:10]}@example.test"
-
-
-def _make_user(settings: Settings, role: Role, *, two_factor: bool) -> User:
-    async def run(session: AsyncSession) -> User:
-        user = User(email=_new_email(), password_hash=NO_LOGIN)
-        session.add(user)
-        await session.flush()
-        session.add(UserRole(user_id=user.id, service_id=None, role=role))
-        if two_factor:
-            session.add(Totp(user_id=user.id, secret_ciphertext=b"x", enabled_at=datetime.now(UTC)))
-        await session.commit()
-        return user
-
-    return run_in_session(settings, run)
-
-
-@pytest.fixture
-def as_user(app_settings: Settings) -> Iterator[Any]:
-    """A client whose requests run as a given user, without a sign-in round trip."""
-    clients: list[TestClient] = []
-
-    def make(user: User) -> TestClient:
-        client = make_client(app_settings)
-        client.app.dependency_overrides[current_user] = lambda: user  # type: ignore[attr-defined]
-        clients.append(client.__enter__())
-        return client
-
-    yield make
-    for client in clients:
-        client.__exit__(None, None, None)
-
-
 class TestInvites:
     def test_accepted_invite_sets_password_and_role(
         self, app_settings: Settings, as_user: Any
     ) -> None:
-        admin = _make_user(app_settings, Role.ADMIN, two_factor=True)
-        email = _new_email()
+        admin = make_user(app_settings, Role.ADMIN, two_factor=True)
+        email = new_email()
         response = as_user(admin).post("/auth/invites", json={"email": email, "role": "operator"})
         assert response.status_code == 204
         mail = _outbox(app_settings, email)[-1]
@@ -105,8 +69,8 @@ class TestInvites:
             assert guest.get("/auth/me").json()["roles"] == [{"service": None, "role": "operator"}]
 
     def test_expired_invite_is_refused(self, app_settings: Settings, as_user: Any) -> None:
-        admin = _make_user(app_settings, Role.ADMIN, two_factor=True)
-        email = _new_email()
+        admin = make_user(app_settings, Role.ADMIN, two_factor=True)
+        email = new_email()
         as_user(admin).post("/auth/invites", json={"email": email, "role": "viewer"})
         token = _token_sent_to(app_settings, email)
 
@@ -124,8 +88,8 @@ class TestInvites:
     def test_weak_password_is_refused_and_invite_stays_usable(
         self, app_settings: Settings, as_user: Any
     ) -> None:
-        admin = _make_user(app_settings, Role.ADMIN, two_factor=True)
-        email = _new_email()
+        admin = make_user(app_settings, Role.ADMIN, two_factor=True)
+        email = new_email()
         as_user(admin).post("/auth/invites", json={"email": email, "role": "viewer"})
         token = _token_sent_to(app_settings, email)
         with make_client(app_settings) as guest:
@@ -155,8 +119,8 @@ class TestInvites:
         status: int,
         detail: str | None,
     ) -> None:
-        inviter = _make_user(app_settings, role, two_factor=two_factor)
-        email = _new_email()
+        inviter = make_user(app_settings, role, two_factor=two_factor)
+        email = new_email()
         response = as_user(inviter).post("/auth/invites", json={"email": email, **body})
         assert response.status_code == status
         if detail:
@@ -166,7 +130,7 @@ class TestInvites:
     def test_existing_account_is_refused(
         self, app_settings: Settings, as_user: Any, account: Account
     ) -> None:
-        admin = _make_user(app_settings, Role.ADMIN, two_factor=True)
+        admin = make_user(app_settings, Role.ADMIN, two_factor=True)
         response = as_user(admin).post(
             "/auth/invites", json={"email": account.email.upper(), "role": "viewer"}
         )
@@ -294,7 +258,7 @@ class TestWorker:
     def test_sent_mail_loses_its_body(
         self, app_settings: Settings, worker_db: async_sessionmaker[AsyncSession]
     ) -> None:
-        email = _new_email()
+        email = new_email()
         _queue(app_settings, email)
         mailer = FakeMailer()
         assert _pass(worker_db, mailer) is True
@@ -307,7 +271,7 @@ class TestWorker:
     def test_failure_backs_off_then_goes_dead(
         self, app_settings: Settings, worker_db: async_sessionmaker[AsyncSession]
     ) -> None:
-        email = _new_email()
+        email = new_email()
         _queue(app_settings, email)
         assert _pass(worker_db, FakeMailer(fail=True)) is True
         row = _outbox(app_settings, email)[0]

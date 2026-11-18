@@ -11,7 +11,8 @@ Assets: the casino `api_key` and bot config on the host, control over the bots (
 | Spoofing | Stolen or forged session | Random session id in a `__Host-` httpOnly Secure SameSite=Strict cookie, only its sha256 stored; owner and admin view-only until TOTP is on; a fresh code for risky actions | Done |
 | Tampering | Cross-site state change | CSRF token on every state-changing request; CORS off; same-origin SPA | Planned (auth) |
 | Tampering | Injected script in the SPA | CSP without inline script in Caddy and the api; Svelte escaping, no `{@html}` on API data | Done |
-| Repudiation | A control action nobody can trace | Audit log per action with user and request id; `X-Request-ID` on every response and log line | Request id done; audit log planned |
+| Repudiation | A control action nobody can trace | Every state-changing request writes a hash-chained `audit_log` row (actor, roles, action, redacted body, result, IP, request id); `X-Request-ID` on every response and log line; `python -m app.cli verify-audit` checks the chain | Done for HTTP; control, terminal, WebSocket and agent layers call the same recorder when they land |
+| Tampering | History rewritten after an incident | The api runs as `dashboard_app` with only INSERT and SELECT on `audit_log`; a trigger refuses UPDATE, DELETE and TRUNCATE for every role; only the one-shot `migrate` container holds the owner password | Done |
 | Information disclosure | Errors leak internals | Generic 500 and 422 bodies outside local/development/testing; full exception only in logs | Done |
 | Information disclosure | Secrets in logs | Redaction of secret, token, password, api_key, cookie and authorization keys at any depth; paths logged without query strings; uvicorn access log off | Done |
 | Information disclosure | Traffic sniffing or downgrade | TLS by Caddy, HSTS one year, `-Server` header | Done |

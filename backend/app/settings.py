@@ -32,6 +32,7 @@ SECRET_FIELDS = frozenset(
     {
         "session_secret",
         "totp_key",
+        "postgres_app_password",
         "postgres_password",
         "redis_dashboard_password",
         "agent_token",
@@ -43,7 +44,14 @@ SECRET_FIELDS = frozenset(
 )
 # Secrets we generate ourselves; third-party tokens have their own formats and lengths.
 GENERATED_SECRETS = frozenset(
-    {"session_secret", "totp_key", "postgres_password", "redis_dashboard_password", "agent_token"}
+    {
+        "session_secret",
+        "totp_key",
+        "postgres_password",
+        "postgres_app_password",
+        "redis_dashboard_password",
+        "agent_token",
+    }
 )
 DETAIL_ENVS = frozenset({"local", "development", "testing"})
 
@@ -128,6 +136,12 @@ class DatabaseSettings(_SecretFileSettings):
             f"postgresql+asyncpg://{quote(self.postgres_user, safe='')}:{password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
+
+
+class MigrationSettings(DatabaseSettings):
+    """Migrations run as the table owner and set the password of the api's own role."""
+
+    postgres_app_password: SecretStr | None = None
 
 
 class Settings(DatabaseSettings):
@@ -223,3 +237,7 @@ def load_settings() -> Settings:
 
 def load_mailer_settings() -> MailerSettings:
     return MailerSettings(_secrets_dir=os.environ.get("SECRETS_DIR", DEFAULT_SECRETS_DIR))
+
+
+def load_migration_settings() -> MigrationSettings:
+    return MigrationSettings(_secrets_dir=os.environ.get("SECRETS_DIR", DEFAULT_SECRETS_DIR))
