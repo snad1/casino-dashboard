@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from redis.asyncio import Redis
 
 from app.auth.csrf import CsrfMiddleware
+from app.auth.invites import router as invites_router
+from app.auth.reset import router as reset_router
 from app.auth.routes import router as auth_router
 from app.auth.stepup import install_step_handler
 from app.auth.stepup import router as step_up_router
@@ -49,6 +51,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.redis = redis
     app.state.session_secret = session_secret
     app.state.totp_key = settings.totp_key.get_secret_value()
+    app.state.public_origin = settings.public_origin
     install_error_handlers(app, settings.exposes_error_detail)
     install_step_handler(app)
     # Added innermost first: headers wrap everything, including the generic 500.
@@ -66,5 +69,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(totp_router)
     app.include_router(step_up_router)
+    app.include_router(invites_router)
+    app.include_router(reset_router)
 
     return app

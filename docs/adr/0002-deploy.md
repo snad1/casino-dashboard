@@ -13,11 +13,11 @@ The dashboard runs on the same VPS as the bots. It must not take CPU or IO the b
 
 **Image for Postgres.** `timescale/timescaledb:<version>-pg16`, not `timescaledb-ha`. The plain image uses the official postgres entrypoint, which reads `POSTGRES_PASSWORD_FILE` from a Docker secret; the HA image does not read password files, and its replication tooling has no use on one host.
 
-**Networks.** `internal` (`internal: true`) joins every service and has no route out. `edge` gives Caddy its public ports. `hostlink` exists only so Redis can publish `127.0.0.1:6379` for the bot daemon, which runs on the host outside Compose. Nothing else publishes a port.
+**Networks.** `internal` (`internal: true`) joins every service and has no route out. `edge` gives Caddy its public ports. `hostlink` exists only so Redis can publish `127.0.0.1:6379` for the bot daemon, which runs on the host outside Compose. `egress` is joined only by `mailer`, the one process that sends mail; the api writes an outbox table and never reaches the internet itself. Nothing else publishes a port.
 
-**Resource caps.** Every container has `cpu_shares: 256` against the bots' default 1024, plus hard `cpus` and `mem_limit`: timescale 1.0/1g (shared_buffers 256MB), api 1.0/512m, ingest 0.5/256m, redis 0.25/320m (maxmemory 256mb), caddy 0.25/128m.
+**Resource caps.** Every container has `cpu_shares: 256` against the bots' default 1024, plus hard `cpus` and `mem_limit`: timescale 1.0/1g (shared_buffers 256MB), api 1.0/512m, ingest 0.5/256m, mailer 0.25/128m, redis 0.25/320m (maxmemory 256mb), caddy 0.25/128m.
 
-**Container hardening.** `no-new-privileges` everywhere. `api` and `ingest` run as uid 10001, read-only root filesystem, `/tmp` on tmpfs, all capabilities dropped. Redis and Caddy are read-only too; Caddy keeps only `NET_BIND_SERVICE`.
+**Container hardening.** `no-new-privileges` everywhere. `api`, `ingest` and `mailer` run as uid 10001, read-only root filesystem, `/tmp` on tmpfs, all capabilities dropped. Redis and Caddy are read-only too; Caddy keeps only `NET_BIND_SERVICE`.
 
 **Secrets.** Three files under `deploy/secrets/` (git-ignored, mode 600), passed as Compose secrets. Postgres reads its file directly. Redis passwords never appear in clear: an entrypoint hashes each secret into the ACL file under `/tmp` and refuses to start when a secret is empty.
 

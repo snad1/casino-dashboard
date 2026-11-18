@@ -60,7 +60,8 @@ Assets: the casino `api_key` and bot config on the host, control over the bots (
 | STRIDE | Threat | Control | Status |
 |---|---|---|---|
 | Information disclosure | Provider keys leak | Keys only from files in `/run/secrets`, never from the environment; placeholder and weak values refused at startup; redacted in logs | Done |
-| Spoofing | Lookalike provider endpoint | Fixed HTTPS endpoints with certificate verification | Planned (email, alerts) |
+| Spoofing | Lookalike provider endpoint | Fixed HTTPS endpoints with certificate verification; SMTP only over STARTTLS with a verified certificate | Done (email); planned (alerts) |
+| Information disclosure | The internet-facing api leaks data outward or is used for SSRF | The api has no route out; only `mailer` joins `egress` and holds the mail key; mail bodies (one-time links) are cleared once sent or dead | Done |
 
 ## Service secrets
 

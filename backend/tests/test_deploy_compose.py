@@ -8,12 +8,13 @@ import pytest
 import yaml
 
 DEPLOY = Path(__file__).resolve().parents[2] / "deploy"
-SERVICES = ("timescale", "redis", "api", "ingest", "caddy")
+SERVICES = ("timescale", "redis", "api", "ingest", "mailer", "caddy")
 CAPS = {
     "timescale": (1.0, "1g"),
     "redis": (0.25, "320m"),
     "api": (1.0, "512m"),
     "ingest": (0.5, "256m"),
+    "mailer": (0.25, "128m"),
     "caddy": (0.25, "128m"),
 }
 SECRET_WORDS = re.compile(r"PASSWORD|SECRET|TOKEN|KEY", re.IGNORECASE)
@@ -46,7 +47,7 @@ def test_every_service_is_capped_and_hardened(compose: dict[str, Any], name: str
     assert "test" in service["healthcheck"]
 
 
-@pytest.mark.parametrize("name", ["api", "ingest"])
+@pytest.mark.parametrize("name", ["api", "ingest", "mailer"])
 def test_app_containers_are_locked_down(compose: dict[str, Any], name: str) -> None:
     service = _service(compose, name)
     assert service["read_only"] is True
@@ -54,7 +55,7 @@ def test_app_containers_are_locked_down(compose: dict[str, Any], name: str) -> N
     assert "cap_add" not in service
     assert any(t.startswith("/tmp") for t in service["tmpfs"])  # noqa: S108
     assert not str(service["user"]).startswith("0")
-    assert service["networks"] == ["internal"]
+    assert service["networks"] == (["internal", "egress"] if name == "mailer" else ["internal"])
 
 
 def test_only_caddy_is_public(compose: dict[str, Any]) -> None:
@@ -70,6 +71,16 @@ def test_internal_network_has_no_route_out(compose: dict[str, Any]) -> None:
     assert compose["networks"]["internal"]["internal"] is True
     for name in ("timescale", "api", "ingest"):
         assert "edge" not in _service(compose, name)["networks"]
+
+
+def test_only_the_mailer_reaches_out_and_holds_the_mail_key(compose: dict[str, Any]) -> None:
+    for name in SERVICES:
+        service = _service(compose, name)
+        has_egress = "egress" in service.get("networks", [])
+        has_key = "brevo_api_key" in service.get("secrets", [])
+        assert has_egress == (name == "mailer"), name
+        assert has_key == (name == "mailer"), name
+    assert set(_service(compose, "mailer")["secrets"]) == {"postgres_password", "brevo_api_key"}
 
 
 @pytest.mark.parametrize("name", SERVICES)

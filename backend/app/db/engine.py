@@ -6,10 +6,10 @@ from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine as _create_async_engine
 
-from app.settings import Settings
+from app.settings import DatabaseSettings
 
 
-def create_engine(settings: Settings) -> AsyncEngine:
+def create_engine(settings: DatabaseSettings) -> AsyncEngine:
     """Build the pooled engine; it connects lazily, on the first query."""
     return _create_async_engine(
         settings.database_url,

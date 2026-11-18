@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.settings import load_settings
+from app.settings import load_mailer_settings, load_settings
 from tests.conftest import PUBLIC_HOST, REQUIRED_SECRETS
 
 STRONG = "Zq3v-Lk9P_x2RtY7mWb4NcH8sJd6Fa1Ge5Uo0Ii"
@@ -65,9 +65,40 @@ def test_optional_secret_is_checked_when_set(secrets_dir: Path) -> None:
     _fails_naming("telegram_bot_token", "changeme")
 
 
-def test_optional_third_party_token_has_no_length_floor(secrets_dir: Path) -> None:
+def _mailer_env(monkeypatch: pytest.MonkeyPatch, backend: str) -> None:
+    monkeypatch.setenv("MAIL_BACKEND", backend)
+    monkeypatch.setenv("MAIL_FROM", "no-reply@example.test")
+
+
+def test_third_party_mail_key_has_no_length_floor(
+    secrets_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     (secrets_dir / "brevo_api_key").write_text("xkeysib-9f8e7d6c5b4a")
-    assert load_settings().brevo_api_key is not None
+    _mailer_env(monkeypatch, "brevo")
+    assert load_mailer_settings().brevo_api_key is not None
+
+
+def test_the_api_never_loads_mail_credentials(secrets_dir: Path) -> None:
+    (secrets_dir / "brevo_api_key").write_text("xkeysib-9f8e7d6c5b4a")
+    assert not hasattr(load_settings(), "brevo_api_key")
+
+
+@pytest.mark.parametrize(("backend", "field"), [("brevo", "brevo_api_key"), ("smtp", "smtp_host")])
+def test_mailer_refuses_a_half_configured_backend(
+    secrets_dir: Path, monkeypatch: pytest.MonkeyPatch, backend: str, field: str
+) -> None:
+    _mailer_env(monkeypatch, backend)
+    with pytest.raises(ValidationError, match=field):
+        load_mailer_settings()
+
+
+def test_mail_key_comes_only_from_a_file(
+    secrets_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _mailer_env(monkeypatch, "brevo")
+    monkeypatch.setenv("BREVO_API_KEY", "xkeysib-from-the-environment")
+    with pytest.raises(ValidationError, match="brevo_api_key"):
+        load_mailer_settings()
 
 
 @pytest.mark.parametrize("host", ["https://dash.example.test", "dash.test/x", "a b", "h\r\nX: y"])

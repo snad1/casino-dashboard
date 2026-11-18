@@ -11,7 +11,8 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
-import app.auth.models  # noqa: F401  # registers the auth tables on Base.metadata
+import app.auth.models  # registers the auth tables on Base.metadata
+import app.mail.models  # noqa: F401  # registers the outbox on Base.metadata
 from app.db.models import Base
 from app.settings import Settings
 from tests.conftest import alembic_config

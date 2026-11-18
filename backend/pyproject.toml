@@ -17,6 +17,7 @@ dependencies = [
     "structlog>=26.1.0",
     "zxcvbn>=4.5.0",
     "cryptography>=50.0.2",
+    "httpx2>=2.16.0",
 ]
 
 [dependency-groups]
@@ -24,7 +25,6 @@ dev = [
     "pytest>=9.2.0",
     "pytest-asyncio>=1.5.0",
     "hypothesis>=6.170.15",
-    "httpx2>=2.16.0",
     "ruff>=0.17.5",
     "mypy>=2.4.1",
     "pyyaml>=6.0.3",

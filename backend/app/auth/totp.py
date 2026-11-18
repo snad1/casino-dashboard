@@ -29,6 +29,8 @@ from app.auth.passwords import verify_password
 from app.auth.ratelimit import check_code_rate
 from app.auth.sessions import current_user, new_session, revoke, set_session_cookie
 from app.db.engine import get_session
+from app.mail import templates
+from app.mail.outbox import enqueue
 
 ISSUER = "Casino dashboard"
 STEP_SECONDS = 30
@@ -189,6 +191,7 @@ async def verify(
     await revoke(db, request.state.session_id)
     ip = request.client.host if request.client else None
     raw = await new_session(db, user.id, ip, request.headers.get("user-agent"), stepped_up=True)
+    enqueue(db, user.email, templates.two_factor_changed(enabled=True))
     await db.commit()
     set_session_cookie(response, raw)
     return RecoveryCodes(recovery_codes=codes)
@@ -204,4 +207,5 @@ async def disable(body: DisableIn, user: CurrentUser, request: Request, db: Db) 
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, DISABLE_REFUSED)
     await db.execute(delete(RecoveryCode).where(RecoveryCode.user_id == user.id))
     await db.execute(delete(Totp).where(Totp.user_id == user.id))
+    enqueue(db, user.email, templates.two_factor_changed(enabled=False))
     await db.commit()

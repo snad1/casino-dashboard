@@ -8,9 +8,10 @@ Docker Compose stack for one service's dashboard (WolfBet first), run on the sam
 | `redis` | `redis:7.4.12-alpine` | 0.25 | 320m | internal, hostlink | `127.0.0.1:6379` (for the bot daemon) |
 | `api` | built from `../backend` | 1.0 | 512m | internal | none |
 | `ingest` | built from `../backend` | 0.5 | 256m | internal | none |
+| `mailer` | built from `../backend` | 0.25 | 128m | internal, egress | none |
 | `caddy` | `caddy:2.11.9-alpine` | 0.25 | 128m | internal, edge | `80`, `443` |
 
-Every service runs with `cpu_shares: 256` (the bots keep the default 1024), `no-new-privileges`, a healthcheck and `restart: unless-stopped`. `api` and `ingest` run as uid 10001 on a read-only root filesystem with all capabilities dropped. The `internal` network has no route out.
+Every service runs with `cpu_shares: 256` (the bots keep the default 1024), `no-new-privileges`, a healthcheck and `restart: unless-stopped`. `api`, `ingest` and `mailer` run as uid 10001 on a read-only root filesystem with all capabilities dropped. The `internal` network has no route out; only `mailer` also joins `egress`, so it alone can reach the mail provider, and only it holds the mail key.
 
 ## Install
 
@@ -19,7 +20,7 @@ Run from `casino-dashboard/` on the server, as the user that runs Docker.
 1. Configuration:
 
    ```bash
-   cp deploy/env.example deploy/.env      # set WOLFBET_HOST and BOT_DATA_DIR
+   cp deploy/env.example deploy/.env      # set WOLFBET_HOST, BOT_DATA_DIR and MAIL_FROM
    ```
 
 2. Secrets, one value per file, never in `.env` or `compose.yml`:
@@ -31,6 +32,14 @@ Run from `casino-dashboard/` on the server, as the user that runs Docker.
      chmod 644 deploy/secrets/$s.txt
    done
    ```
+
+   The Brevo key comes from Brevo (SMTP & API, API keys), not from `openssl`:
+
+   ```bash
+   (umask 022; printf '%s' 'xkeysib-...' > deploy/secrets/brevo_api_key.txt)
+   ```
+
+   To send through an SMTP relay instead, set `MAIL_BACKEND: smtp` plus `SMTP_HOST`, `SMTP_PORT` and `SMTP_USER` on `mailer`, and give it an `smtp_password` secret in place of `brevo_api_key`. The relay must offer STARTTLS; the mailer refuses to send without it.
 
    The directory (mode 700, root only) is what keeps the files private on the host. The files themselves are world-readable because compose bind-mounts them unchanged and three different container users read them: Redis (uid 999), the api (uid 10001) and Postgres.
 

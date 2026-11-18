@@ -12,9 +12,11 @@ from redis.exceptions import RedisError
 ACCOUNT_LIMIT = 5
 IP_LIMIT = 20
 CODE_LIMIT = 5
+RESET_ACCOUNT_LIMIT = 3
 WINDOW_MS = 60_000
 TOO_MANY = "Too many sign-in attempts. Wait a minute and try again."
 TOO_MANY_CODES = "Too many codes tried. Wait a minute and try again."
+TOO_MANY_RESETS = "Too many reset requests. Wait a minute and try again."
 UNAVAILABLE = "Sign-in is temporarily unavailable. Try again shortly."
 
 log = structlog.get_logger("app.auth.ratelimit")
@@ -50,6 +52,17 @@ async def check_login_rate(redis: Redis, email: str, ip: str | None) -> None:
     ]
     if await _over(redis, limits):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, TOO_MANY)
+
+
+async def check_reset_rate(redis: Redis, email: str, ip: str | None) -> None:
+    """Reset requests count apart from sign-in, so asking for a link never locks anyone out."""
+    account = hashlib.sha256(email.strip().lower().encode()).hexdigest()
+    limits = [
+        (f"auth:rl:reset:acct:{account}", RESET_ACCOUNT_LIMIT),
+        (f"auth:rl:reset:ip:{ip or 'unknown'}", IP_LIMIT),
+    ]
+    if await _over(redis, limits):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, TOO_MANY_RESETS)
 
 
 async def check_code_rate(redis: Redis, user_id: int) -> None:
