@@ -15,6 +15,7 @@ dependencies = [
     "argon2-cffi>=25.1.0",
     "pyotp>=2.11.2",
     "structlog>=26.1.0",
+    "zxcvbn>=4.5.0",
 ]
 
 [dependency-groups]
@@ -28,6 +29,7 @@ dev = [
     "pyyaml>=6.0.3",
     "types-pyyaml>=6.0.12.20261113",
     "testcontainers[postgres]>=4.15.0",
+    "types-zxcvbn>=4.5.0.20260518",
 ]
 
 [tool.uv]

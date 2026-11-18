@@ -11,6 +11,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
+import app.auth.models  # noqa: F401  # registers the auth tables on Base.metadata
 from app.db.models import Base
 from app.settings import Settings
 from tests.conftest import alembic_config
@@ -71,3 +72,24 @@ def test_round_trip_down_and_up(migrated: Settings) -> None:
 
 def test_models_match_migrations(migrated: Settings) -> None:
     assert _on_connection(migrated, _drift) == []
+
+
+AUTH_TABLES = {
+    "users",
+    "user_roles",
+    "api_sessions",
+    "invites",
+    "password_resets",
+    "totp",
+    "recovery_codes",
+}
+
+
+def test_auth_round_trip_keeps_services(migrated: Settings) -> None:
+    config = alembic_config(migrated)
+    command.downgrade(config, "0001")
+    tables = _on_connection(migrated, _tables)
+    assert "services" in tables
+    assert not AUTH_TABLES & tables
+    command.upgrade(config, "head")
+    assert AUTH_TABLES <= _on_connection(migrated, _tables)
