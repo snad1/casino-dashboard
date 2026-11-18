@@ -24,6 +24,8 @@ from agent import __version__
 from agent.config import AgentConfig
 from agent.peercred import peer_credentials
 from agent.protocol import PROTO_VERSION, Error, ErrorCode, Request, Response, verify_mac
+from agent.runner import CommandTimeout
+from agent.validators import InvalidArgs
 
 log = logging.getLogger("casino-agent")
 
@@ -162,6 +164,12 @@ class AgentServer:
             return _error(request.id, "unknown_command")
         try:
             data = await handler(dict(request.args))
+        except InvalidArgs as e:
+            log.warning("refused %s (id=%s, uid=%d): %s", request.cmd, request.id, uid, e)
+            return _error(request.id, "bad_request")
+        except CommandTimeout as e:
+            log.warning("command %s timed out (id=%s): %s", request.cmd, request.id, e)
+            return _error(request.id, "timeout")
         except Exception:
             log.exception("command %s failed (id=%s)", request.cmd, request.id)
             return _error(request.id, "internal")

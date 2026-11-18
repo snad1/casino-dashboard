@@ -21,7 +21,8 @@ RuntimeDirectoryMode=0750
 StateDirectory=casino-agent
 UMask=0007
 ProtectSystem=strict
-ReadWritePaths=%S/casino-agent
+# wolfctl and wolfbet.py write the bots' config, state and DB under HOME.
+ReadWritePaths=%S/casino-agent %h
 NoNewPrivileges=yes
 PrivateTmp=yes
 

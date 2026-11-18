@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "agent-proto-v1.json",
   "title": "Dashboard api <-> host agent, protocol version 1",
-  "description": "JSON lines over the agent's unix socket (mode 0660, group casino-agent). The agent first checks the peer's uid/gid against its allowlist. Each request line is at most 65536 bytes; mac is HMAC-SHA256 with the shared agent token over the canonical JSON of the other request fields (sorted keys, separators ',' and ':', ASCII escapes); ts is epoch milliseconds and must be within 30 s of the agent's clock; each id is accepted once. A connection idle for 5 s is closed. Failures carry only a generic code, and the agent closes the connection after bad_request, unauthorized, replayed, too_large and busy.",
+  "description": "JSON lines over the agent's unix socket (mode 0660, group casino-agent). The agent first checks the peer's uid/gid against its allowlist. Each request line is at most 65536 bytes; mac is HMAC-SHA256 with the shared agent token over the canonical JSON of the other request fields (sorted keys, separators ',' and ':', ASCII escapes); ts is epoch milliseconds and must be within 30 s of the agent's clock; each id is accepted once. A connection idle for 5 s is closed. A command that runs past its timeout is killed and answered with timeout. Failures carry only a generic code, and the agent closes the connection after bad_request, unauthorized, replayed, too_large and busy.",
   "oneOf": [
     {
       "$ref": "#/$defs/request"
@@ -87,6 +87,7 @@
                 "too_large",
                 "unknown_command",
                 "busy",
+                "timeout",
                 "internal"
               ]
             }

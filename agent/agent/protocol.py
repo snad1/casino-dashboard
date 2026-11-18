@@ -15,7 +15,14 @@ from pydantic import BaseModel, ConfigDict, Field
 PROTO_VERSION = 1
 
 ErrorCode = Literal[
-    "bad_request", "unauthorized", "replayed", "too_large", "unknown_command", "busy", "internal"
+    "bad_request",
+    "unauthorized",
+    "replayed",
+    "too_large",
+    "unknown_command",
+    "busy",
+    "timeout",
+    "internal",
 ]
 
 

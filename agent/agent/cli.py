@@ -13,7 +13,8 @@ from typing import Any
 from agent import __version__
 from agent.config import AgentConfig, ConfigError, load_config
 from agent.protocol import PROTO_VERSION, signed_request
-from agent.server import AgentServer
+from agent.server import DEFAULT_HANDLERS, AgentServer
+from agent.services.wolfbet import WolfBetPaths, WolfBetService
 
 
 def call(
@@ -48,7 +49,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "serve":
         logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
         try:
-            asyncio.run(AgentServer(config).serve_forever())
+            service = WolfBetService(WolfBetPaths.from_env())
+            handlers = {**DEFAULT_HANDLERS, **service.handlers()}
+            asyncio.run(AgentServer(config, handlers=handlers).serve_forever())
         except KeyboardInterrupt:
             return 0
         return 0
