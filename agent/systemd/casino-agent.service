@@ -1,0 +1,29 @@
+# Installed by agent/install.sh, which fills in @AGENT_DIR@.
+[Unit]
+Description=Casino dashboard host agent (allowlisted commands for the dashboard api)
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=@AGENT_DIR@
+ExecStart=@AGENT_DIR@/.venv/bin/python -m agent serve
+EnvironmentFile=%h/.config/casino-agent/agent.env
+Restart=on-failure
+RestartSec=5
+
+# The bots keep the CPU and disk: they run at Nice=-5 with weight 1024.
+Nice=10
+IOSchedulingClass=idle
+CPUWeight=20
+
+RuntimeDirectory=casino-agent
+RuntimeDirectoryMode=0750
+StateDirectory=casino-agent
+UMask=0007
+ProtectSystem=strict
+ReadWritePaths=%S/casino-agent
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent-proto-v1.json",
+  "title": "Dashboard api <-> host agent, protocol version 1",
+  "description": "JSON lines over the agent's unix socket (mode 0660, group casino-agent). The agent first checks the peer's uid/gid against its allowlist. Each request line is at most 65536 bytes; mac is HMAC-SHA256 with the shared agent token over the canonical JSON of the other request fields (sorted keys, separators ',' and ':', ASCII escapes); ts is epoch milliseconds and must be within 30 s of the agent's clock; each id is accepted once. A connection idle for 5 s is closed. Failures carry only a generic code, and the agent closes the connection after bad_request, unauthorized, replayed, too_large and busy.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/response"
+    }
+  ],
+  "$defs": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proto",
+        "id",
+        "cmd",
+        "ts",
+        "mac"
+      ],
+      "properties": {
+        "proto": {
+          "const": 1
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "cmd": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_.]*$"
+        },
+        "args": {
+          "type": "object"
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mac": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "ok"
+      ],
+      "properties": {
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The request's id; null when the request could not be read."
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "data": {
+          "type": "object",
+          "description": "ping: {pong: true}; version: {agent, proto}."
+        },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code"
+          ],
+          "properties": {
+            "code": {
+              "enum": [
+                "bad_request",
+                "unauthorized",
+                "replayed",
+                "too_large",
+                "unknown_command",
+                "busy",
+                "internal"
+              ]
+            }
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "ok": {
+              "const": true
+            }
+          },
+          "required": [
+            "data"
+          ],
+          "not": {
+            "required": [
+              "error"
+            ]
+          }
+        },
+        {
+          "properties": {
+            "ok": {
+              "const": false
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "not": {
+            "required": [
+              "data"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

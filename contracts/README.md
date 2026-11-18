@@ -13,5 +13,6 @@ Rules:
 - `wolfbet.py <read command> --json` prints one document per `schemas/wolfbet-cli-<command>-v1.json` (`status`, `lanes-status`, `config-show`, `stats`, `analytics`, `last-bets`, `session-bets`); each carries `v`, and an empty or failed state is `{"v": 1, "error": {"code", "message"}}`.
 - `wolfbet.py --config-schema` follows `schemas/wolfbet-cli-config-schema-v1.json`; `wolfbet.py --dry-run --json --config-set KEY=VALUE ...` follows `schemas/wolfbet-cli-config-dry-run-v1.json`.
 - `wolfbet.py --export ... --json` and `--backtest ... --json` follow `schemas/wolfbet-cli-export-v1.json` and `schemas/wolfbet-cli-backtest-v1.json`; a long backtest writes `schemas/wolfbet-cli-progress-v1.json` lines to stderr.
+- The api talks to the host agent in JSON lines per `schemas/agent-proto-v1.json`: signed requests (`mac`, `ts`, one-time `id`) from an allowlisted uid/gid, generic error codes back.
 - A schema change bumps its version; consumers accept the versions they know and reject the rest.
 - The bot repos copy a fixture into their own tests together with its SHA-256, so a change on either side without the other fails a test.
