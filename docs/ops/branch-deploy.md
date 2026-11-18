@@ -8,21 +8,12 @@ Run on the test server, in the bot's repo checkout (`~/wolfbet` for WolfBet):
 
 ```bash
 cd ~/wolfbet
-git status --short                 # must be empty; stop and inspect if it is not
-git fetch origin
-git switch -c feat/casino-dashboard --track origin/feat/casino-dashboard
-git pull --ff-only
-```
-
-Then refresh the install and restart:
-
-```bash
-wolfctl update
-wolfctl status
+wolfctl update --branch feat/casino-dashboard
+wolfctl status                     # "Code: feat/casino-dashboard @ <sha>, N ahead of origin/main"
 wolfctl web status
 ```
 
-`wolfctl update` pulls the branch the checkout is on, copies the files into `~/wolfbet-bot`, reinstalls dependencies (including `casino-shared` from its `feat/casino-dashboard` ref) and restarts the running units.
+`wolfctl update --branch` refuses a checkout with local changes (exit 4, and it lists them), then fetches `origin`, switches to the branch (creating it to track `origin/feat/casino-dashboard` the first time) and fast-forwards. It never resets or forces. It then runs the normal update: copies the files into `~/wolfbet-bot`, reinstalls dependencies (including `casino-shared` from its `feat/casino-dashboard` ref) and restarts the running units.
 
 ## First switch: required web credentials
 
@@ -38,12 +29,12 @@ A database that was created with the old default password is repaired on the nex
 ## Everyday loop on the branch
 
 ```bash
-cd ~/wolfbet && git pull --ff-only && wolfctl update
+cd ~/wolfbet && wolfctl update
 ```
 
 ## If the branch was rewritten
 
-A force-push (a rebase onto `main`, or history cleanup) leaves a checkout that is already on the branch unable to `git pull --ff-only`, because its local commits are no longer in the remote. Reset it once:
+A force-push (a rebase onto `main`, or history cleanup) leaves a checkout that is already on the branch unable to `git pull --ff-only`, because its local commits are no longer in the remote; `wolfctl update --branch` then stops with exit 1 and leaves the checkout as it was. Reset it once, by hand:
 
 ```bash
 cd ~/wolfbet
@@ -59,9 +50,7 @@ wolfctl update
 
 ```bash
 cd ~/wolfbet
-git switch main
-git pull --ff-only
-wolfctl update
+wolfctl update --branch main
 ```
 
 ## Live server
