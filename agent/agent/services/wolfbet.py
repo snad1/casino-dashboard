@@ -16,6 +16,7 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
+from agent.errors import Busy
 from agent.runner import STDERR_TAIL, STDOUT_TAIL, RunResult, run, tail
 from agent.validators import (
     Args,
@@ -369,24 +370,69 @@ def result_data(spec: CommandSpec, result: RunResult) -> dict[str, Any]:
     return data
 
 
+@dataclass(frozen=True)
+class Prepared:
+    """A validated command ready to run: its argv and how to run it."""
+
+    name: str
+    args: dict[str, Any]
+    argv: list[str]
+    timeout_s: float
+    cwd: Path | None
+    mutating: bool
+
+
+def _never_busy() -> bool:
+    return False
+
+
 @dataclass
 class WolfBetService:
-    """Runs WolfBet commands for the agent; keeps the config schema between calls."""
+    """Runs WolfBet commands for the agent; keeps the config schema between calls.
+
+    `busy` tells whether a mutating job runs for WolfBet; a direct mutating command
+    is then refused with Busy, so it cannot interleave with an update or a restart.
+    """
 
     paths: WolfBetPaths
     runner: Runner = run
+    busy: Callable[[], bool] = _never_busy
     _schema: dict[str, Any] | None = field(default=None, repr=False)
 
-    async def run_command(self, name: str, raw_args: dict[str, Any]) -> dict[str, Any]:
-        spec = COMMANDS[name]
+    def long_running(self, name: str) -> bool:
+        return name in COMMANDS and COMMANDS[name].long_running
+
+    def prepare(self, name: str, raw_args: dict[str, Any]) -> Prepared:
+        """Validate `raw_args` for command `name`; raises InvalidArgs (unknown name included)."""
+        spec = COMMANDS.get(name)
+        if spec is None:
+            raise InvalidArgs("unknown wolfbet command")
         args = parse_args(spec.args, raw_args)
-        argv = spec.build(args, self.paths)
-        result = await self.runner(
-            argv, spec.timeout_s, cwd=self.paths.repo if spec.cwd_repo else None
+        return Prepared(
+            name=name,
+            args=args.model_dump(mode="json"),
+            argv=spec.build(args, self.paths),
+            timeout_s=spec.timeout_s,
+            cwd=self.paths.repo if spec.cwd_repo else None,
+            mutating=spec.mutating,
         )
-        if spec.clears_schema:
+
+    def after_job(self, name: str) -> None:
+        """Forget what a finished command may have changed (the config schema after update)."""
+        if COMMANDS[name].clears_schema:
             self._schema = None
-        return result_data(spec, result)
+
+    def _refuse_while_busy(self) -> None:
+        if self.busy():
+            raise Busy("a mutating WolfBet job is running")
+
+    async def run_command(self, name: str, raw_args: dict[str, Any]) -> dict[str, Any]:
+        prepared = self.prepare(name, raw_args)
+        if prepared.mutating:
+            self._refuse_while_busy()
+        result = await self.runner(prepared.argv, prepared.timeout_s, cwd=prepared.cwd)
+        self.after_job(name)
+        return result_data(COMMANDS[name], result)
 
     async def schema(self) -> dict[str, Any]:
         if self._schema is None:
@@ -409,6 +455,7 @@ class WolfBetService:
         return result_data(_CONFIG_SPEC, await self.runner(argv, _CONFIG_SPEC.timeout_s))
 
     async def config_set(self, raw_args: dict[str, Any]) -> dict[str, Any]:
+        self._refuse_while_busy()
         pairs = await self.config_pairs(raw_args)
         dry = result_data(
             _CONFIG_SPEC,

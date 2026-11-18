@@ -3,12 +3,24 @@
 import socket
 import struct
 import sys
+from contextvars import ContextVar
+from dataclasses import dataclass
 
 # struct ucred (Linux): pid, uid, gid as three ints.
 _UCRED = struct.Struct("3i")
 # struct xucred (macOS): cr_version (u_int), cr_uid (uid_t), cr_ngroups (short), cr_groups[16].
 _XUCRED = struct.Struct("IIh16I")
 _SOL_LOCAL = 0
+
+
+@dataclass(frozen=True)
+class Peer:
+    uid: int
+    gid: int
+
+
+# Set by the server around each handler call, so a handler can name its caller.
+current_peer: ContextVar[Peer | None] = ContextVar("current_peer", default=None)
 
 
 def peer_credentials(sock: socket.socket) -> tuple[int, int]:

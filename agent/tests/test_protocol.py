@@ -95,3 +95,6 @@ def test_schema_fields_match_the_models() -> None:
     assert set(defs["response"]["properties"]) == set(resp["properties"])
     codes = defs["response"]["properties"]["error"]["properties"]["code"]["enum"]
     assert codes == list(resp["$defs"]["Error"]["properties"]["code"]["enum"])
+    from agent.protocol import Frame
+
+    assert set(defs["frame"]["properties"]) == set(Frame.model_json_schema()["properties"])

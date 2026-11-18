@@ -33,19 +33,13 @@ def tail(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[-limit:]
 
 
-async def run(
-    argv: Sequence[str],
-    timeout_s: float,
-    cwd: Path | None = None,
-    env: Mapping[str, str] = os.environ,
-) -> RunResult:
-    """Run `argv` (argv[0] an absolute path) with no shell and no stdin, in its own session.
-
-    Raises CommandTimeout after `timeout_s` seconds; the whole process group is killed.
-    """
+async def spawn(
+    argv: Sequence[str], cwd: Path | None = None, env: Mapping[str, str] = os.environ
+) -> asyncio.subprocess.Process:
+    """Start `argv` (argv[0] an absolute path): no shell, no stdin, scrubbed env, own session."""
     if not argv or not os.path.isabs(argv[0]):
         raise ValueError("argv[0] must be an absolute path")
-    proc = await asyncio.create_subprocess_exec(
+    return await asyncio.create_subprocess_exec(
         *argv,
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
@@ -54,6 +48,19 @@ async def run(
         env=scrubbed_env(env),
         start_new_session=True,
     )
+
+
+async def run(
+    argv: Sequence[str],
+    timeout_s: float,
+    cwd: Path | None = None,
+    env: Mapping[str, str] = os.environ,
+) -> RunResult:
+    """Run `argv` to the end and capture its output (see spawn).
+
+    Raises CommandTimeout after `timeout_s` seconds; the whole process group is killed.
+    """
+    proc = await spawn(argv, cwd, env)
     try:
         out, err = await asyncio.wait_for(proc.communicate(), timeout_s)
     except TimeoutError:

@@ -12,6 +12,7 @@ from typing import Any
 
 from agent import __version__
 from agent.config import AgentConfig, ConfigError, load_config
+from agent.jobs import JobManager
 from agent.protocol import PROTO_VERSION, signed_request
 from agent.server import DEFAULT_HANDLERS, AgentServer
 from agent.services.wolfbet import WolfBetPaths, WolfBetService
@@ -49,8 +50,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "serve":
         logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
         try:
-            service = WolfBetService(WolfBetPaths.from_env())
-            handlers = {**DEFAULT_HANDLERS, **service.handlers()}
+            jobs = JobManager()
+            service = WolfBetService(
+                WolfBetPaths.from_env(), busy=lambda: jobs.mutating_running("wolfbet")
+            )
+            jobs.register("wolfbet", service)
+            handlers = {**DEFAULT_HANDLERS, **service.handlers(), **jobs.handlers()}
             asyncio.run(AgentServer(config, handlers=handlers).serve_forever())
         except KeyboardInterrupt:
             return 0

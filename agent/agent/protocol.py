@@ -8,6 +8,8 @@ canonical JSON of every other request field (sorted keys, no spaces, ASCII), and
 import hashlib
 import hmac
 import json
+from collections.abc import AsyncIterator, Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -22,6 +24,7 @@ ErrorCode = Literal[
     "unknown_command",
     "busy",
     "timeout",
+    "not_found",
     "internal",
 ]
 
@@ -59,6 +62,28 @@ class Response(BaseModel):
         """One JSON line: id always (null when the request could not be read), data or error."""
         drop = {k for k in ("data", "error") if getattr(self, k) is None}
         return self.model_dump_json(exclude=drop).encode() + b"\n"
+
+
+class Frame(BaseModel):
+    """One output line of a job, sent before the final reply to job.stream."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    seq: int
+    stream: Literal["stdout", "stderr"]
+    line: str
+
+    def wire(self) -> bytes:
+        return self.model_dump_json().encode() + b"\n"
+
+
+@dataclass(frozen=True)
+class Streaming:
+    """A handler result sent as frames (seq, stream, line) and then one final reply body."""
+
+    frames: AsyncIterator[dict[str, Any]]
+    final: Callable[[], Awaitable[dict[str, Any]]]
 
 
 def canonical_body(fields: dict[str, Any]) -> bytes:

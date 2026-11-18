@@ -22,17 +22,27 @@ from pydantic import ValidationError
 
 from agent import __version__
 from agent.config import AgentConfig
-from agent.peercred import peer_credentials
-from agent.protocol import PROTO_VERSION, Error, ErrorCode, Request, Response, verify_mac
+from agent.errors import Busy, NotFound
+from agent.peercred import Peer, current_peer, peer_credentials
+from agent.protocol import (
+    PROTO_VERSION,
+    Error,
+    ErrorCode,
+    Frame,
+    Request,
+    Response,
+    Streaming,
+    verify_mac,
+)
 from agent.runner import CommandTimeout
 from agent.validators import InvalidArgs
 
 log = logging.getLogger("casino-agent")
 
-Handler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
+Handler = Callable[[dict[str, Any]], Awaitable[Any]]
 REPLAY_CACHE_MAX = 100_000
 _CLOSE_AFTER: frozenset[ErrorCode] = frozenset(
-    {"bad_request", "unauthorized", "replayed", "too_large", "busy"}
+    {"bad_request", "unauthorized", "replayed", "too_large"}
 )
 
 
@@ -125,14 +135,15 @@ class AgentServer:
             return
         self._conns[uid] += 1
         try:
-            await self._serve_connection(reader, writer, uid)
+            await self._serve_connection(reader, writer, Peer(uid, gid))
         finally:
             self._conns[uid] -= 1
             await self._close(writer)
 
     async def _serve_connection(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, uid: int
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, peer: Peer
     ) -> None:
+        uid = peer.uid
         while True:
             try:
                 line = await asyncio.wait_for(reader.readline(), self.config.idle_timeout)
@@ -147,12 +158,31 @@ class AgentServer:
                 return
             if not line:
                 return
-            response = await self._process(line, uid)
+            response = await self._process(line, peer)
+            if isinstance(response, tuple):
+                req_id, streaming = response
+                if not await self._stream(writer, req_id, streaming):
+                    return
+                continue
             await self._reply(writer, response)
             if response.error is not None and response.error.code in _CLOSE_AFTER:
                 return
 
-    async def _process(self, line: bytes, uid: int) -> Response:
+    async def _stream(self, writer: asyncio.StreamWriter, req_id: str, s: Streaming) -> bool:
+        """Write each frame, then the final reply; False when the client went away."""
+        try:
+            async for item in s.frames:
+                writer.write(Frame(id=req_id, **item).wire())
+                await writer.drain()
+            writer.write(Response(id=req_id, ok=True, data=await s.final()).line())
+            await writer.drain()
+        except (ConnectionError, OSError) as e:
+            log.info("stream %s ended: client gone (%s)", req_id, type(e).__name__)
+            return False
+        return True
+
+    async def _process(self, line: bytes, peer: Peer) -> Response | tuple[str, Streaming]:
+        uid = peer.uid
         try:
             request = self._authenticate(line)
         except _Refused as e:
@@ -162,6 +192,7 @@ class AgentServer:
         if handler is None:
             log.warning("unknown command %r (id=%s, uid=%d)", request.cmd, request.id, uid)
             return _error(request.id, "unknown_command")
+        token = current_peer.set(peer)
         try:
             data = await handler(dict(request.args))
         except InvalidArgs as e:
@@ -170,10 +201,20 @@ class AgentServer:
         except CommandTimeout as e:
             log.warning("command %s timed out (id=%s): %s", request.cmd, request.id, e)
             return _error(request.id, "timeout")
+        except Busy as e:
+            log.warning("refused %s (id=%s, uid=%d): %s", request.cmd, request.id, uid, e)
+            return _error(request.id, "busy")
+        except NotFound:
+            log.info("%s: no such job (id=%s)", request.cmd, request.id)
+            return _error(request.id, "not_found")
         except Exception:
             log.exception("command %s failed (id=%s)", request.cmd, request.id)
             return _error(request.id, "internal")
+        finally:
+            current_peer.reset(token)
         log.info("ran %s (id=%s, uid=%d)", request.cmd, request.id, uid)
+        if isinstance(data, Streaming):
+            return request.id, data
         return Response(id=request.id, ok=True, data=data)
 
     def _authenticate(self, line: bytes) -> Request:

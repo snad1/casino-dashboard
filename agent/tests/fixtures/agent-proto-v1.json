@@ -2,13 +2,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "agent-proto-v1.json",
   "title": "Dashboard api <-> host agent, protocol version 1",
-  "description": "JSON lines over the agent's unix socket (mode 0660, group casino-agent). The agent first checks the peer's uid/gid against its allowlist. Each request line is at most 65536 bytes; mac is HMAC-SHA256 with the shared agent token over the canonical JSON of the other request fields (sorted keys, separators ',' and ':', ASCII escapes); ts is epoch milliseconds and must be within 30 s of the agent's clock; each id is accepted once. A connection idle for 5 s is closed. A command that runs past its timeout is killed and answered with timeout. Failures carry only a generic code, and the agent closes the connection after bad_request, unauthorized, replayed, too_large and busy.",
+  "description": "JSON lines over the agent's unix socket (mode 0660, group casino-agent). The agent first checks the peer's uid/gid against its allowlist. Each request line is at most 65536 bytes; mac is HMAC-SHA256 with the shared agent token over the canonical JSON of the other request fields (sorted keys, separators ',' and ':', ASCII escapes); ts is epoch milliseconds and must be within 30 s of the agent's clock; each id is accepted once. A connection idle for 5 s is closed. A command that runs past its timeout is killed and answered with timeout. Failures carry only a generic code, and the agent closes the connection after bad_request, unauthorized, replayed, too_large and busy. Long-running commands run as jobs: job.start {cmd, args} -> {job_id}; job.get / job.cancel {job_id} -> {job_id, cmd, status, exit_code, started_ms, duration_ms, lines}; job.stream {job_id, from_seq} -> frames, then that body; job.audit {after, limit} -> {records, next}. One mutating job per service: a second mutating job or command gets busy; an unknown job id gets not_found.",
   "oneOf": [
     {
       "$ref": "#/$defs/request"
     },
     {
       "$ref": "#/$defs/response"
+    },
+    {
+      "$ref": "#/$defs/frame"
     }
   ],
   "$defs": {
@@ -88,6 +91,7 @@
                 "unknown_command",
                 "busy",
                 "timeout",
+                "not_found",
                 "internal"
               ]
             }
@@ -126,6 +130,36 @@
           }
         }
       ]
+    },
+    "frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "seq",
+        "stream",
+        "line"
+      ],
+      "description": "One job output line, sent only in answer to job.stream, before its final reply. seq rises by one per line within a job; a gap means old lines left the 5000-line buffer.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stream": {
+          "enum": [
+            "stdout",
+            "stderr"
+          ]
+        },
+        "line": {
+          "type": "string",
+          "description": "At most 8 KiB, ANSI and control characters removed; a cut line ends with ' [truncated]'."
+        }
+      }
     }
   }
 }
