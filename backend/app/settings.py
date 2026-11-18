@@ -31,6 +31,7 @@ MIN_DISTINCT_CHARS = 8
 SECRET_FIELDS = frozenset(
     {
         "session_secret",
+        "totp_key",
         "postgres_password",
         "redis_dashboard_password",
         "agent_token",
@@ -41,7 +42,7 @@ SECRET_FIELDS = frozenset(
 )
 # Secrets we generate ourselves; third-party tokens have their own formats and lengths.
 GENERATED_SECRETS = frozenset(
-    {"session_secret", "postgres_password", "redis_dashboard_password", "agent_token"}
+    {"session_secret", "totp_key", "postgres_password", "redis_dashboard_password", "agent_token"}
 )
 DETAIL_ENVS = frozenset({"local", "development", "testing"})
 
@@ -92,6 +93,7 @@ class Settings(BaseSettings):
     vapid_public_key: str | None = None
 
     session_secret: SecretStr
+    totp_key: SecretStr
     postgres_password: SecretStr
     redis_dashboard_password: SecretStr
     agent_token: SecretStr | None = None

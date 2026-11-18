@@ -2,6 +2,7 @@
 
 import uuid
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from typing import Annotated
 
 import pytest
@@ -10,8 +11,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.models import Role, User, UserRole
-from app.auth.permissions import FORBIDDEN, ROLE_PERMS, Perm, require
+from app.auth.models import Role, Totp, User, UserRole
+from app.auth.permissions import FORBIDDEN, ROLE_PERMS, TWO_FACTOR_NEEDED, Perm, require
 from app.auth.sessions import NOT_SIGNED_IN, current_user
 from app.db.models import Service
 from app.main import create_app
@@ -72,7 +73,15 @@ def seeded(migrated: Settings) -> Iterator[Seeded]:
         session.add_all(services)
         users = {
             name: User(email=f"{name}-{tag}@example.test", password_hash=NO_LOGIN)
-            for name in ("viewer", "operator", "other_operator", "global_admin", "disabled", "none")
+            for name in (
+                "viewer",
+                "operator",
+                "other_operator",
+                "global_admin",
+                "admin_without_2fa",
+                "disabled",
+                "none",
+            )
         }
         users["disabled"].disabled = True
         session.add_all(users.values())
@@ -84,6 +93,12 @@ def seeded(migrated: Settings) -> Iterator[Seeded]:
                 UserRole(user_id=users["operator"].id, service_id=on, role=Role.OPERATOR),
                 UserRole(user_id=users["other_operator"].id, service_id=off, role=Role.OPERATOR),
                 UserRole(user_id=users["global_admin"].id, service_id=None, role=Role.ADMIN),
+                UserRole(user_id=users["admin_without_2fa"].id, service_id=None, role=Role.ADMIN),
+                Totp(
+                    user_id=users["global_admin"].id,
+                    secret_ciphertext=b"not-read-here",
+                    enabled_at=datetime.now(UTC),
+                ),
                 UserRole(user_id=users["disabled"].id, service_id=on, role=Role.OPERATOR),
             ]
         )
@@ -112,6 +127,8 @@ def seeded(migrated: Settings) -> Iterator[Seeded]:
         ("other_operator", Perm.VIEW, 403),
         ("global_admin", Perm.CONTROL_DESTRUCTIVE, 200),
         ("global_admin", Perm.TERMINAL, 403),
+        ("admin_without_2fa", Perm.VIEW, 200),
+        ("admin_without_2fa", Perm.CONTROL_BASIC, 403),
         ("disabled", Perm.VIEW, 403),
         ("none", Perm.VIEW, 403),
     ],
@@ -129,7 +146,8 @@ def test_require_on_a_service_route(seeded: Seeded, who: str, perm: Perm, status
         response = client.get(f"/s/{service}/check")
     assert response.status_code == status
     if status == 403:
-        assert response.json() == {"detail": FORBIDDEN}
+        expected = TWO_FACTOR_NEEDED if who == "admin_without_2fa" else FORBIDDEN
+        assert response.json() == {"detail": expected}
 
 
 def test_unknown_service_is_forbidden_not_missing(

@@ -26,7 +26,7 @@ Run from `casino-dashboard/` on the server, as the user that runs Docker.
 
    ```bash
    mkdir -p deploy/secrets && chmod 700 deploy/secrets
-   for s in session_secret postgres_password redis_publisher_password redis_dashboard_password; do
+   for s in session_secret totp_key postgres_password redis_publisher_password redis_dashboard_password; do
      openssl rand -base64 36 | tr -d '\n' > deploy/secrets/$s.txt
      chmod 644 deploy/secrets/$s.txt
    done
@@ -34,7 +34,7 @@ Run from `casino-dashboard/` on the server, as the user that runs Docker.
 
    The directory (mode 700, root only) is what keeps the files private on the host. The files themselves are world-readable because compose bind-mounts them unchanged and three different container users read them: Redis (uid 999), the api (uid 10001) and Postgres.
 
-   A missing file stops `docker compose up`. An empty Redis secret makes Redis refuse to start. A missing, short (under 32 bytes) or placeholder `session_secret`, `postgres_password` or `redis_dashboard_password` makes the api exit; its log names the secret but never prints the value.
+   A missing file stops `docker compose up`. An empty Redis secret makes Redis refuse to start. A missing, short (under 32 bytes) or placeholder `session_secret`, `totp_key`, `postgres_password` or `redis_dashboard_password` makes the api exit; its log names the secret but never prints the value.
 
 3. Build the SPA, then start:
 

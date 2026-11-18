@@ -57,8 +57,14 @@ def _ip_or_none(host: str | None) -> ipaddress.IPv4Address | ipaddress.IPv6Addre
 
 
 async def new_session(
-    db: AsyncSession, user_id: int, ip: str | None, user_agent: str | None
+    db: AsyncSession,
+    user_id: int,
+    ip: str | None,
+    user_agent: str | None,
+    *,
+    stepped_up: bool = False,
 ) -> bytes:
+    """Store a new session; `stepped_up` when a code was just checked, so it counts as fresh."""
     raw = secrets.token_bytes(32)
     db.add(
         ApiSession(
@@ -66,6 +72,7 @@ async def new_session(
             user_id=user_id,
             ip=_ip_or_none(ip),
             user_agent=(user_agent or "")[:MAX_USER_AGENT] or None,
+            step_up_at=datetime.now(UTC) if stepped_up else None,
         )
     )
     await db.flush()
@@ -121,4 +128,5 @@ async def current_user(request: Request, db: Annotated[AsyncSession, Depends(get
         session.last_seen_at = now
         await db.commit()
     request.state.session_id = raw
+    request.state.api_session = session
     return user

@@ -10,6 +10,9 @@ from redis.asyncio import Redis
 
 from app.auth.csrf import CsrfMiddleware
 from app.auth.routes import router as auth_router
+from app.auth.stepup import install_step_handler
+from app.auth.stepup import router as step_up_router
+from app.auth.totp import router as totp_router
 from app.db.engine import create_engine, create_sessionmaker
 from app.errors import UnhandledErrorMiddleware, install_error_handlers
 from app.logging import RequestContextMiddleware, configure_logging
@@ -45,7 +48,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.sessionmaker = create_sessionmaker(engine)
     app.state.redis = redis
     app.state.session_secret = session_secret
+    app.state.totp_key = settings.totp_key.get_secret_value()
     install_error_handlers(app, settings.exposes_error_detail)
+    install_step_handler(app)
     # Added innermost first: headers wrap everything, including the generic 500.
     app.add_middleware(
         CsrfMiddleware, secret=session_secret, allowed_origins=settings.allowed_origins
@@ -59,5 +64,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return Health(status="ok")
 
     app.include_router(auth_router)
+    app.include_router(totp_router)
+    app.include_router(step_up_router)
 
     return app

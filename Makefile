@@ -83,7 +83,7 @@ e2e:
 # Random local-only secrets, written once; the api refuses to start without them.
 dev-secrets:
 	@mkdir -p backend/.secrets && chmod 700 backend/.secrets
-	@for s in session_secret postgres_password redis_dashboard_password; do \
+	@for s in session_secret totp_key postgres_password redis_dashboard_password; do \
 		f=backend/.secrets/$$s; \
 		[ -s $$f ] || { (umask 077; openssl rand -base64 36 | tr -d '\n' > $$f); }; \
 	done

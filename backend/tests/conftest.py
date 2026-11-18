@@ -3,22 +3,34 @@
 import asyncio
 import hashlib
 import secrets
+import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 import yaml
 from alembic import command
 from alembic.config import Config
+from fastapi.testclient import TestClient
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 from testcontainers.community.postgres import PostgresContainer
 from testcontainers.core.container import DockerContainer
 from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 
+from app.auth.models import Role, User, UserRole
+from app.auth.passwords import hash_password
+from app.main import create_app
 from app.settings import Settings, load_settings
 
-REQUIRED_SECRETS = ("session_secret", "postgres_password", "redis_dashboard_password")
+REQUIRED_SECRETS = (
+    "session_secret",
+    "totp_key",
+    "postgres_password",
+    "redis_dashboard_password",
+)
 PUBLIC_HOST = "dash.example.test"
 
 
@@ -161,3 +173,53 @@ def app_settings(
             redis_port=int(container.get_exposed_port(6379)),
             _secrets_dir=str(directory),
         )
+
+
+ORIGIN = f"https://{PUBLIC_HOST}"
+PASSWORD = secrets.token_urlsafe(24)
+
+
+@dataclass
+class Account:
+    id: int
+    email: str
+
+
+def make_client(settings: Settings) -> TestClient:
+    """A client on its own made-up IP, so the per-IP limit never leaks between tests."""
+    ip = f"10.{secrets.randbelow(256)}.{secrets.randbelow(256)}.{secrets.randbelow(254) + 1}"
+    return TestClient(
+        create_app(settings),
+        base_url="https://testserver",
+        client=(ip, 50000),
+        headers={"origin": ORIGIN},
+    )
+
+
+@pytest.fixture
+def client(app_settings: Settings) -> Iterator[TestClient]:
+    with make_client(app_settings) as c:
+        yield c
+
+
+@pytest.fixture
+def account(app_settings: Settings) -> Iterator[Account]:
+    email = f"user-{uuid.uuid4().hex[:10]}@example.test"
+
+    async def create(session: AsyncSession) -> Account:
+        user = User(email=email, password_hash=hash_password(PASSWORD))
+        session.add(user)
+        await session.flush()
+        session.add(UserRole(user_id=user.id, service_id=None, role=Role.VIEWER))
+        await session.commit()
+        return Account(user.id, email)
+
+    async def remove(session: AsyncSession) -> None:
+        await session.execute(delete(User).where(User.email == email))
+        await session.commit()
+
+    created = run_in_session(app_settings, create)
+    try:
+        yield created
+    finally:
+        run_in_session(app_settings, remove)

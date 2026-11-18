@@ -84,7 +84,7 @@ def test_api_gets_its_secrets_as_files_and_plain_settings_as_env(
     compose: dict[str, Any],
 ) -> None:
     api = _service(compose, "api")
-    expected = {"session_secret", "postgres_password", "redis_dashboard_password"}
+    expected = {"session_secret", "totp_key", "postgres_password", "redis_dashboard_password"}
     assert set(api["secrets"]) == expected
     env = api["environment"]
     assert env["APP_ENV"] == "production"

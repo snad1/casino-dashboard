@@ -23,12 +23,15 @@ from app.auth.sessions import (
     revoke_all,
     set_session_cookie,
 )
+from app.auth.stepup import NextStepRequired
+from app.auth.totp import is_enabled, verify_code
 from app.db.engine import get_session
 from app.db.models import Service
 
 LOCK_AFTER = 10
 LOCK_FOR = timedelta(minutes=15)
 BAD_LOGIN = "Email or password is incorrect."
+CODE_NEEDED = "Enter the code from your authenticator app."
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 Db = Annotated[AsyncSession, Depends(get_session)]
@@ -38,6 +41,7 @@ CurrentUser = Annotated[User, Depends(current_user)]
 class LoginIn(BaseModel):
     email: str = Field(min_length=3, max_length=320)
     password: str = Field(min_length=1, max_length=1024)
+    code: str | None = Field(default=None, max_length=32)
 
 
 class RoleOut(BaseModel):
@@ -49,6 +53,7 @@ class Me(BaseModel):
     email: str
     roles: list[RoleOut]
     csrf_token: str
+    totp_enabled: bool
 
 
 async def _password_ok(user: User, password: str) -> bool:
@@ -79,12 +84,22 @@ async def login(body: LoginIn, request: Request, response: Response, db: Db) -> 
         _record_failure(user)
         await db.commit()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, BAD_LOGIN)
+    two_factor = await is_enabled(db, user.id)
+    if two_factor:
+        if not body.code:
+            raise NextStepRequired(status.HTTP_401_UNAUTHORIZED, CODE_NEEDED, "totp_required")
+        if not await verify_code(db, request.app.state.totp_key, user.id, body.code):
+            _record_failure(user)
+            await db.commit()
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, BAD_LOGIN)
     user.failed_count = 0
     user.locked_until = None
     # A session id planted before sign-in must not survive it.
     if old := decode_session_id(request.cookies.get(SESSION_COOKIE)):
         await revoke(db, old)
-    raw = await new_session(db, user.id, ip, request.headers.get("user-agent"))
+    raw = await new_session(
+        db, user.id, ip, request.headers.get("user-agent"), stepped_up=two_factor
+    )
     await db.commit()
     set_session_cookie(response, raw)
 
@@ -118,4 +133,5 @@ async def me(user: CurrentUser, request: Request, db: Db) -> Me:
         email=user.email,
         roles=[RoleOut(service=service, role=role) for service, role in rows],
         csrf_token=csrf_token(secret, request.state.session_id),
+        totp_enabled=await is_enabled(db, user.id),
     )

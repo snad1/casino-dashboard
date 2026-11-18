@@ -8,7 +8,7 @@ Assets: the casino `api_key` and bot config on the host, control over the bots (
 
 | STRIDE | Threat | Control | Status |
 |---|---|---|---|
-| Spoofing | Stolen or forged session | `__Host-` httpOnly Secure SameSite=Strict cookie signed with `session_secret`; TOTP for owners | Planned (auth) |
+| Spoofing | Stolen or forged session | Random session id in a `__Host-` httpOnly Secure SameSite=Strict cookie, only its sha256 stored; owner and admin view-only until TOTP is on; a fresh code for risky actions | Done |
 | Tampering | Cross-site state change | CSRF token on every state-changing request; CORS off; same-origin SPA | Planned (auth) |
 | Tampering | Injected script in the SPA | CSP without inline script in Caddy and the api; Svelte escaping, no `{@html}` on API data | Done |
 | Repudiation | A control action nobody can trace | Audit log per action with user and request id; `X-Request-ID` on every response and log line | Request id done; audit log planned |

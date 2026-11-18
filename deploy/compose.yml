@@ -103,6 +103,7 @@ services:
       REDIS_USER: dashboard
     secrets:
       - session_secret
+      - totp_key
       - postgres_password
       - redis_dashboard_password
     depends_on:
@@ -184,6 +185,8 @@ volumes:
 secrets:
   session_secret:
     file: ./secrets/session_secret.txt
+  totp_key:
+    file: ./secrets/totp_key.txt
   postgres_password:
     file: ./secrets/postgres_password.txt
   redis_publisher_password:

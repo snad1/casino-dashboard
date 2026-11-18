@@ -3,77 +3,24 @@
 import secrets
 import statistics
 import time
-import uuid
-from collections.abc import Iterator
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 from redis import Redis
 from redis.exceptions import NoPermissionError
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.csrf import CSRF_FAILED
-from app.auth.models import ApiSession, Role, User, UserRole
-from app.auth.passwords import hash_password
+from app.auth.models import ApiSession, User
 from app.auth.ratelimit import TOO_MANY, UNAVAILABLE
 from app.auth.routes import BAD_LOGIN
 from app.auth.sessions import NOT_SIGNED_IN, SESSION_COOKIE
-from app.main import create_app
 from app.settings import Settings
-from tests.conftest import PUBLIC_HOST, run_in_session
+from tests.conftest import PASSWORD, Account, make_client, run_in_session
 
-ORIGIN = f"https://{PUBLIC_HOST}"
-PASSWORD = secrets.token_urlsafe(24)
 WRONG = secrets.token_urlsafe(24)
-
-
-@dataclass
-class Account:
-    id: int
-    email: str
-
-
-def _client(settings: Settings) -> TestClient:
-    """A client on its own made-up IP, so the per-IP limit never leaks between tests."""
-    ip = f"10.{secrets.randbelow(256)}.{secrets.randbelow(256)}.{secrets.randbelow(254) + 1}"
-    return TestClient(
-        create_app(settings),
-        base_url="https://testserver",
-        client=(ip, 50000),
-        headers={"origin": ORIGIN},
-    )
-
-
-@pytest.fixture
-def client(app_settings: Settings) -> Iterator[TestClient]:
-    with _client(app_settings) as c:
-        yield c
-
-
-@pytest.fixture
-def account(app_settings: Settings) -> Iterator[Account]:
-    email = f"user-{uuid.uuid4().hex[:10]}@example.test"
-
-    async def create(session: AsyncSession) -> Account:
-        user = User(email=email, password_hash=hash_password(PASSWORD))
-        session.add(user)
-        await session.flush()
-        session.add(UserRole(user_id=user.id, service_id=None, role=Role.VIEWER))
-        await session.commit()
-        return Account(user.id, email)
-
-    async def remove(session: AsyncSession) -> None:
-        await session.execute(delete(User).where(User.email == email))
-        await session.commit()
-
-    created = run_in_session(app_settings, create)
-    try:
-        yield created
-    finally:
-        run_in_session(app_settings, remove)
 
 
 def _set_user(settings: Settings, user_id: int, **values: object) -> None:
@@ -182,7 +129,7 @@ class TestRateLimit:
 
     def test_redis_down_fails_closed(self, app_settings: Settings, account: Account) -> None:
         broken = app_settings.model_copy(update={"redis_port": 1})
-        with _client(broken) as client:
+        with make_client(broken) as client:
             response = client.post(
                 "/auth/login", json={"email": account.email, "password": PASSWORD}
             )
@@ -232,7 +179,7 @@ class TestSessions:
         second = client.cookies[SESSION_COOKIE]
         assert first != second
         assert _session_count(app_settings, account.id) == 1
-        with _client(app_settings) as other:
+        with make_client(app_settings) as other:
             other.cookies[SESSION_COOKIE] = first
             assert other.get("/auth/me").status_code == 401
 
@@ -268,7 +215,7 @@ class TestSessions:
     def test_logout_all_ends_every_session(
         self, app_settings: Settings, client: TestClient, account: Account
     ) -> None:
-        with _client(app_settings) as phone:
+        with make_client(app_settings) as phone:
             assert _login(client, account.email) == 204
             assert _login(phone, account.email) == 204
             assert _session_count(app_settings, account.id) == 2

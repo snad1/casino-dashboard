@@ -10,10 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role, User, UserRole
 from app.auth.sessions import current_user
+from app.auth.totp import is_enabled
 from app.db.engine import get_session
 from app.db.models import Service
 
 FORBIDDEN = "You do not have permission to do that."
+TWO_FACTOR_NEEDED = "Turn on two-factor authentication to use this."
 
 
 class Perm(StrEnum):
@@ -40,6 +42,8 @@ ROLE_PERMS: dict[Role, frozenset[Perm]] = {
     Role.OPERATOR: _OPERATOR,
     Role.VIEWER: _VIEWER,
 }
+# Until they turn on 2FA, these roles may only look: a stolen password alone controls nothing.
+NEEDS_TWO_FACTOR = frozenset({Role.OWNER, Role.ADMIN})
 
 
 async def roles_for(session: AsyncSession, user_id: int, service: str | None) -> set[Role]:
@@ -56,7 +60,8 @@ def require(perm: Perm) -> Callable[..., Awaitable[User]]:
     """Dependency that returns the user when one of their roles grants `perm`.
 
     Roles on the route's `{service}` path parameter count, as do global roles. An unknown
-    service just grants nothing, so the 403 does not reveal which services exist.
+    service just grants nothing, so the 403 does not reveal which services exist. A grant
+    that only an owner or admin role gives needs 2FA turned on.
     """
 
     async def dependency(
@@ -69,6 +74,11 @@ def require(perm: Perm) -> Callable[..., Awaitable[User]]:
         roles = await roles_for(session, user.id, request.path_params.get("service"))
         if not any(perm in ROLE_PERMS[role] for role in roles):
             raise HTTPException(status.HTTP_403_FORBIDDEN, FORBIDDEN)
+        if perm != Perm.VIEW and not any(
+            perm in ROLE_PERMS[role] for role in roles - NEEDS_TWO_FACTOR
+        ):
+            if not await is_enabled(session, user.id):
+                raise HTTPException(status.HTTP_403_FORBIDDEN, TWO_FACTOR_NEEDED)
         return user
 
     return dependency
