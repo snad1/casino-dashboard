@@ -9,10 +9,10 @@ from sqlalchemy import ColumnElement, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role, User, UserRole
+from app.auth.sessions import current_user
 from app.db.engine import get_session
 from app.db.models import Service
 
-NOT_SIGNED_IN = "Sign in to continue."
 FORBIDDEN = "You do not have permission to do that."
 
 
@@ -40,11 +40,6 @@ ROLE_PERMS: dict[Role, frozenset[Perm]] = {
     Role.OPERATOR: _OPERATOR,
     Role.VIEWER: _VIEWER,
 }
-
-
-async def current_user() -> User:
-    """The signed-in user; refuses every request until the session layer provides one."""
-    raise HTTPException(status.HTTP_401_UNAUTHORIZED, NOT_SIGNED_IN)
 
 
 async def roles_for(session: AsyncSession, user_id: int, service: str | None) -> set[Role]:

@@ -1,22 +1,22 @@
 """Every role x permission pair, and the `require` dependency against real role rows."""
 
-import asyncio
 import uuid
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import Iterator
 from typing import Annotated
 
 import pytest
 from fastapi import Depends
 from fastapi.testclient import TestClient
 from sqlalchemy import delete
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.pool import NullPool
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role, User, UserRole
-from app.auth.permissions import FORBIDDEN, NOT_SIGNED_IN, ROLE_PERMS, Perm, current_user, require
+from app.auth.permissions import FORBIDDEN, ROLE_PERMS, Perm, require
+from app.auth.sessions import NOT_SIGNED_IN, current_user
 from app.db.models import Service
 from app.main import create_app
 from app.settings import Settings
+from tests.conftest import run_in_session
 
 NO_LOGIN = "!"
 P = Perm
@@ -46,7 +46,7 @@ def test_matrix(role: Role, perm: Perm) -> None:
     assert (perm in ROLE_PERMS[role]) == (role in EXPECTED[perm])
 
 
-def test_without_a_session_layer_nobody_is_signed_in(settings: Settings) -> None:
+def test_without_a_session_cookie_nobody_is_signed_in(settings: Settings) -> None:
     app = create_app(settings)
 
     @app.get("/s/{service}/view")
@@ -59,18 +59,6 @@ def test_without_a_session_layer_nobody_is_signed_in(settings: Settings) -> None
 
 
 Seeded = tuple[Settings, str, dict[str, User]]
-
-
-def _in_session[T](settings: Settings, step: Callable[[AsyncSession], Awaitable[T]]) -> T:
-    async def run() -> T:
-        engine = create_async_engine(settings.database_url, poolclass=NullPool)
-        try:
-            async with AsyncSession(engine, expire_on_commit=False) as session:
-                return await step(session)
-        finally:
-            await engine.dispose()
-
-    return asyncio.run(run())
 
 
 @pytest.fixture
@@ -107,11 +95,11 @@ def seeded(migrated: Settings) -> Iterator[Seeded]:
         await session.execute(delete(Service).where(Service.name.in_([service, other])))
         await session.commit()
 
-    users = _in_session(migrated, setup)
+    users = run_in_session(migrated, setup)
     try:
         yield migrated, service, users
     finally:
-        _in_session(migrated, teardown)
+        run_in_session(migrated, teardown)
 
 
 @pytest.mark.parametrize(

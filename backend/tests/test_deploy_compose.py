@@ -139,11 +139,18 @@ class TestRedisAcl:
         assert commands == {"+xadd", "+ping"}
         assert "~wolfbet:*" in rule
 
-    def test_dashboard_cannot_write(self, acl: dict[str, str]) -> None:
-        rule = acl["dashboard"]
-        assert "-@all" in rule
-        for write in ("+xadd", "+del", "+set", "+@write", "+@all", "+flushall"):
-            assert write not in rule.split()
+    def test_dashboard_cannot_write_streams(self, acl: dict[str, str]) -> None:
+        root, _, selector = acl["dashboard"].partition("(")
+        assert "-@all" in root
+        for write in ("+xadd", "+del", "+set", "+zadd", "+@write", "+@all", "+flushall"):
+            assert write not in root.split()
+        assert selector.rstrip().rstrip(")").split() == [
+            "~auth:*",
+            "+zadd",
+            "+zremrangebyscore",
+            "+zcard",
+            "+pexpire",
+        ]
 
     def test_no_password_in_template(self, acl: dict[str, str]) -> None:
         for rule in acl.values():

@@ -15,7 +15,7 @@ Assets: the casino `api_key` and bot config on the host, control over the bots (
 | Information disclosure | Errors leak internals | Generic 500 and 422 bodies outside local/development/testing; full exception only in logs | Done |
 | Information disclosure | Secrets in logs | Redaction of secret, token, password, api_key, cookie and authorization keys at any depth; paths logged without query strings; uvicorn access log off | Done |
 | Information disclosure | Traffic sniffing or downgrade | TLS by Caddy, HSTS one year, `-Server` header | Done |
-| Denial of service | Request floods | Container CPU and memory caps; rate limits on auth routes | Caps done; rate limits planned |
+| Denial of service | Request floods | Container CPU and memory caps; rate limits on auth routes | Done |
 | Elevation of privilege | Viewer reaches owner actions | Role checks as FastAPI dependencies; authz matrix test of every endpoint by every role | Planned (auth) |
 
 ## WebSocket
@@ -44,7 +44,7 @@ Assets: the casino `api_key` and bot config on the host, control over the bots (
 | STRIDE | Threat | Control | Status |
 |---|---|---|---|
 | Spoofing | Unauthenticated client | Default user off; `publisher` and `dashboard` users with passwords from secret files | Done |
-| Tampering | Publisher rewrites or deletes data | `publisher` may only `XADD` and `PING` on `wolfbet:*`; `dashboard` cannot write | Done |
+| Tampering | Publisher rewrites or deletes data | `publisher` may only `XADD` and `PING` on `wolfbet:*`; `dashboard` cannot write streams, only sign-in rate-limit sets on `auth:*` | Done |
 | Information disclosure | Redis reachable from outside | Bound to 127.0.0.1 and the docker bridge only | Done |
 | Denial of service | Memory exhaustion | `maxmemory 256mb`, container cap; live events are lossy by design | Done |
 
