@@ -148,16 +148,26 @@ def _sha256(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
+@dataclass(frozen=True)
+class RedisServer:
+    host: str
+    port: int
+    dashboard_password: str
+    publisher_password: str
+
+    def url(self, user: str, password: str) -> str:
+        return f"redis://{user}:{password}@{self.host}:{self.port}/0"
+
+
 @pytest.fixture(scope="session")
-def app_settings(
-    migrated: Settings, tmp_path_factory: pytest.TempPathFactory
-) -> Iterator[Settings]:
-    """Migrated Timescale (as the api's own role) plus a Redis running the deployed ACL."""
+def redis_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[RedisServer]:
+    """Redis running the deployed ACL, with both users' passwords known to the tests."""
     dashboard_password = secrets.token_urlsafe(48)
+    publisher_password = secrets.token_urlsafe(48)
     acl_dir = tmp_path_factory.mktemp("redis-acl")
     (acl_dir / "users.acl").write_text(
         ACL_TEMPLATE.read_text()
-        .replace("PUBLISHER_HASH", _sha256(secrets.token_urlsafe(48)))
+        .replace("PUBLISHER_HASH", _sha256(publisher_password))
         .replace("DASHBOARD_HASH", _sha256(dashboard_password))
     )
     container = (
@@ -168,21 +178,34 @@ def app_settings(
         .waiting_for(LogMessageWaitStrategy("Ready to accept connections"))
     )
     with container:
-        directory = tmp_path_factory.mktemp("app-secrets")
-        for name in REQUIRED_SECRETS:
-            (directory / name).write_text(secrets.token_urlsafe(48))
-        (directory / "postgres_password").write_text(APP_ROLE_PASSWORD)
-        (directory / "redis_dashboard_password").write_text(dashboard_password)
-        yield Settings(
-            app_env="testing",
-            public_host=PUBLIC_HOST,
-            postgres_host=migrated.postgres_host,
-            postgres_port=migrated.postgres_port,
-            postgres_user=APP_ROLE,
-            redis_host=container.get_container_host_ip(),
-            redis_port=int(container.get_exposed_port(6379)),
-            _secrets_dir=str(directory),
+        yield RedisServer(
+            container.get_container_host_ip(),
+            int(container.get_exposed_port(6379)),
+            dashboard_password,
+            publisher_password,
         )
+
+
+@pytest.fixture(scope="session")
+def app_settings(
+    migrated: Settings, redis_server: RedisServer, tmp_path_factory: pytest.TempPathFactory
+) -> Settings:
+    """Migrated Timescale (as the api's own role) plus the Redis above, as the api sees them."""
+    directory = tmp_path_factory.mktemp("app-secrets")
+    for name in REQUIRED_SECRETS:
+        (directory / name).write_text(secrets.token_urlsafe(48))
+    (directory / "postgres_password").write_text(APP_ROLE_PASSWORD)
+    (directory / "redis_dashboard_password").write_text(redis_server.dashboard_password)
+    return Settings(
+        app_env="testing",
+        public_host=PUBLIC_HOST,
+        postgres_host=migrated.postgres_host,
+        postgres_port=migrated.postgres_port,
+        postgres_user=APP_ROLE,
+        redis_host=redis_server.host,
+        redis_port=redis_server.port,
+        _secrets_dir=str(directory),
+    )
 
 
 ORIGIN = f"https://{PUBLIC_HOST}"
