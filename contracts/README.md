@@ -11,5 +11,6 @@ Rules:
 
 - Daemon events travel as one Redis stream field, `data`, holding the compact JSON the schema describes (`schemas/wolfbet-events-v1.json`).
 - `wolfbet.py <read command> --json` prints one document per `schemas/wolfbet-cli-<command>-v1.json` (`status`, `lanes-status`, `config-show`, `stats`, `analytics`, `last-bets`, `session-bets`); each carries `v`, and an empty or failed state is `{"v": 1, "error": {"code", "message"}}`.
+- `wolfbet.py --config-schema` follows `schemas/wolfbet-cli-config-schema-v1.json`; `wolfbet.py --dry-run --json --config-set KEY=VALUE ...` follows `schemas/wolfbet-cli-config-dry-run-v1.json`.
 - A schema change bumps its version; consumers accept the versions they know and reject the rest.
 - The bot repos copy a fixture into their own tests together with its SHA-256, so a change on either side without the other fails a test.
