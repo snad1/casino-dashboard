@@ -11,6 +11,7 @@ from redis.asyncio import Redis
 
 from app.adapters.base import ServiceAdapter
 from app.adapters.wolfbet import WolfBetAdapter
+from app.api.history import router as history_router
 from app.audit import AuditMiddleware
 from app.audit import router as audit_router
 from app.auth.csrf import CsrfMiddleware
@@ -107,6 +108,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(invites_router)
     app.include_router(reset_router)
     app.include_router(audit_router)
+    app.include_router(history_router)
     app.include_router(ws_router)
 
     return app
