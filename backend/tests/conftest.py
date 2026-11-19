@@ -28,6 +28,9 @@ from app.auth.sessions import current_user
 from app.main import create_app
 from app.settings import Settings, load_settings
 
+# WolfBet SQLite builder and the app-role Timescale connection used by the ingest tests.
+pytest_plugins = ["tests.wolfbet_db"]
+
 REQUIRED_SECRETS = (
     "session_secret",
     "totp_key",

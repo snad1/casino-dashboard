@@ -2,6 +2,7 @@
 
 The heartbeat runs on its own, so a database outage shows up in the logs and lag, not as a
 container restart loop. Any failure closes the connection and starts over after a pause.
+Reconciliation runs beside the tailer on its own connection, every 15 minutes.
 """
 
 import asyncio
@@ -11,12 +12,15 @@ from pathlib import Path
 
 import asyncpg  # type: ignore[import-untyped]  # ships no type hints
 
+from app.ingest.reconcile import Reconciler
 from app.ingest.tailer import Tailer
 from app.settings import IngestSettings, load_ingest_settings
 
 HEARTBEAT = Path("/tmp/ingest.alive")  # noqa: S108  # nosec B108: private tmpfs in the container
 BEAT_SECONDS = 30.0
 RETRY_SECONDS = 5.0
+RECONCILE_SECONDS = 15 * 60.0
+RECONCILE_FIRST_SECONDS = 60.0
 
 logger = logging.getLogger("ingest")
 
@@ -63,9 +67,32 @@ async def tail(stop: asyncio.Event, settings: IngestSettings, retry: float = RET
             await _sleep(stop, retry)
 
 
+async def reconcile(
+    stop: asyncio.Event,
+    settings: IngestSettings,
+    first: float = RECONCILE_FIRST_SECONDS,
+    interval: float = RECONCILE_SECONDS,
+) -> None:
+    """Run one reconcile per interval until stop is set; a failed run waits for the next."""
+    await _sleep(stop, first)
+    while not stop.is_set():
+        try:
+            db = await connect(settings)
+            try:
+                reconciler = Reconciler(
+                    db, settings.ingest_service, settings.bot_data_dir, settings.host_tz
+                )
+                await reconciler.run_once()
+            finally:
+                await db.close()
+        except Exception:
+            logger.exception("reconcile run failed; next one in %s s", interval)
+        await _sleep(stop, interval)
+
+
 async def run(stop: asyncio.Event, heartbeat: Path = HEARTBEAT) -> None:
     settings = load_ingest_settings()
-    await asyncio.gather(beat(stop, heartbeat), tail(stop, settings))
+    await asyncio.gather(beat(stop, heartbeat), tail(stop, settings), reconcile(stop, settings))
 
 
 def main() -> None:

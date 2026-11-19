@@ -315,16 +315,21 @@ class Tailer:
         )
 
     def _aware(self, value: str) -> datetime:
-        parsed = datetime.fromisoformat(value)
-        return parsed if parsed.tzinfo else parsed.replace(tzinfo=self.zone)
+        return aware(value, self.zone)
 
     def _time(self, value: str | None) -> datetime | None:
-        return self._aware(value) if value else None
+        return aware(value, self.zone) if value else None
 
     async def _read[T](self, source: Source, query: Callable[[sqlite3.Connection], T]) -> T:
-        result, seconds = await asyncio.to_thread(_read_once, source, query)
+        result, seconds = await asyncio.to_thread(read_once, source, query)
         self.max_read_seconds = max(self.max_read_seconds, seconds)
         return result
+
+
+def aware(value: str, zone: ZoneInfo) -> datetime:
+    """A time the bot wrote: naive values are local time in `zone`."""
+    parsed = datetime.fromisoformat(value)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=zone)
 
 
 def _connect(source: Source) -> sqlite3.Connection:
@@ -352,7 +357,7 @@ def _connect(source: Source) -> sqlite3.Connection:
     return connection
 
 
-def _read_once[T](source: Source, query: Callable[[sqlite3.Connection], T]) -> tuple[T, float]:
+def read_once[T](source: Source, query: Callable[[sqlite3.Connection], T]) -> tuple[T, float]:
     """Run one query in one short read transaction; returns its result and duration."""
     connection = _connect(source)
     try:
