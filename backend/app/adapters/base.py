@@ -41,11 +41,17 @@ class ControlAction:
 
     `cmd` is the agent command without the service prefix; `job` runs it through
     `job.start` and answers with a job id. `fixed_args` are merged over the body.
+    `label`, `title`, `effect` and `confirm` are the button and confirm-modal text; the
+    last three may name `{service}` or a body field such as `{target}`.
     """
 
     perm: Perm
     cmd: str
     body: type[BaseModel]
+    label: str
+    title: str
+    effect: str
+    confirm: str
     fresh: bool = False
     job: bool = False
     fixed_args: Mapping[str, Any] = field(default_factory=dict)

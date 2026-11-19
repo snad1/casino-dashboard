@@ -53,3 +53,27 @@ export function can(me: Me | null, perm: Perm, service: string | null = null): b
 		return perm === 'view' || !NEEDS_TWO_FACTOR.has(role) || me.totp_enabled;
 	});
 }
+
+const ROLE_NAMES: Partial<Record<Perm, string>> = {
+	'control.basic': 'operator',
+	'config.write': 'operator',
+	'control.destructive': 'admin'
+};
+
+/**
+ * Why the signed-in user may not use `perm` on `service`, as text for a disabled control;
+ * null when they may. A role that would grant it once 2FA is on asks for 2FA instead.
+ */
+export function denialReason(
+	me: Me | null,
+	perm: Perm,
+	service: string | null = null
+): string | null {
+	if (can(me, perm, service)) return null;
+	const granting = (me?.roles ?? []).some(
+		({ role, service: scope }) =>
+			(scope === null || scope === service) && (ROLE_PERMS[role] ?? []).includes(perm)
+	);
+	if (granting) return 'Turn on two-factor authentication to use this.';
+	return `Needs ${ROLE_NAMES[perm] ?? 'a different'} role`;
+}

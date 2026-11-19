@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { adminMe, stubApi } from './stub';
+import { adminMe, controlMenu, stubApi } from './stub';
 
 const SNAPSHOT = {
 	op: 'snapshot',
@@ -69,6 +69,7 @@ async function rig(page: Page) {
 			status: 200,
 			json: { items: [], next_before: null }
 		}),
+		'GET /wolfbet/control': () => ({ status: 200, json: controlMenu }),
 		'GET /admin/users': () => ({ status: 200, json: { items: [] } }),
 		'GET /audit': () => ({ status: 200, json: { items: [], next_before_id: null } })
 	});

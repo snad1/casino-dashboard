@@ -57,7 +57,24 @@ export interface CommentEvent {
 	at: string | null;
 }
 
+/** One output line of a control job, numbered from 0; a resubscribe starts again at 0. */
+export interface JobLine {
+	topic: string;
+	seq: number;
+	stream: 'stdout' | 'stderr';
+	line: string;
+}
+
+export interface JobEnd {
+	topic: string;
+	status: string;
+	exit_code: number | null;
+}
+
+export type JobMessage = ({ op: 'job' } & JobLine) | ({ op: 'job_end' } & JobEnd);
+
 export type ServerMessage =
+	| JobMessage
 	| ({ op: 'comment'; topic: string } & CommentEvent)
 	| { op: 'snapshot'; topic: string; lanes: Lanes; tape: TapeRow[] }
 	| { op: 'tick'; topic: string; lanes: Lanes; candles: Candle[]; tape: TapeRow[] }
@@ -119,6 +136,10 @@ export function systemTopicFor(service: string): string {
 
 export function commentsTopicFor(service: string): string {
 	return `svc:${service}:comments`;
+}
+
+export function jobTopicFor(service: string, jobId: string): string {
+	return `svc:${service}:job:${jobId}`;
 }
 
 const KINDS = new Set(['session', 'bet', 'chart']);
@@ -217,6 +238,24 @@ export function parseMessage(raw: string): ServerMessage | null {
 				: null;
 		case 'system':
 			return typeof m.topic === 'string' ? { op: 'system', topic: m.topic, ...systemOf(m) } : null;
+		case 'job':
+			if (
+				typeof m.topic !== 'string' ||
+				typeof m.seq !== 'number' ||
+				typeof m.line !== 'string' ||
+				(m.stream !== 'stdout' && m.stream !== 'stderr')
+			) {
+				return null;
+			}
+			return { op: 'job', topic: m.topic, seq: m.seq, stream: m.stream, line: m.line };
+		case 'job_end':
+			if (typeof m.topic !== 'string' || typeof m.status !== 'string') return null;
+			return {
+				op: 'job_end',
+				topic: m.topic,
+				status: m.status,
+				exit_code: typeof m.exit_code === 'number' ? m.exit_code : null
+			};
 		case 'comment':
 			if (typeof m.topic !== 'string' || typeof m.kind !== 'string' || !KINDS.has(m.kind)) {
 				return null;

@@ -36,6 +36,54 @@
         "title": "Accepted",
         "type": "object"
       },
+      "ActionOut": {
+        "properties": {
+          "confirm": {
+            "title": "Confirm",
+            "type": "string"
+          },
+          "effect": {
+            "title": "Effect",
+            "type": "string"
+          },
+          "job": {
+            "title": "Job",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "perm": {
+            "title": "Perm",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "typed_confirm": {
+            "title": "Typed Confirm",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "title",
+          "effect",
+          "confirm",
+          "perm",
+          "typed_confirm",
+          "job"
+        ],
+        "title": "ActionOut",
+        "type": "object"
+      },
       "AuditOut": {
         "properties": {
           "action": {
@@ -601,6 +649,33 @@
           "password"
         ],
         "title": "ConfirmIn",
+        "type": "object"
+      },
+      "ControlMenu": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionOut"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "running_job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "actions",
+          "running_job"
+        ],
+        "title": "ControlMenu",
         "type": "object"
       },
       "ControlOut": {
@@ -2853,6 +2928,50 @@
         "summary": "Edit Comment",
         "tags": [
           "comments"
+        ]
+      }
+    },
+    "/{service}/control": {
+      "get": {
+        "description": "The service's control buttons with their confirm text, and the job still running.",
+        "operationId": "control_menu__service__control_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Service",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlMenu"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Control Menu",
+        "tags": [
+          "control"
         ]
       }
     },

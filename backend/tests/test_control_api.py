@@ -20,7 +20,7 @@ from app.auth.stepup import STEP_UP_NEEDED
 from app.settings import Settings
 from app.ws.routes import NOT_PERMITTED
 from tests.conftest import Account, make_client, run_in_session
-from tests.fake_agent import JOB_ID, TOKEN, FakeAgent, fail, ok
+from tests.fake_agent import JOB_ID, TOKEN, FakeAgent, fail, job_summary, ok
 from tests.test_totp import _enrol
 from tests.test_ws_auth import _connect, _login, _ticket
 
@@ -368,3 +368,52 @@ def test_an_unknown_job_topic_is_refused(control_settings: Settings, account: Ac
         with _connect(client, _ticket(client)) as socket:
             socket.send_json({"op": "subscribe", "topic": topic})
             assert socket.receive_json() == {"op": "error", "topic": topic, "detail": NOT_PERMITTED}
+
+
+def test_the_menu_lists_every_action_with_its_confirm_text(
+    signed_in_as: Any, fake_agent: FakeAgent
+) -> None:
+    menu = signed_in_as(Role.VIEWER, two_factor=False).get("/wolfbet/control")
+    assert menu.status_code == 200
+    body = menu.json()
+    assert [a["name"] for a in body["actions"]] == list(ACTIONS)
+    by_name = {a["name"]: a for a in body["actions"]}
+    assert by_name["reset"] == {
+        "name": "reset",
+        "label": "Reset statistics",
+        "title": "Reset statistics for {service}?",
+        "effect": ACTIONS["reset"].effect,
+        "confirm": "Reset statistics",
+        "perm": "control.destructive",
+        "typed_confirm": True,
+        "job": False,
+    }
+    typed = {name for name, action in by_name.items() if action["typed_confirm"]}
+    assert typed == {"reset", "run_reset", "stop_all", "cleanup", "update", "doctor_fix"}
+    assert by_name["restart"]["job"] and not by_name["pause"]["typed_confirm"]
+    assert body["running_job"] is None
+    assert fake_agent.calls == []
+
+
+def test_the_menu_shows_a_running_job_to_who_may_see_it(
+    signed_in_as: Any, fake_agent: FakeAgent, control_settings: Settings, account: Account
+) -> None:
+    client = signed_in_as(Role.ADMIN)
+    _post(client, "update")
+    assert client.get("/wolfbet/control").json()["running_job"]["job_id"] == JOB_ID
+    fake_agent.reply = lambda request: [
+        ok(request, job_summary("succeeded", 0))
+        if request["cmd"] == "job.get"
+        else fail(request, "busy")
+    ]
+    assert client.get("/wolfbet/control").json()["running_job"] is None
+    fake_agent.reply = lambda request: [fail(request, "unreachable")]
+    down = client.get("/wolfbet/control")
+    assert (down.status_code, down.json()["running_job"]) == (200, None)
+    fake_agent.reply = lambda request: [ok(request, job_summary())]
+    _set_role(control_settings, account.id, Role.OPERATOR)
+    assert client.get("/wolfbet/control").json()["running_job"] is None
+
+
+def test_a_service_without_controls_has_no_menu(signed_in_as: Any) -> None:
+    assert signed_in_as(Role.ADMIN).get("/goated/control").status_code == 404

@@ -257,6 +257,23 @@ describe('live store', () => {
 		expect(seen).toEqual([7, 8]);
 	});
 
+	it('hands job output to listeners and stops following a job on unfollow', async () => {
+		const { store, socket, flush, settle } = rig();
+		const seen: unknown[] = [];
+		store.onJob((message) => seen.push(message.op));
+		store.start('svc:wolfbet');
+		const topic = 'svc:wolfbet:job:' + 'ab'.repeat(16);
+		store.start(topic);
+		await settle();
+		socket(0).receive({ op: 'job', topic, seq: 0, stream: 'stdout', line: 'a' });
+		socket(0).receive({ op: 'job_end', topic, status: 'succeeded', exit_code: 0 });
+		flush();
+		expect(seen).toEqual(['job', 'job_end']);
+		store.unfollow(topic);
+		expect(socket(0).sent.at(-1)).toEqual({ op: 'unsubscribe', topic });
+		socket(0).drop();
+	});
+
 	it('stop closes the socket and cancels any retry', async () => {
 		const { store, sockets, socket, advance, settle } = rig();
 		store.start('svc:wolfbet');

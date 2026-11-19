@@ -399,6 +399,26 @@ export interface paths {
 		patch: operations['edit_comment__service__comments__comment_id__patch'];
 		trace?: never;
 	};
+	'/{service}/control': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * Control Menu
+		 * @description The service's control buttons with their confirm text, and the job still running.
+		 */
+		get: operations['control_menu__service__control_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/{service}/control/cleanup': {
 		parameters: {
 			query?: never;
@@ -790,6 +810,25 @@ export interface components {
 			/** Detail */
 			detail: string;
 		};
+		/** ActionOut */
+		ActionOut: {
+			/** Confirm */
+			confirm: string;
+			/** Effect */
+			effect: string;
+			/** Job */
+			job: boolean;
+			/** Label */
+			label: string;
+			/** Name */
+			name: string;
+			/** Perm */
+			perm: string;
+			/** Title */
+			title: string;
+			/** Typed Confirm */
+			typed_confirm: boolean;
+		};
 		/** AuditOut */
 		AuditOut: {
 			/** Action */
@@ -944,6 +983,12 @@ export interface components {
 			password: string;
 			/** Token */
 			token: string;
+		};
+		/** ControlMenu */
+		ControlMenu: {
+			/** Actions */
+			actions: components['schemas']['ActionOut'][];
+			running_job: components['schemas']['JobOut'] | null;
 		};
 		/** ControlOut */
 		ControlOut: {
@@ -1933,6 +1978,37 @@ export interface operations {
 				};
 				content: {
 					'application/json': components['schemas']['CommentOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_menu__service__control_get: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlMenu'];
 				};
 			};
 			/** @description Validation Error */

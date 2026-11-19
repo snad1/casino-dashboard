@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseMessage } from './protocol';
+import { jobTopicFor, parseMessage } from './protocol';
 
 describe('parseMessage', () => {
 	it('reads the frames the server sends', () => {
@@ -74,6 +74,21 @@ describe('parseMessage', () => {
 		};
 		expect(parseMessage(JSON.stringify(raw))).toEqual(raw);
 		expect(parseMessage(JSON.stringify({ ...raw, kind: 'other' }))).toBeNull();
+	});
+
+	it('reads job output lines and the job end', () => {
+		const topic = jobTopicFor('wolfbet', 'ab'.repeat(16));
+		expect(topic).toBe('svc:wolfbet:job:' + 'ab'.repeat(16));
+		const line = { op: 'job', topic, seq: 3, stream: 'stderr', line: '<b>x</b>' };
+		expect(parseMessage(JSON.stringify(line))).toEqual(line);
+		const end = { op: 'job_end', topic, status: 'failed', exit_code: 2 };
+		expect(parseMessage(JSON.stringify(end))).toEqual(end);
+		expect(parseMessage(JSON.stringify({ ...end, exit_code: 'x' }))).toEqual({
+			...end,
+			exit_code: null
+		});
+		expect(parseMessage(JSON.stringify({ ...line, stream: 'tty' }))).toBeNull();
+		expect(parseMessage(JSON.stringify({ ...line, seq: '3' }))).toBeNull();
 	});
 
 	it('ignores anything else', () => {

@@ -54,6 +54,8 @@ from app.db.models import Base
 from app.logging import current_request_id
 
 IDEMPOTENCY_TTL = timedelta(hours=24)
+RUNNING_LOOKBACK = timedelta(hours=1)
+RUNNING_CHECKS = 5
 KEY_PATTERN = r"^[A-Za-z0-9_-]{16,128}$"
 JOB_ID_PATTERN = r"^[0-9a-f]{32}$"
 BUSY = "Another control action is running. Try again when it finishes."
@@ -108,6 +110,22 @@ class JobOut(BaseModel):
     exit_code: int | None
     duration_ms: int
     lines: int
+
+
+class ActionOut(BaseModel):
+    name: str
+    label: str
+    title: str
+    effect: str
+    confirm: str
+    perm: str
+    typed_confirm: bool
+    job: bool
+
+
+class ControlMenu(BaseModel):
+    actions: list[ActionOut]
+    running_job: JobOut | None
 
 
 def _fingerprint(service: str, action: str, body: BaseModel) -> bytes:
@@ -337,6 +355,74 @@ for _name, _spec in WOLFBET_ACTIONS.items():
         response_model=ControlOut,
         status_code=status.HTTP_200_OK,
         responses={status.HTTP_202_ACCEPTED: {"model": ControlOut}},
+    )
+
+
+async def _running_job(
+    request: Request, db: AsyncSession, user: User, service: str
+) -> JobOut | None:
+    """The newest job started here that is still running and that `user` may see, if any.
+
+    The agent forgets finished jobs after an hour, so only that hour is checked. An agent
+    that can't answer leaves it unknown (None); the page still loads.
+    """
+    agent: AgentClient | None = request.app.state.agent
+    if agent is None:
+        return None
+    rows = await db.scalars(
+        select(ControlRequest)
+        .where(
+            ControlRequest.service == service,
+            ControlRequest.job_id.is_not(None),
+            ControlRequest.created_at >= datetime.now(UTC) - RUNNING_LOOKBACK,
+        )
+        .order_by(ControlRequest.id.desc())
+        .limit(RUNNING_CHECKS)
+    )
+    for row in rows:
+        if await denial(db, user, service, Perm(row.perm)) is not None:
+            continue
+        try:
+            job = JobOut.model_validate(await agent.call("job.get", {"job_id": row.job_id}))
+        except AgentError as error:
+            if error.code == "not_found":
+                continue
+            log.warning("running job lookup failed at the agent", code=error.code)
+            return None
+        except ValidationError:
+            log.warning("running job lookup got an unexpected reply")
+            return None
+        if job.status == "running":
+            return job
+    return None
+
+
+@router.get("/{service}/control", response_model=ControlMenu)
+async def control_menu(
+    service: ServiceName,
+    request: Request,
+    user: Annotated[User, Depends(require(Perm.VIEW))],
+    db: Db,
+) -> ControlMenu:
+    """The service's control buttons with their confirm text, and the job still running."""
+    actions = CONTROLS.get(service)
+    if actions is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
+    return ControlMenu(
+        actions=[
+            ActionOut(
+                name=name,
+                label=spec.label,
+                title=spec.title,
+                effect=spec.effect,
+                confirm=spec.confirm,
+                perm=spec.perm.value,
+                typed_confirm=spec.perm == Perm.CONTROL_DESTRUCTIVE,
+                job=spec.job,
+            )
+            for name, spec in actions.items()
+        ],
+        running_job=await _running_job(request, db, user, service),
     )
 
 

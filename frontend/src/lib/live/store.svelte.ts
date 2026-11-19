@@ -6,6 +6,7 @@ import {
 	parseMessage,
 	type Candle,
 	type CommentEvent,
+	type JobMessage,
 	type Lanes,
 	type SystemMessage,
 	type TapeRow
@@ -65,6 +66,7 @@ export class LiveStore {
 	#cancelClock: (() => void) | null = null;
 	#candleListeners: Array<(candles: Candle[]) => void> = [];
 	#commentListeners: Array<(event: CommentEvent) => void> = [];
+	#jobListeners: Array<(message: JobMessage) => void> = [];
 
 	constructor(deps: LiveDeps) {
 		this.#deps = {
@@ -110,6 +112,20 @@ export class LiveStore {
 		this.#candleListeners.push(listener);
 		return () => {
 			this.#candleListeners = this.#candleListeners.filter((l) => l !== listener);
+		};
+	}
+
+	/** Stop following `topic` (a job's output, for example) on this connection. */
+	unfollow(topic: string): void {
+		this.#topics = this.#topics.filter((t) => t !== topic);
+		this.#send({ op: 'unsubscribe', topic });
+	}
+
+	/** Call `listener` for each job output line and job end; returns the unsubscribe function. */
+	onJob(listener: (message: JobMessage) => void): () => void {
+		this.#jobListeners.push(listener);
+		return () => {
+			this.#jobListeners = this.#jobListeners.filter((l) => l !== listener);
 		};
 	}
 
@@ -195,6 +211,7 @@ export class LiveStore {
 		let fresh = false;
 		const candles: Candle[] = [];
 		const comments: CommentEvent[] = [];
+		const jobs: JobMessage[] = [];
 		for (const raw of frames) {
 			const message = parseMessage(raw);
 			if (message === null) continue;
@@ -206,6 +223,8 @@ export class LiveStore {
 				fresh = true;
 			} else if (message.op === 'comment') {
 				comments.push(message);
+			} else if (message.op === 'job' || message.op === 'job_end') {
+				jobs.push(message);
 			} else if (message.op === 'system') {
 				this.system = message;
 				this.dropSamples = addDropSamples(this.dropSamples, message.publisher, this.#deps.now());
@@ -225,6 +244,7 @@ export class LiveStore {
 		if (tape !== this.tape) this.tape = tape;
 		if (candles.length) for (const listener of this.#candleListeners) listener(candles);
 		for (const event of comments) for (const listener of this.#commentListeners) listener(event);
+		for (const message of jobs) for (const listener of this.#jobListeners) listener(message);
 		if (fresh) {
 			this.now = this.#deps.now();
 			this.lastTickAt = this.now;

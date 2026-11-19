@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onDestroy, type Snippet } from 'svelte';
 	import { page } from '$app/state';
+	import ControlDialogs from '#components/ControlDialogs';
+	import { control } from '#lib/control.svelte';
 	import { liveFor } from '#lib/live/index';
 	import { commentsTopicFor, systemTopicFor, topicFor } from '#lib/live/protocol';
 	import Guard from '#ui/Guard';
@@ -16,6 +18,7 @@
 		liveFor(service).start(topicFor(service));
 		liveFor(service).start(systemTopicFor(service));
 		liveFor(service).start(commentsTopicFor(service));
+		void control.load(service);
 	});
 	onDestroy(() => {
 		if (current) liveFor(current).stop();
@@ -24,4 +27,5 @@
 
 <Guard perm="view" service={page.params.service ?? null}>
 	{@render children()}
+	<ControlDialogs />
 </Guard>
