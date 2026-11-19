@@ -1,0 +1,95 @@
+/*
+ * Design tokens: the only place colours, spacing, radii, type and motion are defined.
+ * Components use the utilities these generate (bg-surface, text-profit, border-line-strong,
+ * rounded-md, font-mono) and never a literal value. Dark is the default; light follows the
+ * system setting unless the page sets data-theme. Contrast ratios are listed in
+ * docs/ux/patterns.md.
+ */
+
+@theme static {
+	--color-canvas: #0f1115;
+	--color-surface: #171a21;
+	--color-raised: #1f232c;
+	--color-line: #2c313c;
+	--color-line-strong: #6b7586;
+	--color-ink: #e6e8eb;
+	--color-muted: #9aa3b2;
+	--color-accent: #5b9cff;
+	--color-on-accent: #0f1115;
+	--color-profit: #2fbf71;
+	--color-loss: #f0616d;
+	--color-warn: #e8b33a;
+	--color-info: #58b4e8;
+	--color-focus: #8ab4ff;
+
+	--spacing: 0.25rem;
+
+	--radius-sm: 0.25rem;
+	--radius-md: 0.5rem;
+	--radius-lg: 0.75rem;
+
+	--font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+	--font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+	--text-xs: 0.75rem;
+	--text-xs--line-height: 1rem;
+	--text-sm: 0.875rem;
+	--text-sm--line-height: 1.25rem;
+	--text-base: 1rem;
+	--text-base--line-height: 1.5rem;
+	--text-lg: 1.25rem;
+	--text-lg--line-height: 1.75rem;
+	--text-xl: 1.75rem;
+	--text-xl--line-height: 2.25rem;
+}
+
+:root {
+	color-scheme: dark;
+	--motion-flash: 300ms;
+	--motion-ease: cubic-bezier(0.2, 0, 0, 1);
+	--touch-target: 2.75rem;
+}
+
+@media (prefers-color-scheme: light) {
+	:root:not([data-theme='dark']) {
+		color-scheme: light;
+		--color-canvas: #f7f8fa;
+		--color-surface: #ffffff;
+		--color-raised: #eef1f5;
+		--color-line: #d3d8e0;
+		--color-line-strong: #7a8494;
+		--color-ink: #14171c;
+		--color-muted: #545d6b;
+		--color-accent: #2459b8;
+		--color-on-accent: #ffffff;
+		--color-profit: #0f7a3c;
+		--color-loss: #b8293a;
+		--color-warn: #805a00;
+		--color-info: #11668c;
+		--color-focus: #2459b8;
+	}
+}
+
+:root[data-theme='light'] {
+	color-scheme: light;
+	--color-canvas: #f7f8fa;
+	--color-surface: #ffffff;
+	--color-raised: #eef1f5;
+	--color-line: #d3d8e0;
+	--color-line-strong: #7a8494;
+	--color-ink: #14171c;
+	--color-muted: #545d6b;
+	--color-accent: #2459b8;
+	--color-on-accent: #ffffff;
+	--color-profit: #0f7a3c;
+	--color-loss: #b8293a;
+	--color-warn: #805a00;
+	--color-info: #11668c;
+	--color-focus: #2459b8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	:root {
+		--motion-flash: 0ms;
+	}
+}

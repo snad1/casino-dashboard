@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" width="1280" height="800" role="img" aria-labelledby="t">
+<title id="t">Dashboard: sessions, chart, lane cards, bet tape and system panel (desktop, 1280 wide)</title>
+<style>rect{fill:#8881;stroke:#888;stroke-width:1.5}.hot{stroke-dasharray:6 4;stroke:#c55}.ghost{fill:#8883}text{fill:#888;font:14px ui-sans-serif,system-ui,sans-serif}.h{font-weight:600;font-size:15px}.s{font-size:12px}</style>
+<g aria-label="Ticker header"><rect x="0" y="0" width="1280" height="56" rx="6" class=""/>
+<text x="10" y="22" class="h">Ticker header</text>
+<text x="10" y="42" class="s">wolfbet | balance 0.01234 BTC | session P/L +0.00021 (up arrow, +) | 48.2 bps | status: live / stale / down / events off | 2 s ago</text>
+</g>
+<g aria-label="Stop all"><rect x="1100" y="10" width="164" height="36" rx="6" class="hot"/>
+<text x="1110" y="32" class="h">Stop all</text>
+</g>
+<g aria-label="Nav"><rect x="0" y="56" width="72" height="744" rx="6" class=""/>
+<text x="10" y="78" class="h">Nav</text>
+<text x="10" y="98" class="s">Live</text>
+<text x="10" y="116" class="s">Control</text>
+<text x="10" y="134" class="s">Config</text>
+<text x="10" y="152" class="s">Terminal</text>
+<text x="10" y="170" class="s">Analytics</text>
+<text x="10" y="188" class="s">Alerts</text>
+</g>
+<g aria-label="Sessions"><rect x="88" y="72" width="260" height="560" rx="6" class=""/>
+<text x="98" y="94" class="h">Sessions</text>
+<text x="98" y="114" class="s">Live session pinned on top</text>
+<text x="98" y="132" class="s">with its totals</text>
+<text x="98" y="150" class="s">History below (keyset paging)</text>
+<text x="98" y="168" class="s">Row: id, lane, start, bets,</text>
+<text x="98" y="186" class="s">profit (colour + sign)</text>
+<text x="98" y="204" class="s">Click opens session detail</text>
+</g>
+<g aria-label="Chart"><rect x="364" y="72" width="600" height="400" rx="6" class=""/>
+<text x="374" y="94" class="h">Chart</text>
+<text x="374" y="114" class="s">Toolbar: res 1s | 1m | 1h | 1d</text>
+<text x="374" y="132" class="s">Range: 1h 24h 7d 30d all</text>
+<text x="374" y="150" class="s">Toggle: profit | balance</text>
+<text x="374" y="168" class="s">Lane filter, crosshair readout</text>
+<text x="374" y="186" class="s">Session start/stop markers</text>
+</g>
+<g aria-label="Lane 1 card"><rect x="364" y="488" width="192" height="144" rx="6" class=""/>
+<text x="374" y="510" class="h">Lane 1 card</text>
+<text x="374" y="530" class="s">running | bets 1 204</text>
+<text x="374" y="548" class="s">profit +0.0002 (arrow)</text>
+<text x="374" y="566" class="s">bps 18.4 | streak W3</text>
+<text x="374" y="584" class="s">[Pause] [Stop lane]</text>
+</g>
+<g aria-label="Lane 2 card"><rect x="568" y="488" width="192" height="144" rx="6" class=""/>
+<text x="578" y="510" class="h">Lane 2 card</text>
+<text x="578" y="530" class="s">stale (6 s, no events)</text>
+<text x="578" y="548" class="s">agent check pending</text>
+<text x="578" y="566" class="s">[Pause] [Stop lane]</text>
+</g>
+<g aria-label="Lane 3 card"><rect x="772" y="488" width="192" height="144" rx="6" class=""/>
+<text x="782" y="510" class="h">Lane 3 card</text>
+<text x="782" y="530" class="s">down (daemon not running)</text>
+<text x="782" y="548" class="s">last stop reason</text>
+<text x="782" y="566" class="s">[Start lane]</text>
+</g>
+<g aria-label="Bet tape"><rect x="980" y="72" width="284" height="560" rx="6" class=""/>
+<text x="990" y="94" class="h">Bet tape</text>
+<text x="990" y="114" class="s">Newest on top, fixed row height</text>
+<text x="990" y="132" class="s">icon + sign + colour per row</text>
+<text x="990" y="150" class="s">amount | mult | result | profit</text>
+<text x="990" y="168" class="s">balance, monospace digits</text>
+<text x="990" y="186" class="s">Pause on hover, lane filter</text>
+</g>
+<g aria-label="System panel"><rect x="88" y="648" width="1176" height="136" rx="6" class=""/>
+<text x="98" y="670" class="h">System panel</text>
+<text x="98" y="690" class="s">Host: CPU % | load 1/5/15 | memory | disk | net rx/tx</text>
+<text x="98" y="708" class="s">Units: wolfbet, wolfbet-lane@K CPU % and RSS</text>
+<text x="98" y="726" class="s">Containers: redis, timescale CPU % and memory</text>
+<text x="98" y="744" class="s">Publisher per lane: sent | queued | dropped | connected</text>
+</g>
+</svg>

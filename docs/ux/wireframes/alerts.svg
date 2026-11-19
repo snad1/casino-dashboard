@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" width="1280" height="800" role="img" aria-labelledby="t">
+<title id="t">Alerts: rules list, rule editor and fired alerts feed (desktop)</title>
+<style>rect{fill:#8881;stroke:#888;stroke-width:1.5}.hot{stroke-dasharray:6 4;stroke:#c55}.ghost{fill:#8883}text{fill:#888;font:14px ui-sans-serif,system-ui,sans-serif}.h{font-weight:600;font-size:15px}.s{font-size:12px}</style>
+<g aria-label="Ticker header"><rect x="0" y="0" width="1280" height="56" rx="6" class=""/>
+<text x="10" y="22" class="h">Ticker header</text>
+<text x="10" y="42" class="s">wolfbet | balance 0.01234 BTC | session P/L +0.00021 (up arrow, +) | 48.2 bps | status: live / stale / down / events off | 2 s ago</text>
+</g>
+<g aria-label="Stop all"><rect x="1100" y="10" width="164" height="36" rx="6" class="hot"/>
+<text x="1110" y="32" class="h">Stop all</text>
+</g>
+<g aria-label="Nav"><rect x="0" y="56" width="72" height="744" rx="6" class=""/>
+<text x="10" y="78" class="h">Nav</text>
+<text x="10" y="98" class="s">Live</text>
+<text x="10" y="116" class="s">Control</text>
+<text x="10" y="134" class="s">Config</text>
+<text x="10" y="152" class="s">Terminal</text>
+<text x="10" y="170" class="s">Analytics</text>
+<text x="10" y="188" class="s">Alerts</text>
+</g>
+<g aria-label="Rules"><rect x="88" y="72" width="760" height="420" rx="6" class=""/>
+<text x="98" y="94" class="h">Rules</text>
+<text x="98" y="114" class="s">Row: type | scope (service, lane) | threshold</text>
+<text x="98" y="132" class="s">cooldown | channels | enabled toggle</text>
+<text x="98" y="150" class="s">Types: profit, loss, drawdown, daemon down,</text>
+<text x="98" y="168" class="s">stale, stop reason, bps low, ingest lag,</text>
+<text x="98" y="186" class="s">reconcile mismatch, terminal opened</text>
+</g>
+<g aria-label="Fired alerts"><rect x="88" y="508" width="760" height="276" rx="6" class=""/>
+<text x="98" y="530" class="h">Fired alerts</text>
+<text x="98" y="550" class="s">Newest first: time | rule | value | channel status</text>
+<text x="98" y="568" class="s">Acknowledge per alert</text>
+</g>
+<g aria-label="Drawer: edit rule"><rect x="864" y="72" width="400" height="712" rx="6" class="ghost"/>
+<text x="874" y="94" class="h">Drawer: edit rule</text>
+<text x="874" y="114" class="s">Type dropdown -&gt; fields for that type</text>
+<text x="874" y="132" class="s">Scope, threshold, cooldown, channels</text>
+<text x="874" y="150" class="s">[Save] -&gt; confirm when it widens scope</text>
+<text x="874" y="168" class="s">Test send button per channel</text>
+</g>
+</svg>
