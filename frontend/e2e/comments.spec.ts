@@ -193,15 +193,17 @@ test('a live change reloads the list, and a refused post says why', async ({ pag
 	);
 });
 
-test('clicking the chart offers a note at that time', async ({ page }) => {
+test('clicking the chart offers a note at that time', async ({ page, hasTouch }) => {
 	await rig(page);
 	await page.goto('/wolfbet');
 	const notes = page.getByRole('region', { name: 'Chart notes' });
 	await expect(notes).toContainText('Click the chart to add a note at that time.');
-	const chart = page.getByRole('img', { name: /Profit for all lanes/ });
+	const chart = page.getByRole('figure', { name: /Profit for all lanes/ });
+	await chart.scrollIntoViewIfNeeded();
 	const box = await chart.boundingBox();
 	if (!box) throw new Error('chart has no box');
-	await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
+	const [x, y] = [box.x + box.width * 0.5, box.y + box.height * 0.5];
+	await (hasTouch ? page.touchscreen.tap(x, y) : page.mouse.click(x, y));
 	const field = notes.getByLabel(/Add a note at/);
 	await field.fill('spike here');
 	await notes.getByRole('button', { name: 'Post' }).click();

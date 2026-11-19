@@ -1,0 +1,64 @@
+# Overlay for the throwaway end-to-end stack: `tools/e2e_stack.sh up`.
+# Generated secrets, staging mode, Caddy's internal certificate on https://localhost:8443,
+# no Redis port on the host, and a replay publisher in place of the bot.
+
+services:
+  api:
+    environment:
+      APP_ENV: staging
+      ALLOWED_ORIGINS: '["https://localhost:8443"]'
+      LIVE_HZ: "10"
+
+  migrate:
+    environment:
+      APP_ENV: staging
+
+  redis:
+    ports: !reset []
+
+  caddy:
+    ports: !override
+      - "127.0.0.1:8443:443"
+
+  replay:
+    image: casino-dashboard-api:local
+    restart: unless-stopped
+    user: "10001:10001"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        REPLAY_REDIS_URL="redis://publisher:$$(cat /run/secrets/redis_publisher_password)@redis:6379/0"
+        exec python /tools/replay_publisher.py replay
+        --file /tools/fixtures/wolfbet-events.jsonl --speed 10 --loop
+    secrets:
+      - redis_publisher_password
+    volumes:
+      - ../tools:/tools:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+
+secrets:
+  session_secret:
+    file: ./e2e-secrets/session_secret.txt
+  brevo_api_key:
+    file: ./e2e-secrets/brevo_api_key.txt
+  totp_key:
+    file: ./e2e-secrets/totp_key.txt
+  postgres_password:
+    file: ./e2e-secrets/postgres_password.txt
+  postgres_app_password:
+    file: ./e2e-secrets/postgres_app_password.txt
+  redis_publisher_password:
+    file: ./e2e-secrets/redis_publisher_password.txt
+  redis_dashboard_password:
+    file: ./e2e-secrets/redis_dashboard_password.txt
+  agent_token:
+    file: ./e2e-secrets/agent_token.txt

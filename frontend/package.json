@@ -18,7 +18,11 @@
 		"format": "prettier --write .",
 		"gen:api": "openapi-typescript ../contracts/openapi.json -o src/lib/api/schema.ts && prettier --write src/lib/api/schema.ts",
 		"test": "vitest run",
-		"e2e": "playwright test"
+		"e2e": "playwright test",
+		"budget": "node scripts/bundle-budget.mjs",
+		"e2e:stack": "playwright test -c playwright.stack.config.ts",
+		"perf": "playwright test -c playwright.perf.config.ts perf/framerate.spec.ts",
+		"soak": "playwright test -c playwright.perf.config.ts perf/soak.spec.ts"
 	},
 	"dependencies": {
 		"@xterm/xterm": "^6.0.0",
@@ -26,6 +30,7 @@
 		"openapi-fetch": "^0.17.0"
 	},
 	"devDependencies": {
+		"@axe-core/playwright": "^4.14.0",
 		"@eslint/js": "^10.0.1",
 		"@playwright/test": "^1.65.1",
 		"@sveltejs/adapter-static": "^4.0.1",
@@ -36,6 +41,7 @@
 		"eslint": "^10.15.0",
 		"eslint-plugin-svelte": "^3.24.1",
 		"globals": "^17.14.0",
+		"lighthouse": "^13.6.0",
 		"openapi-typescript": "^7.13.0",
 		"prettier": "^3.10.1",
 		"prettier-plugin-svelte": "^4.1.1",

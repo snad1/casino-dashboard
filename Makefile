@@ -3,6 +3,10 @@
 #   make check      lint + type + test + security (what CI runs)
 #   make security   scanners only; see docs/security/scans.md
 #   make e2e        Playwright against a production build (downloads browsers once)
+#   make budget     fail when a page's first load is over 250 KB gzip
+#   make e2e-stack  Playwright against the real stack with replayed bot events (needs Docker)
+#   make perf       frame times at 10 Hz, 1x and 4x CPU throttle (prints, writes perf-results/)
+#   make soak       one hour on a fast feed; fails if the JS heap grows over 20%
 #   make dev-api    API on http://localhost:8010 with reload (creates local dev secrets once)
 #   make openapi    rewrite contracts/openapi.json and the frontend's generated api types
 
@@ -15,13 +19,15 @@ unexport VIRTUAL_ENV
 UV_BACKEND := uv run --project backend
 UV_AGENT   := uv run --project agent
 PNPM       := cd frontend && pnpm
+# CI runners need the browser's system libraries; a developer machine already has them.
+PW_INSTALL := $(PNPM) exec playwright install $(if $(CI),--with-deps,) chromium
 
 BANDIT_VERSION    := 1.9.4
 PIP_AUDIT_VERSION := 2.10.1
 SEMGREP_VERSION   := 1.185.0
 SCAN_IMAGE        := casino-dashboard-api:scan
 
-.PHONY: install lint type test check security openapi bandit pip-audit pnpm-audit semgrep gitleaks hadolint image-scan e2e dev-secrets dev-api
+.PHONY: install lint type test check security openapi bandit pip-audit pnpm-audit semgrep gitleaks hadolint image-scan e2e budget e2e-stack perf soak dev-secrets dev-api
 
 install:
 	uv sync --project backend
@@ -31,12 +37,13 @@ install:
 lint:
 	$(UV_BACKEND) ruff check backend
 	$(UV_BACKEND) ruff format --check backend
+	cd backend && uv run ruff check ../tools && uv run ruff format --check ../tools
 	$(UV_AGENT) ruff check agent
 	$(UV_AGENT) ruff format --check agent
 	$(PNPM) lint
 
 type:
-	cd backend && uv run mypy app tests
+	cd backend && uv run mypy app tests ../tools/replay_publisher.py ../tools/e2e_seed.py
 	cd agent && uv run mypy agent tests
 	$(PNPM) check
 
@@ -78,8 +85,26 @@ image-scan:
 	trivy image --quiet --severity HIGH,CRITICAL --exit-code 1 --ignore-unfixed $(SCAN_IMAGE)
 
 e2e:
-	$(PNPM) exec playwright install chromium
+	$(PW_INSTALL)
 	cd frontend && NODE_ENV=test pnpm e2e
+
+budget:
+	cd frontend && pnpm build && pnpm budget
+
+# The stack is removed afterwards, pass or fail; KEEP_STACK=1 leaves it up to debug.
+e2e-stack:
+	$(PW_INSTALL)
+	tools/e2e_stack.sh up || { tools/e2e_stack.sh down; exit 1; }
+	status=0; (cd frontend && pnpm e2e:stack) || status=$$?; \
+		[ -n "$(KEEP_STACK)" ] || tools/e2e_stack.sh down; exit $$status
+
+perf:
+	$(PW_INSTALL)
+	cd frontend && pnpm perf
+
+soak:
+	$(PW_INSTALL)
+	cd frontend && pnpm soak
 
 # Random local-only secrets, written once; the api refuses to start without them.
 dev-secrets:

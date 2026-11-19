@@ -15,5 +15,14 @@ export default ts.config(
 		}
 	},
 	{ rules: { 'svelte/no-at-html-tags': 'error' } },
-	{ ignores: ['build/', '.svelte-kit/', 'node_modules/', 'playwright-report/', 'test-results/'] }
+	{
+		ignores: [
+			'build/',
+			'.svelte-kit/',
+			'node_modules/',
+			'playwright-report/',
+			'test-results/',
+			'perf-results/'
+		]
+	}
 );

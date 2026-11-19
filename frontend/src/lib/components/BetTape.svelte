@@ -79,43 +79,45 @@
 			>
 		{/if}
 	</div>
-	<div class="min-h-0 flex-1">
-		<VirtualList items={shown} key={keyOf} rowHeight={ROW} label="Bet tape">
-			{#snippet header()}
-				<div role="rowgroup">
+	<div class="min-h-0 flex-1 overflow-x-auto">
+		<div class="h-full min-w-76">
+			<VirtualList items={shown} key={keyOf} rowHeight={ROW} label="Bet tape">
+				{#snippet header()}
+					<div role="rowgroup">
+						<div
+							role="row"
+							class="grid grid-cols-[4.5rem_2rem_4.5rem_1fr_3.5rem_1fr] gap-2 border-b border-line px-1 py-1 text-xs text-muted"
+						>
+							<span role="columnheader">Time</span>
+							<span role="columnheader">Lane</span>
+							<span role="columnheader">Result</span>
+							<span role="columnheader" class="text-right">Amount</span>
+							<span role="columnheader" class="text-right">Mult.</span>
+							<span role="columnheader" class="text-right">Profit</span>
+						</div>
+					</div>
+				{/snippet}
+				{#snippet row(bet: TapeRow)}
+					{@const win = bet.state === 'win'}
 					<div
 						role="row"
-						class="grid grid-cols-[4.5rem_2rem_4.5rem_1fr_3.5rem_1fr] gap-2 border-b border-line px-1 py-1 text-xs text-muted"
+						tabindex="-1"
+						class="grid h-full grid-cols-[4.5rem_2rem_4.5rem_1fr_3.5rem_1fr] items-center gap-2 px-1 font-mono text-xs tabular-nums"
+						title="Roll {bet.result}, balance {formatAmount(bet.balance, currencyOf(bet))}"
 					>
-						<span role="columnheader">Time</span>
-						<span role="columnheader">Lane</span>
-						<span role="columnheader">Result</span>
-						<span role="columnheader" class="text-right">Amount</span>
-						<span role="columnheader" class="text-right">Mult.</span>
-						<span role="columnheader" class="text-right">Profit</span>
+						<span role="cell" class="text-muted">{clock(bet.ts_ms)}</span>
+						<span role="cell" class="text-muted">{bet.lane}</span>
+						<span role="cell" class={win ? 'text-profit' : 'text-loss'}
+							><span aria-hidden="true">{win ? '▲' : '▼'}</span> {win ? 'Win' : 'Loss'}</span
+						>
+						<span role="cell" class="text-right">{formatAmount(bet.amount, currencyOf(bet))}</span>
+						<span role="cell" class="text-right">{bet.multiplier.toFixed(2)}x</span>
+						<span role="cell" class="text-right {win ? 'text-profit' : 'text-loss'}"
+							>{formatProfit(bet.profit, decimalsFor(currencyOf(bet)))}</span
+						>
 					</div>
-				</div>
-			{/snippet}
-			{#snippet row(bet: TapeRow)}
-				{@const win = bet.state === 'win'}
-				<div
-					role="row"
-					tabindex="-1"
-					class="grid h-full grid-cols-[4.5rem_2rem_4.5rem_1fr_3.5rem_1fr] items-center gap-2 px-1 font-mono text-xs tabular-nums"
-					title="Roll {bet.result}, balance {formatAmount(bet.balance, currencyOf(bet))}"
-				>
-					<span role="cell" class="text-muted">{clock(bet.ts_ms)}</span>
-					<span role="cell" class="text-muted">{bet.lane}</span>
-					<span role="cell" class={win ? 'text-profit' : 'text-loss'}
-						><span aria-hidden="true">{win ? '▲' : '▼'}</span> {win ? 'Win' : 'Loss'}</span
-					>
-					<span role="cell" class="text-right">{formatAmount(bet.amount, currencyOf(bet))}</span>
-					<span role="cell" class="text-right">{bet.multiplier.toFixed(2)}x</span>
-					<span role="cell" class="text-right {win ? 'text-profit' : 'text-loss'}"
-						>{formatProfit(bet.profit, decimalsFor(currencyOf(bet)))}</span
-					>
-				</div>
-			{/snippet}
-		</VirtualList>
+				{/snippet}
+			</VirtualList>
+		</div>
 	</div>
 </div>

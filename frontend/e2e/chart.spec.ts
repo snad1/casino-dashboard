@@ -54,14 +54,14 @@ test('the chart loads the last hour of profit and switches to balance and 7 days
 }) => {
 	const queries = await chartRig(page);
 	await page.goto('/wolfbet');
-	const chart = page.getByRole('img', { name: /Profit for all lanes, last 1h/ });
+	const chart = page.getByRole('figure', { name: /Profit for all lanes, last 1h/ });
 	await expect(chart).toHaveAccessibleName(/latest \+0\.75000000/);
 	await expect(page.getByTitle('Resolution')).toHaveText('1s');
 	expect(queries[0]?.get('metric')).toBe('profit');
 	expect(spanSeconds(queries[0] as URLSearchParams)).toBeCloseTo(3600, -1);
 
 	await page.getByRole('button', { name: 'balance' }).click();
-	await expect(page.getByRole('img', { name: /Balance for all lanes/ })).toBeVisible();
+	await expect(page.getByRole('figure', { name: /Balance for all lanes/ })).toBeVisible();
 	expect(queries.at(-1)?.get('metric')).toBe('balance');
 
 	await page.getByRole('button', { name: '7d' }).click();
@@ -75,5 +75,5 @@ test('a failed history load says so and keeps the chart', async ({ page }) => {
 	await expect(page.getByRole('alert')).toHaveText(
 		"Couldn't load the chart history. Retrying when you change the range."
 	);
-	await expect(page.getByRole('img', { name: /Profit for all lanes/ })).toBeVisible();
+	await expect(page.getByRole('figure', { name: /Profit for all lanes/ })).toBeVisible();
 });

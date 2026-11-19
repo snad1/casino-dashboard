@@ -78,6 +78,6 @@ async def check_code_rate(redis: Redis, user_id: int) -> None:
 
 async def check_comment_rate(redis: Redis, user_id: int) -> None:
     """At most 10 comment writes a minute per user, so one account cannot flood a page."""
-    limits = [(f"comments:rl:{user_id}", COMMENT_LIMIT)]
+    limits = [(f"auth:rl:comment:{user_id}", COMMENT_LIMIT)]
     if await _over(redis, limits, COMMENTS_UNAVAILABLE):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, TOO_MANY_COMMENTS)

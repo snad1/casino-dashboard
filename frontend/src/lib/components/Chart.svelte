@@ -303,7 +303,7 @@
 		{#if res}<span class="font-mono text-xs text-muted" title="Resolution">{res}</span>{/if}
 	</div>
 	<div class="relative min-h-60 flex-1">
-		<div bind:this={container} class="absolute inset-0" role="img" aria-label={summary}></div>
+		<div bind:this={container} class="absolute inset-0" role="figure" aria-label={summary}></div>
 		{#if loading && !error}
 			<p class="pointer-events-none absolute inset-x-0 top-2 text-center text-sm text-muted">
 				Loading chart history

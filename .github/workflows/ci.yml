@@ -96,6 +96,14 @@ jobs:
         if: steps.gate.outputs.verified != 'true'
         run: make test
 
+      - name: Bundle budget
+        if: steps.gate.outputs.verified != 'true'
+        run: make budget
+
+      - name: Browser tests (stubbed api, axe, keyboard; desktop and phone)
+        if: steps.gate.outputs.verified != 'true'
+        run: make e2e
+
       - name: Security scans
         if: steps.gate.outputs.verified != 'true'
         run: make security

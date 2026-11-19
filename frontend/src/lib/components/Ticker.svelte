@@ -53,7 +53,14 @@
 	});
 </script>
 
-<div class="flex min-w-0 flex-1 items-center gap-4 overflow-x-auto text-sm">
+<!-- A scrollable region must be reachable by keyboard so its overflow can be scrolled. -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<div
+	role="group"
+	aria-label="Live totals"
+	tabindex="0"
+	class="flex min-w-0 flex-1 items-center gap-4 overflow-x-auto text-sm focus-visible:outline-2 focus-visible:outline-focus"
+>
 	<span class="font-semibold">{service}</span>
 	<span
 		class="rounded-sm px-2 py-0.5 text-xs {link === 'Live'
