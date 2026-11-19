@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.settings import load_mailer_settings, load_settings
+from app.settings import load_ingest_settings, load_mailer_settings, load_settings
 from tests.conftest import PUBLIC_HOST, REQUIRED_SECRETS
 
 STRONG = "Zq3v-Lk9P_x2RtY7mWb4NcH8sJd6Fa1Ge5Uo0Ii"
@@ -110,6 +110,17 @@ def test_public_host_must_be_bare(monkeypatch: pytest.MonkeyPatch, host: str) ->
 def test_unknown_time_zone_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOST_TZ", "Mars/Olympus")
     _fails_naming("host_tz")
+
+
+def test_ingest_needs_a_known_host_zone(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("HOST_TZ", raising=False)
+    with pytest.raises(ValidationError, match="host_tz"):
+        load_ingest_settings()
+    monkeypatch.setenv("HOST_TZ", "Mars/Olympus")
+    with pytest.raises(ValidationError, match="host_tz"):
+        load_ingest_settings()
+    monkeypatch.setenv("HOST_TZ", "Europe/Berlin")
+    assert load_ingest_settings().host_tz == "Europe/Berlin"
 
 
 def test_unknown_app_env_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:

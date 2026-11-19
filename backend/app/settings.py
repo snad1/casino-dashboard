@@ -9,11 +9,11 @@ placeholder or low-variety secret, and the error never contains the value.
 import os
 import re
 from pathlib import Path
-from typing import Any, Literal, Self
+from typing import Annotated, Any, Literal, Self
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import AfterValidator, Field, SecretStr, field_validator, model_validator
 from pydantic.fields import FieldInfo
 from pydantic_settings import (
     BaseSettings,
@@ -23,6 +23,17 @@ from pydantic_settings import (
 )
 
 AppEnv = Literal["local", "development", "testing", "staging", "production"]
+
+
+def _known_zone(value: str) -> str:
+    try:
+        ZoneInfo(value)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise ValueError("is not a known time zone") from None
+    return value
+
+
+TimeZoneName = Annotated[str, AfterValidator(_known_zone)]
 
 DEFAULT_SECRETS_DIR = "/run/secrets"
 MIN_SECRET_BYTES = 32
@@ -149,7 +160,7 @@ class Settings(DatabaseSettings):
 
     public_host: str
     allowed_origins: list[str] = Field(default_factory=list)
-    host_tz: str = "UTC"
+    host_tz: TimeZoneName = "UTC"
 
     redis_host: str = "127.0.0.1"
     redis_port: int = 6379
@@ -177,15 +188,6 @@ class Settings(DatabaseSettings):
     @classmethod
     def _blank_is_off(cls, value: object) -> object:
         return None if value == "" else value
-
-    @field_validator("host_tz")
-    @classmethod
-    def _known_zone(cls, value: str) -> str:
-        try:
-            ZoneInfo(value)
-        except (ZoneInfoNotFoundError, ValueError):
-            raise ValueError("is not a known time zone") from None
-        return value
 
     @model_validator(mode="after")
     def _default_origins(self) -> Self:
@@ -237,6 +239,18 @@ class MailerSettings(DatabaseSettings):
         return self
 
 
+class IngestSettings(DatabaseSettings):
+    """The ingest process: reads the bot's SQLite read-only and writes history to Postgres.
+
+    `host_tz` has no default: the bot writes naive local times, and a wrong zone would shift
+    every copied bet silently.
+    """
+
+    host_tz: TimeZoneName
+    ingest_service: str = "wolfbet"
+    bot_data_dir: Path = Path("/botdata")
+
+
 def load_settings() -> Settings:
     """Load settings once at startup; raises `pydantic.ValidationError` naming bad fields."""
     return Settings(_secrets_dir=os.environ.get("SECRETS_DIR", DEFAULT_SECRETS_DIR))
@@ -248,3 +262,7 @@ def load_mailer_settings() -> MailerSettings:
 
 def load_migration_settings() -> MigrationSettings:
     return MigrationSettings(_secrets_dir=os.environ.get("SECRETS_DIR", DEFAULT_SECRETS_DIR))
+
+
+def load_ingest_settings() -> IngestSettings:
+    return IngestSettings(_secrets_dir=os.environ.get("SECRETS_DIR", DEFAULT_SECRETS_DIR))

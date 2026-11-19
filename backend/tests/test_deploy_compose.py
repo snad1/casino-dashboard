@@ -72,7 +72,11 @@ def test_app_containers_are_locked_down(compose: dict[str, Any], name: str) -> N
     assert service["cap_drop"] == ["ALL"]
     assert "cap_add" not in service
     assert any(t.startswith("/tmp") for t in service["tmpfs"])  # noqa: S108
-    assert not str(service["user"]).startswith("0")
+    if name == "ingest":
+        # Root only to read the root-owned bot database, and only with every mount read-only.
+        assert all(str(v).endswith(":ro") for v in service["volumes"])
+    else:
+        assert not str(service["user"]).startswith("0")
     assert service["networks"] == (["internal", "egress"] if name == "mailer" else ["internal"])
 
 

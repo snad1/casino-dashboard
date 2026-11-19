@@ -121,9 +121,21 @@ services:
 
   ingest:
     <<: *app
+    # The bot runs as root and its database in /root is root-only. Ingest reads it as the
+    # owner: no capabilities, read-only root filesystem, read-only mount, so it can write nothing.
+    user: "0:0"
     cpus: 0.5
     mem_limit: 256m
-    command: ["python", "-m", "app.ingest"]
+    command: ["python", "-m", "app.ingest.main"]
+    environment:
+      APP_ENV: production
+      POSTGRES_HOST: timescale
+      POSTGRES_DB: dashboard
+      POSTGRES_USER: dashboard_app
+      HOST_TZ: ${HOST_TZ:?set HOST_TZ in deploy/.env}
+    secrets:
+      - source: postgres_app_password
+        target: postgres_password
     volumes:
       - ${BOT_DATA_DIR:?set BOT_DATA_DIR in deploy/.env}:/botdata:ro
     depends_on:
