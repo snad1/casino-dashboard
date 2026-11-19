@@ -2,6 +2,8 @@
 	import type { Snippet } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import Ticker from '#components/Ticker';
+	import { liveFor } from '#lib/live/index';
 	import { can } from '#lib/permissions';
 	import { DEFAULT_SERVICE, session, signOut } from '#lib/session.svelte';
 
@@ -51,10 +53,11 @@
 	<header
 		class="sticky top-0 z-10 flex h-14 items-center justify-between gap-4 border-b border-line bg-surface px-4"
 	>
-		<div class="flex items-baseline gap-3">
+		{#if page.params.service}
+			<Ticker live={liveFor(page.params.service)} service={page.params.service} />
+		{:else}
 			<span class="font-semibold">Casino dashboard</span>
-			<span class="text-sm text-muted">{service}</span>
-		</div>
+		{/if}
 		<div class="flex items-center gap-3 text-sm">
 			<a href={resolve('/(app)/totp')} class="hidden text-muted underline sm:inline"
 				>{session.me?.email}</a
