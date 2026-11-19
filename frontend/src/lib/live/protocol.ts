@@ -11,6 +11,11 @@ export interface LaneFields {
 	current_streak?: number;
 	max_win_streak?: number;
 	max_loss_streak?: number;
+	base_bet?: number | null;
+	current_bet?: number | null;
+	lane_split?: string | null;
+	run_profit?: number | null;
+	stop_reason?: string | null;
 	balance?: number | null;
 	currency?: string | null;
 	bps_1s?: number;
@@ -48,13 +53,84 @@ export type ServerMessage =
 	| { op: 'tick'; topic: string; lanes: Lanes; candles: Candle[]; tape: TapeRow[] }
 	| { op: 'hb' }
 	| { op: 'error'; topic?: string; detail: string }
-	| { op: 'system'; topic: string };
+	| ({ op: 'system'; topic: string } & SystemMessage);
+
+export interface HostMetrics {
+	cpu_pct: number | null;
+	load: number[] | null;
+	mem_total: number | null;
+	mem_available: number | null;
+	disk_total: number | null;
+	disk_free: number | null;
+	net_rx_bps: number | null;
+	net_tx_bps: number | null;
+}
+
+export interface UnitMetrics {
+	unit: string;
+	cpu_pct: number | null;
+	rss_bytes: number | null;
+}
+
+export interface ContainerMetrics {
+	service: string;
+	cpu_pct: number | null;
+	memory_bytes: number | null;
+}
+
+export interface PublisherCounters {
+	enabled: boolean;
+	connected: boolean;
+	sent: number;
+	queued: number;
+	dropped: number;
+}
+
+/** One system sample: host, units and containers from the agent, publisher counters per lane. */
+export interface SystemMessage {
+	ts_ms: number;
+	agent: 'ok' | 'unavailable' | 'pending';
+	host: HostMetrics | null;
+	units: UnitMetrics[];
+	containers: ContainerMetrics[];
+	publisher: Record<number, PublisherCounters>;
+}
 
 export const CLOSE_SIGNED_OUT = 4401;
 export const CLOSE_FORBIDDEN = 4403;
 
 export function topicFor(service: string): string {
 	return `svc:${service}`;
+}
+
+export function systemTopicFor(service: string): string {
+	return `svc:${service}:system`;
+}
+
+const asObject = (value: unknown): Record<string, unknown> | null =>
+	typeof value === 'object' && value !== null && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: null;
+const asList = <T>(value: unknown, keep: (item: Record<string, unknown>) => boolean): T[] =>
+	Array.isArray(value) ? (value.map(asObject).filter((v) => v !== null && keep(v)) as T[]) : [];
+
+function systemOf(m: Record<string, unknown>): SystemMessage {
+	const publisher: Record<number, PublisherCounters> = {};
+	for (const [lane, counters] of Object.entries(asObject(m.publisher) ?? {})) {
+		const c = asObject(counters);
+		if (/^\d+$/.test(lane) && c && typeof c.sent === 'number' && typeof c.dropped === 'number') {
+			publisher[Number(lane)] = c as unknown as PublisherCounters;
+		}
+	}
+	const agent = m.agent === 'ok' || m.agent === 'pending' ? m.agent : 'unavailable';
+	return {
+		ts_ms: typeof m.ts_ms === 'number' ? m.ts_ms : 0,
+		agent,
+		host: (asObject(m.host) as HostMetrics | null) ?? null,
+		units: asList<UnitMetrics>(m.units, (u) => typeof u.unit === 'string'),
+		containers: asList<ContainerMetrics>(m.containers, (c) => typeof c.service === 'string'),
+		publisher
+	};
 }
 
 function isCandle(value: unknown): value is Candle {
@@ -123,7 +199,7 @@ export function parseMessage(raw: string): ServerMessage | null {
 					}
 				: null;
 		case 'system':
-			return typeof m.topic === 'string' ? { op: 'system', topic: m.topic } : null;
+			return typeof m.topic === 'string' ? { op: 'system', topic: m.topic, ...systemOf(m) } : null;
 		default:
 			return null;
 	}

@@ -2,8 +2,10 @@
 	import { page } from '$app/state';
 	import BetTape from '#components/BetTape';
 	import Chart from '#components/Chart';
+	import LaneCard from '#components/LaneCard';
 	import SessionsList from '#components/SessionsList';
 	import Streaks from '#components/Streaks';
+	import SystemPanel from '#components/SystemPanel';
 	import { liveFor } from '#lib/live/index';
 
 	const panels = [
@@ -38,6 +40,22 @@
 			{:else if panel.id === 'tape' && page.params.service}
 				<div class="mt-2 h-[36rem]">
 					<BetTape live={liveFor(page.params.service)} />
+				</div>
+			{:else if panel.id === 'lanes' && page.params.service}
+				{@const live = liveFor(page.params.service)}
+				<div class="mt-2 grid gap-3 sm:grid-cols-2">
+					{#each Object.entries(live.lanes)
+						.map(([n, lane]) => [Number(n), lane] as const)
+						.filter(([n]) => n >= 1 && n <= 10)
+						.sort(([a], [b]) => a - b) as [n, lane] (n)}
+						<LaneCard {n} {lane} />
+					{:else}
+						<p class="text-sm text-muted">Waiting for live data.</p>
+					{/each}
+				</div>
+			{:else if panel.id === 'system' && page.params.service}
+				<div class="mt-2">
+					<SystemPanel live={liveFor(page.params.service)} service={page.params.service} />
 				</div>
 			{:else if panel.id === 'streaks' && page.params.service}
 				<div class="mt-2"><Streaks live={liveFor(page.params.service)} /></div>

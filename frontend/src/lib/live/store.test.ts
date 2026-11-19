@@ -212,6 +212,34 @@ describe('live store', () => {
 		expect(store.tape.map((r) => r.seq)).toEqual([9]);
 	});
 
+	it('keeps the latest system sample and a minute of drop counts', async () => {
+		const { store, socket, flush, advance, settle } = rig();
+		store.start('svc:wolfbet');
+		await settle();
+		const sample = (dropped: number) => ({
+			op: 'system',
+			topic: 'svc:wolfbet:system',
+			ts_ms: 1,
+			agent: 'ok',
+			host: null,
+			units: [],
+			containers: [],
+			publisher: { 1: { enabled: true, connected: true, sent: 9, queued: 0, dropped } }
+		});
+		socket(0).receive(sample(2));
+		flush();
+		await advance(30_000);
+		socket(0).receive(sample(5));
+		flush();
+		expect(store.system?.publisher[1]?.dropped).toBe(5);
+		expect(store.dropSamples[1]?.map((s) => s.dropped)).toEqual([2, 5]);
+		await advance(40_000);
+		socket(0).receive(sample(5));
+		flush();
+		expect(store.dropSamples[1]?.map((s) => s.dropped)).toEqual([5, 5]);
+		expect(store.stale).toBe(true);
+	});
+
 	it('stop closes the socket and cancels any retry', async () => {
 		const { store, sockets, socket, advance, settle } = rig();
 		store.start('svc:wolfbet');

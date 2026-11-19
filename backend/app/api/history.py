@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import User
 from app.auth.permissions import Perm, require
 from app.db.engine import get_session
-from app.history.models import Bet, HistorySession
+from app.history.models import Bet, HistorySession, ReconcileRun
 
 MAX_POINTS = 5000
 DEFAULT_RANGE = timedelta(hours=1)
@@ -113,6 +113,21 @@ class LaneSeries(BaseModel):
 class SeriesOut(BaseModel):
     res: Resolution
     series: list[LaneSeries]
+
+
+class ReconcileOut(BaseModel):
+    finished_at: datetime
+    kind: str
+    mismatched: int
+    persisting: int
+    purged_upstream: int
+    lag_rows: int
+    lag_seconds: float
+    lag_alert: bool
+
+
+class IngestOut(BaseModel):
+    last_run: ReconcileOut | None
 
 
 class CurrentOut(BaseModel):
@@ -369,5 +384,35 @@ async def get_current(service: str, request: Request, _: Viewer, db: Db) -> Base
         return hit
     rows = await current_sessions(db, service)
     out = CurrentOut(lanes=[_session_out(SessionOut, row) for row in rows])
+    cache.put(key, out)
+    return out
+
+
+@router.get("/ingest", response_model=IngestOut)
+async def get_ingest(service: str, request: Request, _: Viewer, db: Db) -> BaseModel:
+    """The latest reconcile run: how far ingest lags and whether the history copy matches."""
+    cache, key = _cache(request)
+    if (hit := cache.get(key)) is not None:
+        return hit
+    run = await db.scalar(
+        select(ReconcileRun)
+        .where(ReconcileRun.service == service)
+        .order_by(ReconcileRun.id.desc())
+        .limit(1)
+    )
+    out = IngestOut(
+        last_run=None
+        if run is None
+        else ReconcileOut(
+            finished_at=run.finished_at,
+            kind=run.kind,
+            mismatched=run.mismatched,
+            persisting=run.persisting,
+            purged_upstream=run.purged_upstream,
+            lag_rows=run.lag_rows,
+            lag_seconds=run.lag_seconds,
+            lag_alert=run.lag_alert,
+        )
+    )
     cache.put(key, out)
     return out

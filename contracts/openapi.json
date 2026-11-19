@@ -434,6 +434,25 @@
         "title": "Health",
         "type": "object"
       },
+      "IngestOut": {
+        "properties": {
+          "last_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReconcileOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "last_run"
+        ],
+        "title": "IngestOut",
+        "type": "object"
+      },
       "InviteIn": {
         "properties": {
           "email": {
@@ -574,6 +593,55 @@
           "totp_enabled"
         ],
         "title": "Me",
+        "type": "object"
+      },
+      "ReconcileOut": {
+        "properties": {
+          "finished_at": {
+            "format": "date-time",
+            "title": "Finished At",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "lag_alert": {
+            "title": "Lag Alert",
+            "type": "boolean"
+          },
+          "lag_rows": {
+            "title": "Lag Rows",
+            "type": "integer"
+          },
+          "lag_seconds": {
+            "title": "Lag Seconds",
+            "type": "number"
+          },
+          "mismatched": {
+            "title": "Mismatched",
+            "type": "integer"
+          },
+          "persisting": {
+            "title": "Persisting",
+            "type": "integer"
+          },
+          "purged_upstream": {
+            "title": "Purged Upstream",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "finished_at",
+          "kind",
+          "mismatched",
+          "persisting",
+          "purged_upstream",
+          "lag_rows",
+          "lag_seconds",
+          "lag_alert"
+        ],
+        "title": "ReconcileOut",
         "type": "object"
       },
       "RecoveryCodes": {
@@ -2102,6 +2170,49 @@
           }
         },
         "summary": "Get Current",
+        "tags": [
+          "history"
+        ]
+      }
+    },
+    "/{service}/ingest": {
+      "get": {
+        "description": "The latest reconcile run: how far ingest lags and whether the history copy matches.",
+        "operationId": "get_ingest__service__ingest_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "title": "Service",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ingest",
         "tags": [
           "history"
         ]

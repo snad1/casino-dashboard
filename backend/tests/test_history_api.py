@@ -88,6 +88,15 @@ class Seed:
             },
         )
 
+    def reconcile_run(self, epoch_id: int, mismatched: int, lag_alert: bool) -> None:
+        self._run(
+            "INSERT INTO reconcile_runs (service, epoch_id, kind, lo_id, hi_id, started_at,"
+            " finished_at, sessions_checked, mismatched, purged_upstream, persisting, lag_rows,"
+            " lag_seconds, lag_alert, details) VALUES (:s, :e, 'quick', 0, 10, :t, :t, 1, :m, 0,"
+            " :m, 5, 42.0, :a, '{}')",
+            {"s": self.service, "e": epoch_id, "t": T0, "m": mismatched, "a": lag_alert},
+        )
+
     def clean(self) -> None:
         for table in ("bets", "sessions", "reconcile_runs", "db_epochs"):
             self._run(f"DELETE FROM {table} WHERE service = :s", {"s": self.service})  # noqa: S608  # nosec B608: fixed table names
@@ -118,7 +127,7 @@ def test_anonymous_and_roleless_users_are_refused(
         return user
 
     nobody = as_user(run_in_session(app_settings, roleless))
-    for path in ("sessions", "series", "current", "sessions/1/1", "sessions/1/1/bets"):
+    for path in ("sessions", "series", "current", "ingest", "sessions/1/1", "sessions/1/1/bets"):
         assert nobody.get(f"/{seed.service}/{path}").status_code == 403
 
 
@@ -251,3 +260,15 @@ def test_identical_queries_share_a_result_for_one_second(
     assert len(viewer.get(path).json()["items"]) == 1
     time.sleep(0.35)
     assert len(viewer.get(path).json()["items"]) == 2
+
+
+def test_ingest_status_is_the_latest_reconcile_run(viewer: TestClient, seed: Seed) -> None:
+    path = f"/{seed.service}/ingest"
+    assert viewer.get(path).json() == {"last_run": None}
+    epoch = seed.epoch()
+    seed.reconcile_run(epoch, mismatched=0, lag_alert=False)
+    seed.reconcile_run(epoch, mismatched=2, lag_alert=True)
+    time.sleep(1.05)
+    run = viewer.get(path).json()["last_run"]
+    assert (run["mismatched"], run["persisting"], run["lag_alert"]) == (2, 2, True)
+    assert (run["lag_rows"], run["lag_seconds"], run["kind"]) == (5, 42.0, "quick")

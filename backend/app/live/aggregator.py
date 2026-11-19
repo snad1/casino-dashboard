@@ -35,6 +35,7 @@ STALE_AFTER_S = 6.0
 EWMA_ALPHA = 0.3
 MIN_HZ, MAX_HZ, DEFAULT_HZ = 4, 10, 5
 FLOAT_TOLERANCE = 1e-9
+STOP_REASON_MAX = 120
 
 log = structlog.get_logger("app.live.aggregator")
 
@@ -103,6 +104,11 @@ class Lane:
     gaps: int = 0
     agent_running: bool | None = None
     publisher: dict[str, Any] | None = None
+    base_bet: float | None = None
+    current_bet: float | None = None
+    lane_split: str | None = None
+    run_profit: float | None = None
+    stop_reason: str | None = None
     last_event_ts_ms: int | None = None
     last_seen: float | None = None
     latencies: deque[float] = field(default_factory=lambda: deque(maxlen=LATENCY_WINDOW))
@@ -130,6 +136,10 @@ class Tick:
     @property
     def empty(self) -> bool:
         return not (self.snapshot_diff or self.tape_new or self.candles_new)
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool)
 
 
 def _count(value: Any) -> int:
@@ -190,7 +200,7 @@ class Aggregator:
         elif isinstance(item, StateEvent):
             self._state(lane, item.payload)
         elif isinstance(item, LifecycleEvent):
-            self._lifecycle(lane, item.payload.kind)
+            self._lifecycle(lane, item.payload.kind, item.payload.data)
 
     def _bet(self, lane: Lane, event: BetEvent, now: float) -> None:
         bet = event.payload
@@ -288,16 +298,31 @@ class Aggregator:
         events = state.get("events")
         if isinstance(events, dict):
             lane.publisher = _publisher(events)
+        for key in ("base_bet", "current_bet"):
+            if _is_number(state.get(key)):
+                setattr(lane, key, float(state[key]))
+        if isinstance(state.get("lane_split"), str):
+            lane.lane_split = state["lane_split"]
+        run_total = state.get("run_profit_total")
+        per_run = state.get("profit_increment_scope") == "run"
+        lane.run_profit = (
+            float(run_total) if per_run and isinstance(run_total, int | float) else None
+        )
         bps = state.get("bets_per_second")
         if isinstance(bps, int | float) and not isinstance(bps, bool):
             lane.bps_avg = float(bps)
 
-    def _lifecycle(self, lane: Lane, kind: str) -> None:
+    def _lifecycle(self, lane: Lane, kind: str, data: dict[str, Any]) -> None:
         if kind == "stop":
             lane.stopped = True
+            reason = data.get("reason")
+            lane.stop_reason = (
+                reason[:STOP_REASON_MAX] if isinstance(reason, str) and reason else None
+            )
         elif kind in ("start", "resume"):
             lane.stopped = False
             lane.paused = False
+            lane.stop_reason = None
         elif kind == "pause":
             lane.paused = True
 
@@ -346,6 +371,11 @@ class Aggregator:
             "api_ms_p99": lane.latency_p99,
             "gaps": lane.gaps,
             "last_event_age_s": None if lane.last_seen is None else round(now - lane.last_seen, 1),
+            "base_bet": lane.base_bet,
+            "current_bet": lane.current_bet,
+            "lane_split": lane.lane_split,
+            "run_profit": lane.run_profit,
+            "stop_reason": lane.stop_reason,
         }
 
     def tick(self) -> Tick:

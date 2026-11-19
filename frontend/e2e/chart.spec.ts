@@ -13,6 +13,7 @@ async function chartRig(page: import('@playwright/test').Page, failSeries = fals
 	await stubApi(page, {
 		'GET /auth/me': () => ({ status: 200, json: viewerMe }),
 		'POST /ws-ticket': () => ({ status: 200, json: { ticket: 'one-time', expires_in: 30 } }),
+		'GET /wolfbet/ingest': () => ({ status: 200, json: { last_run: null } }),
 		'GET /wolfbet/series': (_body, url) => {
 			queries.push(url.searchParams);
 			if (failSeries) return { status: 500, json: { detail: 'boom' } };

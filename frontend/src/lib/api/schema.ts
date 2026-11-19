@@ -374,6 +374,26 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/{service}/ingest': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * Get Ingest
+		 * @description The latest reconcile run: how far ingest lags and whether the history copy matches.
+		 */
+		get: operations['get_ingest__service__ingest_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/{service}/series': {
 		parameters: {
 			query?: never;
@@ -581,6 +601,10 @@ export interface components {
 			 */
 			status: 'ok';
 		};
+		/** IngestOut */
+		IngestOut: {
+			last_run: components['schemas']['ReconcileOut'] | null;
+		};
 		/** InviteIn */
 		InviteIn: {
 			/** Email */
@@ -619,6 +643,28 @@ export interface components {
 			roles: components['schemas']['RoleOut'][];
 			/** Totp Enabled */
 			totp_enabled: boolean;
+		};
+		/** ReconcileOut */
+		ReconcileOut: {
+			/**
+			 * Finished At
+			 * Format: date-time
+			 */
+			finished_at: string;
+			/** Kind */
+			kind: string;
+			/** Lag Alert */
+			lag_alert: boolean;
+			/** Lag Rows */
+			lag_rows: number;
+			/** Lag Seconds */
+			lag_seconds: number;
+			/** Mismatched */
+			mismatched: number;
+			/** Persisting */
+			persisting: number;
+			/** Purged Upstream */
+			purged_upstream: number;
 		};
 		/** RecoveryCodes */
 		RecoveryCodes: {
@@ -1351,6 +1397,37 @@ export interface operations {
 				};
 				content: {
 					'application/json': components['schemas']['CurrentOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	get_ingest__service__ingest_get: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['IngestOut'];
 				};
 			};
 			/** @description Validation Error */

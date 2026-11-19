@@ -27,6 +27,7 @@ async function liveRig(page: import('@playwright/test').Page) {
 	await stubApi(page, {
 		'GET /auth/me': () => ({ status: 200, json: viewerMe }),
 		'POST /ws-ticket': () => ({ status: 200, json: { ticket: 'one-time', expires_in: 30 } }),
+		'GET /wolfbet/ingest': () => ({ status: 200, json: { last_run: null } }),
 		'GET /wolfbet/series': () => ({ status: 200, json: { res: '1s', series: [] } }),
 		'GET /wolfbet/sessions': () => ({ status: 200, json: { items: [], next_cursor: null } })
 	});

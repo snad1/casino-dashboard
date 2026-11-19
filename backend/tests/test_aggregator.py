@@ -69,8 +69,11 @@ def state(lane: int = 1, seq: int = 0, **payload: Any) -> StateEvent:
     return StateEvent.model_validate({**_envelope("state", lane, seq, 0), "payload": payload})
 
 
-def lifecycle(kind: str, lane: int = 1, seq: int = 0) -> LifecycleEvent:
-    body = {**_envelope("lifecycle", lane, seq, 0), "payload": {"kind": kind, "data": {}}}
+def lifecycle(
+    kind: str, lane: int = 1, seq: int = 0, data: dict[str, Any] | None = None
+) -> LifecycleEvent:
+    payload = {"kind": kind, "data": data or {}}
+    body = {**_envelope("lifecycle", lane, seq, 0), "payload": payload}
     return LifecycleEvent.model_validate(body)
 
 
@@ -254,6 +257,38 @@ class TestReconcile:
             "queued": 3,
             "dropped": 7,
         }
+
+    def test_bet_sizes_split_and_run_profit_come_from_state(self) -> None:
+        aggregator = Aggregator("wolfbet", clock=Clock())
+        aggregator.apply(
+            state(
+                session_id=1,
+                base_bet=0.0001,
+                current_bet=0.0004,
+                lane_split="equal",
+                profit_increment_scope="run",
+                run_profit_total=1.25,
+            )
+        )
+        lane = aggregator.tick().snapshot_diff[1]
+        assert (lane["base_bet"], lane["current_bet"], lane["lane_split"]) == (
+            0.0001,
+            0.0004,
+            "equal",
+        )
+        assert lane["run_profit"] == 1.25
+        aggregator.apply(
+            state(session_id=1, profit_increment_scope="session", run_profit_total=1.25)
+        )
+        assert aggregator.tick().snapshot_diff[1]["run_profit"] is None
+
+    def test_stop_reason_is_kept_until_the_lane_starts_again(self) -> None:
+        aggregator = Aggregator("wolfbet", clock=Clock())
+        aggregator.apply(lifecycle("stop", data={"reason": "Max profit reached" + "x" * 300}))
+        reason = aggregator.tick().snapshot_diff[1]["stop_reason"]
+        assert reason.startswith("Max profit reached") and len(reason) == 120
+        aggregator.apply(lifecycle("start"))
+        assert aggregator.tick().snapshot_diff[1]["stop_reason"] is None
 
     def test_new_session_restarts_the_lane(self) -> None:
         aggregator = Aggregator("wolfbet", clock=Clock())

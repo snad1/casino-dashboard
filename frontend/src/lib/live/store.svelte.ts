@@ -1,3 +1,4 @@
+import { addDropSamples, type DropSamples } from '#lib/system';
 import { prependRows, TAPE_MAX } from '#lib/tape';
 import {
 	CLOSE_FORBIDDEN,
@@ -5,6 +6,7 @@ import {
 	parseMessage,
 	type Candle,
 	type Lanes,
+	type SystemMessage,
 	type TapeRow
 } from './protocol';
 
@@ -44,6 +46,8 @@ export interface LiveDeps {
 export class LiveStore {
 	lanes: Lanes = $state({});
 	tape: TapeRow[] = $state.raw([]);
+	system: SystemMessage | null = $state.raw(null);
+	dropSamples: DropSamples = $state.raw({});
 	connection: Connection = $state('idle');
 	lastTickAt: number | null = $state(null);
 	now: number = $state(0);
@@ -189,6 +193,9 @@ export class LiveStore {
 				lanes = { ...message.lanes };
 				tape = prependRows([], message.tape, TAPE_MAX);
 				fresh = true;
+			} else if (message.op === 'system') {
+				this.system = message;
+				this.dropSamples = addDropSamples(this.dropSamples, message.publisher, this.#deps.now());
 			} else if (message.op === 'tick') {
 				const next = { ...lanes };
 				for (const [key, diff] of Object.entries(message.lanes)) {
