@@ -5,6 +5,11 @@
 	import JobDrawer from './JobDrawer.svelte';
 
 	const pending = $derived(control.pending);
+
+	$effect(() => {
+		const idle = !control.confirmOpen && !control.stepUpOpen && !control.sending;
+		if (idle && control.pending) control.cancel();
+	});
 </script>
 
 <ConfirmDialog

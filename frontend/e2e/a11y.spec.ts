@@ -70,6 +70,27 @@ async function rig(page: Page) {
 			json: { items: [], next_before: null }
 		}),
 		'GET /wolfbet/control': () => ({ status: 200, json: controlMenu }),
+		'GET /wolfbet/config': () => ({
+			status: 200,
+			json: {
+				keys: [
+					{
+						key: 'max_loss',
+						type: 'number',
+						help: 'Stop after this loss',
+						off_allowed: true,
+						live_reload: true,
+						lane_overridable: true
+					}
+				],
+				lane_count: 2,
+				override_lanes: { min: 2, max: 10 },
+				split_choices: ['none', 'budget'],
+				lane_split: 'none',
+				base: { max_loss: 0.02 },
+				lanes: {}
+			}
+		}),
 		'GET /admin/users': () => ({ status: 200, json: { items: [] } }),
 		'GET /audit': () => ({ status: 200, json: { items: [], next_before_id: null } })
 	});

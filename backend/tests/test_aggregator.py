@@ -290,6 +290,18 @@ class TestReconcile:
         aggregator.apply(lifecycle("start"))
         assert aggregator.tick().snapshot_diff[1]["stop_reason"] is None
 
+    def test_a_reload_records_when_and_which_keys_were_applied(self) -> None:
+        aggregator = Aggregator("wolfbet", clock=Clock())
+        applied = {"max_loss": [0.02, 0.01], "bet_delay": [0, 1]}
+        event = lifecycle("reload", lane=2, data={"applied": applied})
+        aggregator.apply(event)
+        assert aggregator.tick().snapshot_diff[2]["last_reload"] == {
+            "ts_ms": event.ts_ms,
+            "keys": ["bet_delay", "max_loss"],
+        }
+        aggregator.apply(lifecycle("reload", lane=2, seq=1, data={"applied": "odd"}))
+        assert aggregator.tick().snapshot_diff[2]["last_reload"]["keys"] == []
+
     def test_new_session_restarts_the_lane(self) -> None:
         aggregator = Aggregator("wolfbet", clock=Clock())
         aggregator.apply(bet(seq=0, session_id=1, session_profit=5.0))

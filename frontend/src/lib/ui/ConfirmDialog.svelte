@@ -47,7 +47,9 @@
 
 <dialog
 	bind:this={dialog}
-	onclose={() => (open = false)}
+	onclose={() => {
+		if (!dialog?.open) open = false;
+	}}
 	oncancel={() => oncancel?.()}
 	aria-labelledby="confirm-title"
 	class="m-auto w-full max-w-md rounded-lg border border-line bg-surface p-6 text-ink backdrop:bg-canvas/80"

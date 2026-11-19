@@ -19,6 +19,7 @@ interface Pending {
 	action: Action;
 	body: ActionBody;
 	key: string;
+	settle: (out: ControlOut | null) => void;
 }
 
 function message(e: unknown): string {
@@ -68,11 +69,15 @@ class Control {
 		}
 	}
 
-	ask(name: ActionName, body: ActionBody = {}): void {
+	/** Open the confirm for `name`; resolves with the api's answer, or null if it did not run. */
+	ask(name: ActionName, body: ActionBody = {}): Promise<ControlOut | null> {
 		const action = this.action(name);
-		if (!action) return;
-		this.pending = { action, body, key: newKey() };
-		this.confirmOpen = true;
+		if (!action) return Promise.resolve(null);
+		this.pending?.settle(null);
+		return new Promise((settle) => {
+			this.pending = { action, body, key: newKey(), settle };
+			this.confirmOpen = true;
+		});
 	}
 
 	async confirm(): Promise<void> {
@@ -85,6 +90,7 @@ class Control {
 			const out = await this.#send(service, pending);
 			this.confirmOpen = false;
 			this.pending = null;
+			pending.settle(out);
 			if (out.job_id) {
 				toast('info', `${label}: started.`);
 				this.#follow({
@@ -108,6 +114,7 @@ class Control {
 				return;
 			}
 			this.pending = null;
+			pending.settle(null);
 			toast('error', message(e));
 		} finally {
 			this.sending = false;
@@ -115,6 +122,7 @@ class Control {
 	}
 
 	cancel(): void {
+		this.pending?.settle(null);
 		this.pending = null;
 	}
 

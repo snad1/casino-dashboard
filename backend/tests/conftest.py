@@ -29,8 +29,8 @@ from app.main import create_app
 from app.settings import Settings, load_settings
 
 # WolfBet SQLite builder and the app-role Timescale connection used by the ingest tests;
-# a fake host agent for the agent client and control tests.
-pytest_plugins = ["tests.wolfbet_db", "tests.fake_agent"]
+# a fake host agent and signed-in clients for the agent, control and config tests.
+pytest_plugins = ["tests.wolfbet_db", "tests.fake_agent", "tests.control_rig"]
 
 REQUIRED_SECRETS = (
     "session_secret",

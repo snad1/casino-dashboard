@@ -16,6 +16,7 @@ export interface LaneFields {
 	lane_split?: string | null;
 	run_profit?: number | null;
 	stop_reason?: string | null;
+	last_reload?: { ts_ms: number; keys: string[] } | null;
 	balance?: number | null;
 	currency?: string | null;
 	bps_1s?: number;

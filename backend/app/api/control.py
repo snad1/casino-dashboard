@@ -137,7 +137,14 @@ def _fingerprint(service: str, action: str, body: BaseModel) -> bytes:
     return hashlib.sha256(canonical.encode()).digest()
 
 
-def _agent(request: Request) -> AgentClient:
+def agent_args(spec: ControlAction, body: BaseModel) -> dict[str, Any]:
+    """What the agent is sent for `body`: the action's own mapping, or the body's fields."""
+    if spec.agent_args is not None:
+        return spec.agent_args(body)
+    return body.model_dump(mode="json")
+
+
+def agent_or_error(request: Request) -> AgentClient:
     agent: AgentClient | None = request.app.state.agent
     if agent is None:
         raise AgentError("unconfigured")
@@ -316,12 +323,12 @@ def _endpoint(name: str, spec: ControlAction) -> Callable[..., Awaitable[Control
             if existing is None:
                 raise HTTPException(status.HTTP_409_CONFLICT, IN_PROGRESS)
             return _replay(existing, fingerprint, response)
-        args = {**payload.model_dump(mode="json"), **spec.fixed_args}
+        args = {**agent_args(spec, payload), **spec.fixed_args}
         out: ControlOut | None = None
         try:
             await _audit(db, request, user, service, name, args, "requested")
             try:
-                status_code, out = await _run(_agent(request), service, spec, args)
+                status_code, out = await _run(agent_or_error(request), service, spec, args)
                 stored = out.model_dump()
                 result = f"job:{out.job_id}" if out.job_id else out.status
             except AgentError as error:
@@ -438,7 +445,7 @@ async def get_job(
     if not await job_access(db, user, service, job_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, JOB_NOT_FOUND)
     try:
-        data = await _agent(request).call("job.get", {"job_id": job_id})
+        data = await agent_or_error(request).call("job.get", {"job_id": job_id})
         return JobOut.model_validate(data)
     except AgentError as error:
         if error.code == "not_found":

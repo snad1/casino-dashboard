@@ -399,6 +399,46 @@ export interface paths {
 		patch: operations['edit_comment__service__comments__comment_id__patch'];
 		trace?: never;
 	};
+	'/{service}/config': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * Get Config
+		 * @description The settable keys with their rules, and the saved base and per-lane values.
+		 */
+		get: operations['get_config__service__config_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/config/preview': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/**
+		 * Preview Config
+		 * @description What saving `body` would change, checked by the bot as a real save is; writes nothing.
+		 */
+		post: operations['preview_config__service__config_preview_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/{service}/control': {
 		parameters: {
 			query?: never;
@@ -970,12 +1010,71 @@ export interface components {
 			/** Session Id */
 			session_id: number | null;
 		};
-		/** ConfigArgs */
-		ConfigArgs: {
-			/** Pairs */
-			pairs: {
-				[key: string]: string;
+		/**
+		 * ConfigChange
+		 * @description One config edit: `lane` set overrides that lane, and the value `default` drops it.
+		 */
+		ConfigChange: {
+			/** Key */
+			key: string;
+			/** Lane */
+			lane?: number | null;
+			/** Value */
+			value: string;
+		};
+		/** ConfigChanges */
+		ConfigChanges: {
+			/** Changes */
+			changes: components['schemas']['ConfigChange'][];
+		};
+		/** ConfigKey */
+		ConfigKey: {
+			/** Choices */
+			choices?: string[] | null;
+			default?: components['schemas']['JsonValue'];
+			/** Format */
+			format?: string | null;
+			/** Help */
+			help?: string | null;
+			/** Key */
+			key: string;
+			/** Lane Overridable */
+			lane_overridable: boolean;
+			/** Live Reload */
+			live_reload: boolean;
+			/** Max */
+			max?: number | null;
+			/** Min */
+			min?: number | null;
+			/** Off Allowed */
+			off_allowed: boolean;
+			/**
+			 * Type
+			 * @enum {string}
+			 */
+			type: 'number' | 'integer' | 'boolean' | 'string';
+		};
+		/** ConfigOut */
+		ConfigOut: {
+			/** Base */
+			base: {
+				[key: string]: components['schemas']['JsonValue'];
 			};
+			/** Keys */
+			keys: components['schemas']['ConfigKey'][];
+			/** Lane Count */
+			lane_count: number;
+			/** Lane Split */
+			lane_split: string;
+			/** Lanes */
+			lanes: {
+				[key: string]: {
+					[key: string]: components['schemas']['JsonValue'];
+				};
+			};
+			override_lanes: components['schemas']['LaneRange'];
+			/** Split Choices */
+			split_choices: string[];
 		};
 		/** ConfirmIn */
 		ConfirmIn: {
@@ -1006,6 +1105,23 @@ export interface components {
 		CurrentOut: {
 			/** Lanes */
 			lanes: components['schemas']['SessionOut'][];
+		};
+		/** DiffRow */
+		DiffRow: {
+			/**
+			 * Apply
+			 * @enum {string}
+			 */
+			apply: 'live' | 'restart';
+			/** Key */
+			key: string;
+			new: components['schemas']['JsonValue'];
+			old: components['schemas']['JsonValue'];
+			/**
+			 * Removed
+			 * @default false
+			 */
+			removed: boolean;
 		};
 		/** DisableIn */
 		DisableIn: {
@@ -1068,6 +1184,14 @@ export interface components {
 			 */
 			status: 'running' | 'succeeded' | 'failed' | 'cancelled' | 'timeout';
 		};
+		JsonValue: unknown;
+		/** LaneRange */
+		LaneRange: {
+			/** Max */
+			max: number;
+			/** Min */
+			min: number;
+		};
 		/** LaneSeries */
 		LaneSeries: {
 			/** Lane */
@@ -1104,6 +1228,17 @@ export interface components {
 		};
 		/** NoArgs */
 		NoArgs: Record<string, never>;
+		/** PreviewOut */
+		PreviewOut: {
+			/** Base */
+			base: components['schemas']['DiffRow'][];
+			/** Lanes */
+			lanes: {
+				[key: string]: components['schemas']['DiffRow'][];
+			};
+			/** Warnings */
+			warnings: string[];
+		};
 		/** ReconcileOut */
 		ReconcileOut: {
 			/**
@@ -1991,6 +2126,72 @@ export interface operations {
 			};
 		};
 	};
+	get_config__service__config_get: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ConfigOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	preview_config__service__config_preview_post: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['ConfigChanges'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['PreviewOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
 	control_menu__service__control_get: {
 		parameters: {
 			query?: never;
@@ -2081,7 +2282,7 @@ export interface operations {
 		};
 		requestBody: {
 			content: {
-				'application/json': components['schemas']['ConfigArgs'];
+				'application/json': components['schemas']['ConfigChanges'];
 			};
 		};
 		responses: {

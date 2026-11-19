@@ -610,23 +610,216 @@
         "title": "CommentOut",
         "type": "object"
       },
-      "ConfigArgs": {
+      "ConfigChange": {
         "additionalProperties": false,
+        "description": "One config edit: `lane` set overrides that lane, and the value `default` drops it.",
         "properties": {
-          "pairs": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "maxProperties": 32,
-            "minProperties": 1,
-            "title": "Pairs",
-            "type": "object"
+          "key": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "lane": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 2.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lane"
+          },
+          "value": {
+            "maxLength": 200,
+            "pattern": "^[^\\x00-\\x1f\\x7f]*$",
+            "title": "Value",
+            "type": "string"
           }
         },
         "required": [
-          "pairs"
+          "key",
+          "value"
         ],
-        "title": "ConfigArgs",
+        "title": "ConfigChange",
+        "type": "object"
+      },
+      "ConfigChanges": {
+        "additionalProperties": false,
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ConfigChange"
+            },
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Changes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "changes"
+        ],
+        "title": "ConfigChanges",
+        "type": "object"
+      },
+      "ConfigKey": {
+        "properties": {
+          "choices": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Choices"
+          },
+          "default": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Format"
+          },
+          "help": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Help"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "lane_overridable": {
+            "title": "Lane Overridable",
+            "type": "boolean"
+          },
+          "live_reload": {
+            "title": "Live Reload",
+            "type": "boolean"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "off_allowed": {
+            "title": "Off Allowed",
+            "type": "boolean"
+          },
+          "type": {
+            "enum": [
+              "number",
+              "integer",
+              "boolean",
+              "string"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "type",
+          "off_allowed",
+          "live_reload",
+          "lane_overridable"
+        ],
+        "title": "ConfigKey",
+        "type": "object"
+      },
+      "ConfigOut": {
+        "properties": {
+          "base": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Base",
+            "type": "object"
+          },
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/ConfigKey"
+            },
+            "title": "Keys",
+            "type": "array"
+          },
+          "lane_count": {
+            "title": "Lane Count",
+            "type": "integer"
+          },
+          "lane_split": {
+            "title": "Lane Split",
+            "type": "string"
+          },
+          "lanes": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/JsonValue"
+              },
+              "type": "object"
+            },
+            "title": "Lanes",
+            "type": "object"
+          },
+          "override_lanes": {
+            "$ref": "#/components/schemas/LaneRange"
+          },
+          "split_choices": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Split Choices",
+            "type": "array"
+          }
+        },
+        "required": [
+          "keys",
+          "lane_count",
+          "override_lanes",
+          "split_choices",
+          "lane_split",
+          "base",
+          "lanes"
+        ],
+        "title": "ConfigOut",
         "type": "object"
       },
       "ConfirmIn": {
@@ -734,6 +927,41 @@
           "lanes"
         ],
         "title": "CurrentOut",
+        "type": "object"
+      },
+      "DiffRow": {
+        "properties": {
+          "apply": {
+            "enum": [
+              "live",
+              "restart"
+            ],
+            "title": "Apply",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "new": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "old": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "removed": {
+            "default": false,
+            "title": "Removed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "old",
+          "new",
+          "apply"
+        ],
+        "title": "DiffRow",
         "type": "object"
       },
       "DisableIn": {
@@ -912,6 +1140,25 @@
         "title": "JobOut",
         "type": "object"
       },
+      "JsonValue": {},
+      "LaneRange": {
+        "properties": {
+          "max": {
+            "title": "Max",
+            "type": "integer"
+          },
+          "min": {
+            "title": "Min",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min",
+          "max"
+        ],
+        "title": "LaneRange",
+        "type": "object"
+      },
       "LaneSeries": {
         "properties": {
           "lane": {
@@ -1053,6 +1300,41 @@
         "additionalProperties": false,
         "properties": {},
         "title": "NoArgs",
+        "type": "object"
+      },
+      "PreviewOut": {
+        "properties": {
+          "base": {
+            "items": {
+              "$ref": "#/components/schemas/DiffRow"
+            },
+            "title": "Base",
+            "type": "array"
+          },
+          "lanes": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/DiffRow"
+              },
+              "type": "array"
+            },
+            "title": "Lanes",
+            "type": "object"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "base",
+          "lanes",
+          "warnings"
+        ],
+        "title": "PreviewOut",
         "type": "object"
       },
       "ReconcileOut": {
@@ -2931,6 +3213,104 @@
         ]
       }
     },
+    "/{service}/config": {
+      "get": {
+        "description": "The settable keys with their rules, and the saved base and per-lane values.",
+        "operationId": "get_config__service__config_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Service",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Config",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/{service}/config/preview": {
+      "post": {
+        "description": "What saving `body` would change, checked by the bot as a real save is; writes nothing.",
+        "operationId": "preview_config__service__config_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Service",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigChanges"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Config",
+        "tags": [
+          "config"
+        ]
+      }
+    },
     "/{service}/control": {
       "get": {
         "description": "The service's control buttons with their confirm text, and the job still running.",
@@ -3077,7 +3457,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ConfigArgs"
+                "$ref": "#/components/schemas/ConfigChanges"
               }
             }
           },

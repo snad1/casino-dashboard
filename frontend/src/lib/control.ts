@@ -8,7 +8,7 @@ export type Job = components['schemas']['JobOut'];
 export type ControlOut = components['schemas']['ControlOut'];
 export type ControlPath = Extract<keyof paths, `/{service}/control/${string}`>;
 export type ActionName = ControlPath extends `/{service}/control/${infer N}` ? N : never;
-export type ActionBody = Record<string, string | number | Record<string, string>>;
+export type ActionBody = Record<string, unknown>;
 
 export const BUSY_REASON = 'Wait for the running action to finish.';
 export const MAX_JOB_LINES = 5000;

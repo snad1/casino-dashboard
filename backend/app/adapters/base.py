@@ -1,6 +1,6 @@
 """What the live pipeline and the control API need from each bot service."""
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -40,7 +40,8 @@ class ControlAction:
     """One control button: who may press it, what it sends to the host agent and how.
 
     `cmd` is the agent command without the service prefix; `job` runs it through
-    `job.start` and answers with a job id. `fixed_args` are merged over the body.
+    `job.start` and answers with a job id. `agent_args` turns the body into the agent's
+    arguments when they differ (default: the body's fields); `fixed_args` are merged over.
     `label`, `title`, `effect` and `confirm` are the button and confirm-modal text; the
     last three may name `{service}` or a body field such as `{target}`.
     """
@@ -54,4 +55,5 @@ class ControlAction:
     confirm: str
     fresh: bool = False
     job: bool = False
+    agent_args: Callable[[Any], dict[str, Any]] | None = None
     fixed_args: Mapping[str, Any] = field(default_factory=dict)

@@ -7,9 +7,9 @@ test against.
 """
 
 import re
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from app.adapters.base import ControlAction
 from app.auth.permissions import Perm
@@ -64,6 +64,33 @@ class UpdateArgs(Args):
 
 class ConfigArgs(Args):
     pairs: dict[str, str] = Field(min_length=1, max_length=MAX_CONFIG_PAIRS)
+
+
+class ConfigChange(Args):
+    """One config edit: `lane` set overrides that lane, and the value `default` drops it."""
+
+    key: str = Field(pattern=r"^[a-z][a-z0-9_]{0,39}$")
+    value: str = Field(max_length=200, pattern=r"^[^\x00-\x1f\x7f]*$")
+    lane: int | None = Field(default=None, ge=2, le=LANES_MAX)
+
+
+class ConfigChanges(Args):
+    changes: list[ConfigChange] = Field(min_length=1, max_length=MAX_CONFIG_PAIRS)
+
+    @model_validator(mode="after")
+    def _each_key_once(self) -> "ConfigChanges":
+        targets = [(c.key, c.lane) for c in self.changes]
+        if len(set(targets)) != len(targets):
+            raise ValueError("each key may change once per lane")
+        return self
+
+
+def config_pairs(body: ConfigChanges) -> dict[str, Any]:
+    """The agent's `pairs`, built here so a client never writes `key=value` text itself."""
+    pairs = {
+        (f"lane{c.lane}.{c.key}" if c.lane is not None else c.key): c.value for c in body.changes
+    }
+    return ConfigArgs(pairs=pairs).model_dump()
 
 
 _BASIC = Perm.CONTROL_BASIC
@@ -129,12 +156,13 @@ ACTIONS: dict[str, ControlAction] = {
     "config_set": ControlAction(
         _CONFIG,
         "config_set",
-        ConfigArgs,
+        ConfigChanges,
         label="Save config",
         title="Save config changes for {service}?",
         effect="The bot checks the new values first, then uses them from the next bet.",
         confirm="Save config",
         fresh=True,
+        agent_args=config_pairs,
     ),
     "lanes": ControlAction(
         _CONFIG,

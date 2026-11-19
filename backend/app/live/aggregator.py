@@ -36,6 +36,7 @@ EWMA_ALPHA = 0.3
 MIN_HZ, MAX_HZ, DEFAULT_HZ = 4, 10, 5
 FLOAT_TOLERANCE = 1e-9
 STOP_REASON_MAX = 120
+MAX_RELOAD_KEYS = 64
 
 log = structlog.get_logger("app.live.aggregator")
 
@@ -109,6 +110,7 @@ class Lane:
     lane_split: str | None = None
     run_profit: float | None = None
     stop_reason: str | None = None
+    last_reload: dict[str, Any] | None = None
     last_event_ts_ms: int | None = None
     last_seen: float | None = None
     latencies: deque[float] = field(default_factory=lambda: deque(maxlen=LATENCY_WINDOW))
@@ -200,7 +202,7 @@ class Aggregator:
         elif isinstance(item, StateEvent):
             self._state(lane, item.payload)
         elif isinstance(item, LifecycleEvent):
-            self._lifecycle(lane, item.payload.kind, item.payload.data)
+            self._lifecycle(lane, item.payload.kind, item.payload.data, item.ts_ms)
 
     def _bet(self, lane: Lane, event: BetEvent, now: float) -> None:
         bet = event.payload
@@ -312,8 +314,16 @@ class Aggregator:
         if isinstance(bps, int | float) and not isinstance(bps, bool):
             lane.bps_avg = float(bps)
 
-    def _lifecycle(self, lane: Lane, kind: str, data: dict[str, Any]) -> None:
-        if kind == "stop":
+    def _lifecycle(self, lane: Lane, kind: str, data: dict[str, Any], ts_ms: int) -> None:
+        if kind == "reload":
+            applied = data.get("applied")
+            keys = (
+                sorted(str(k) for k in applied)[:MAX_RELOAD_KEYS]
+                if isinstance(applied, dict)
+                else []
+            )
+            lane.last_reload = {"ts_ms": ts_ms, "keys": keys}
+        elif kind == "stop":
             lane.stopped = True
             reason = data.get("reason")
             lane.stop_reason = (
@@ -376,6 +386,7 @@ class Aggregator:
             "lane_split": lane.lane_split,
             "run_profit": lane.run_profit,
             "stop_reason": lane.stop_reason,
+            "last_reload": lane.last_reload,
         }
 
     def tick(self) -> Tick:

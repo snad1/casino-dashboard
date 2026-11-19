@@ -2,7 +2,6 @@
 
 import json
 import secrets
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -12,14 +11,15 @@ from pydantic import BaseModel, SecretStr
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters.wolfbet.control import ACTIONS
+from app.adapters.wolfbet.control import ACTIONS, ConfigArgs
 from app.api.control import AGENT_DOWN, BUSY, JOB_NOT_FOUND, KEY_REUSED
 from app.audit import AuditLog
-from app.auth.models import ApiSession, Role, UserRole
+from app.auth.models import ApiSession, Role
 from app.auth.stepup import STEP_UP_NEEDED
 from app.settings import Settings
 from app.ws.routes import NOT_PERMITTED
 from tests.conftest import Account, make_client, run_in_session
+from tests.control_rig import set_role as _set_role
 from tests.fake_agent import JOB_ID, TOKEN, FakeAgent, fail, job_summary, ok
 from tests.test_totp import _enrol
 from tests.test_ws_auth import _connect, _login, _ticket
@@ -29,7 +29,12 @@ BODIES: dict[str, dict[str, Any]] = {
     "pause": {"target": "all"},
     "resume": {"target": 2},
     "reload": {},
-    "config_set": {"pairs": {"base_bet": "0.0001"}},
+    "config_set": {
+        "changes": [
+            {"key": "base_bet", "value": "0.0001", "lane": None},
+            {"key": "multiplier", "value": "3", "lane": 2},
+        ]
+    },
     "lanes": {"count": 3, "split": "budget"},
     "cleanup": {"days": 7},
     "update": {"branch": "main"},
@@ -65,14 +70,6 @@ def _post(
     return client.post(f"/wolfbet/control/{action}", json=payload, headers=headers)
 
 
-def _set_role(settings: Settings, user_id: int, role: Role) -> None:
-    async def run(session: AsyncSession) -> None:
-        await session.execute(update(UserRole).where(UserRole.user_id == user_id).values(role=role))
-        await session.commit()
-
-    run_in_session(settings, run)
-
-
 def _expire_step_up(settings: Settings, user_id: int) -> None:
     async def run(session: AsyncSession) -> None:
         query = update(ApiSession).where(ApiSession.user_id == user_id)
@@ -92,33 +89,6 @@ def _audit_results(settings: Settings, email: str, action: str) -> list[str]:
         return list(await session.scalars(query))
 
     return run_in_session(settings, run)
-
-
-@pytest.fixture
-def control_settings(app_settings: Settings, fake_agent: FakeAgent) -> Settings:
-    return app_settings.model_copy(
-        update={"agent_socket": fake_agent.path, "agent_token": SecretStr(TOKEN)}
-    )
-
-
-@pytest.fixture
-def signed_in_as(control_settings: Settings, account: Account) -> Iterator[Any]:
-    """The account signed in with `role`; with 2FA turned on and just confirmed if asked."""
-    clients: list[TestClient] = []
-
-    def make(role: Role, *, two_factor: bool = True) -> TestClient:
-        _set_role(control_settings, account.id, role)
-        client = make_client(control_settings).__enter__()
-        clients.append(client)
-        if two_factor:
-            _enrol(client, account.email)
-        else:
-            _login(client, account.email)
-        return client
-
-    yield make
-    for client in clients:
-        client.__exit__(None, None, None)
 
 
 @pytest.mark.parametrize("role", list(ALLOWED))
@@ -151,7 +121,7 @@ def test_each_action_sends_its_command_and_validated_args(
     assert (pause["cmd"], pause["args"]) == ("wolfbet.pause", {"target": "all"})
     assert (config["cmd"], config["args"]) == (
         "wolfbet.config_set",
-        {"pairs": {"base_bet": "0.0001"}},
+        {"pairs": {"base_bet": "0.0001", "lane2.multiplier": "3"}},
     )
     assert update_job["cmd"] == "job.start"
     assert update_job["args"] == {"cmd": "wolfbet.update", "args": {"branch": "main"}}
@@ -329,6 +299,9 @@ def test_body_models_match_the_agent_argument_contract() -> None:
     contract = json.loads(ARGS_CONTRACT.read_text())
     for name, spec in ACTIONS.items():
         body: type[BaseModel] = spec.body
+        if spec.agent_args is not None:
+            assert ConfigArgs.model_json_schema() == contract[spec.cmd], name
+            continue
         if spec.fixed_args:
             assert set(spec.fixed_args) <= set(contract[spec.cmd]["properties"]), name
             continue
@@ -417,3 +390,22 @@ def test_the_menu_shows_a_running_job_to_who_may_see_it(
 
 def test_a_service_without_controls_has_no_menu(signed_in_as: Any) -> None:
     assert signed_in_as(Role.ADMIN).get("/goated/control").status_code == 404
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        [{"key": "max_loss", "value": "1", "lane": None}] * 2,
+        [{"key": "multiplier", "value": "3", "lane": 1}],
+        [{"key": "Max-Loss", "value": "1", "lane": None}],
+        [{"key": "max_loss", "value": "1\nlane2.x=1", "lane": None}],
+        [{"key": "max_loss", "value": "1", "lane": None, "extra": True}],
+        [],
+    ],
+)
+def test_bad_config_changes_never_reach_the_agent(
+    signed_in_as: Any, fake_agent: FakeAgent, changes: list[dict[str, Any]]
+) -> None:
+    client = signed_in_as(Role.OPERATOR)
+    assert _post(client, "config_set", {"changes": changes}).status_code == 422
+    assert fake_agent.calls == []

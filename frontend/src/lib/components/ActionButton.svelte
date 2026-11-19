@@ -34,7 +34,7 @@
 			disabled={reason !== null}
 			aria-describedby={reason ? `${id}-reason` : undefined}
 			title={compact && reason ? reason : undefined}
-			onclick={() => control.ask(name, body)}
+			onclick={() => void control.ask(name, body)}
 		>
 			{label ?? action.label}
 		</Button>
