@@ -1,0 +1,364 @@
+"""Control actions on a bot through the host agent, and the jobs they start.
+
+`POST /{service}/control/<action>` needs the action's permission on the service and, for
+config writes and destructive actions, a step-up in the last 5 minutes. Every request
+carries an `Idempotency-Key`: the first request with a key runs; a retry with the same key
+and body within 24 h gets the stored answer and runs nothing; the same key with another
+body is refused. Each action is audited before the agent is called (and does not run when
+that row can't be written) and again with its outcome. Agent failures reach the user as one
+fixed message; the agent's code is only logged.
+
+`GET /{service}/jobs/{job_id}` shows a job started here to anyone who still holds the
+permission it was started with; any other id reads as not found.
+"""
+
+import hashlib
+import json
+import re
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Any, Literal
+
+import structlog
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Request, Response, status
+from pydantic import BaseModel, ValidationError
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Identity,
+    Integer,
+    LargeBinary,
+    Text,
+    UniqueConstraint,
+    delete,
+    func,
+    select,
+    update,
+)
+from sqlalchemy.dialects.postgresql import JSONB, insert
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.adapters.base import ControlAction
+from app.adapters.wolfbet.control import ACTIONS as WOLFBET_ACTIONS
+from app.agent_client import AgentClient, AgentError
+from app.audit import AuditEntry, record
+from app.auth.models import User
+from app.auth.permissions import Perm, denial, require, roles_for
+from app.auth.sessions import current_user
+from app.auth.stepup import require_fresh
+from app.db.engine import get_session
+from app.db.models import Base
+from app.logging import current_request_id
+
+IDEMPOTENCY_TTL = timedelta(hours=24)
+KEY_PATTERN = r"^[A-Za-z0-9_-]{16,128}$"
+JOB_ID_PATTERN = r"^[0-9a-f]{32}$"
+BUSY = "Another control action is running. Try again when it finishes."
+AGENT_DOWN = "The bot host did not respond. Try again."
+KEY_REUSED = "This request was already sent with different settings. Reload and try again."
+IN_PROGRESS = "This action is still being sent. Wait for it to finish."
+NOT_CONTROLLABLE = "That action is not available for this service."
+JOB_NOT_FOUND = "Job not found."
+
+CONTROLS: dict[str, dict[str, ControlAction]] = {"wolfbet": WOLFBET_ACTIONS}
+
+log = structlog.get_logger("app.control")
+router = APIRouter(tags=["control"])
+Db = Annotated[AsyncSession, Depends(get_session)]
+ServiceName = Annotated[str, Path(max_length=100)]
+
+
+class ControlRequest(Base):
+    """One control request per user and idempotency key, with the answer it got."""
+
+    __tablename__ = "control_requests"
+    __table_args__ = (
+        UniqueConstraint("user_id", "idem_key"),
+        CheckConstraint("state IN ('pending', 'done')", name="state"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"))
+    service: Mapped[str] = mapped_column(Text)
+    idem_key: Mapped[str] = mapped_column(Text)
+    body_sha256: Mapped[bytes] = mapped_column(LargeBinary)
+    perm: Mapped[str] = mapped_column(Text)
+    state: Mapped[str] = mapped_column(Text, server_default="pending")
+    status_code: Mapped[int | None] = mapped_column(Integer)
+    response: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    job_id: Mapped[str | None] = mapped_column(Text, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+
+
+class ControlOut(BaseModel):
+    status: Literal["succeeded", "failed", "running"]
+    exit_code: int | None
+    job_id: str | None
+
+
+class JobOut(BaseModel):
+    job_id: str
+    cmd: str
+    status: Literal["running", "succeeded", "failed", "cancelled", "timeout"]
+    exit_code: int | None
+    duration_ms: int
+    lines: int
+
+
+def _fingerprint(service: str, action: str, body: BaseModel) -> bytes:
+    canonical = json.dumps(
+        {"service": service, "action": action, "body": body.model_dump(mode="json")},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode()).digest()
+
+
+def _agent(request: Request) -> AgentClient:
+    agent: AgentClient | None = request.app.state.agent
+    if agent is None:
+        raise AgentError("unconfigured")
+    return agent
+
+
+async def job_access(db: AsyncSession, user: User, service: str, job_id: str) -> bool:
+    """True when `job_id` was started here on `service` with a permission `user` still has."""
+    perm = await db.scalar(
+        select(ControlRequest.perm).where(
+            ControlRequest.service == service, ControlRequest.job_id == job_id
+        )
+    )
+    return perm is not None and await denial(db, user, service, Perm(perm)) is None
+
+
+async def _claim(
+    sessionmaker: async_sessionmaker[AsyncSession],
+    user_id: int,
+    service: str,
+    perm: Perm,
+    key: str,
+    fingerprint: bytes,
+) -> tuple[int | None, ControlRequest | None]:
+    """(id of the new pending row, None), or (None, the row an earlier request left)."""
+    async with sessionmaker() as db, db.begin():
+        await db.execute(
+            delete(ControlRequest).where(
+                ControlRequest.created_at < datetime.now(UTC) - IDEMPOTENCY_TTL
+            )
+        )
+        claimed = await db.scalar(
+            insert(ControlRequest)
+            .values(
+                user_id=user_id,
+                service=service,
+                idem_key=key,
+                body_sha256=fingerprint,
+                perm=perm.value,
+            )
+            .on_conflict_do_nothing(index_elements=["user_id", "idem_key"])
+            .returning(ControlRequest.id)
+        )
+        if claimed is not None:
+            return claimed, None
+        existing = await db.scalar(
+            select(ControlRequest).where(
+                ControlRequest.user_id == user_id, ControlRequest.idem_key == key
+            )
+        )
+        return None, existing
+
+
+async def _finish(
+    sessionmaker: async_sessionmaker[AsyncSession],
+    row_id: int,
+    status_code: int,
+    stored: dict[str, Any],
+    job_id: str | None,
+) -> None:
+    async with sessionmaker() as db, db.begin():
+        await db.execute(
+            update(ControlRequest)
+            .where(ControlRequest.id == row_id)
+            .values(state="done", status_code=status_code, response=stored, job_id=job_id)
+        )
+
+
+async def _release(sessionmaker: async_sessionmaker[AsyncSession], row_id: int) -> None:
+    """Forget a claim whose action never reached the agent, so the key can be retried."""
+    async with sessionmaker() as db, db.begin():
+        await db.execute(delete(ControlRequest).where(ControlRequest.id == row_id))
+
+
+def _replay(existing: ControlRequest, fingerprint: bytes, response: Response) -> ControlOut:
+    if existing.body_sha256 != fingerprint:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, KEY_REUSED)
+    if existing.state != "done" or existing.status_code is None or existing.response is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, IN_PROGRESS)
+    if existing.status_code >= 400:
+        raise HTTPException(existing.status_code, existing.response.get("detail"))
+    response.status_code = existing.status_code
+    return ControlOut.model_validate(existing.response)
+
+
+def _exit_code(data: dict[str, Any]) -> int:
+    """The command's exit code; a config write answers with its dry run and its set step."""
+    for part in (data, data.get("set"), data.get("dry_run")):
+        if isinstance(part, dict) and isinstance(part.get("exit_code"), int):
+            code: int = part["exit_code"]
+            return code
+    raise AgentError("bad_reply")
+
+
+async def _run(
+    agent: AgentClient, service: str, spec: ControlAction, args: dict[str, Any]
+) -> tuple[int, ControlOut]:
+    cmd = f"{service}.{spec.cmd}"
+    if spec.job:
+        data = await agent.call("job.start", {"cmd": cmd, "args": args})
+        job_id = data.get("job_id")
+        if not isinstance(job_id, str) or not re.fullmatch(JOB_ID_PATTERN, job_id):
+            raise AgentError("bad_reply")
+        return status.HTTP_202_ACCEPTED, ControlOut(status="running", exit_code=None, job_id=job_id)
+    code = _exit_code(await agent.call(cmd, args))
+    outcome: Literal["succeeded", "failed"] = "succeeded" if code == 0 else "failed"
+    return status.HTTP_200_OK, ControlOut(status=outcome, exit_code=code, job_id=None)
+
+
+async def _audit(
+    db: AsyncSession,
+    request: Request,
+    user: User,
+    service: str,
+    action: str,
+    args: dict[str, Any],
+    result: str,
+) -> None:
+    client = request.client
+    entry = AuditEntry(
+        action=f"control.{action}",
+        result=result,
+        actor_id=user.id,
+        actor_email=user.email,
+        roles=",".join(sorted(await roles_for(db, user.id, service))) or None,
+        service=service,
+        args=args,
+        ip=client.host if client else None,
+        user_agent=request.headers.get("user-agent"),
+        request_id=current_request_id(),
+    )
+    await record(request.app.state.sessionmaker, entry)
+
+
+def _guard(name: str, spec: ControlAction) -> Callable[..., Awaitable[User]]:
+    """The user, when they hold the action's permission (and a fresh step-up if it needs one)."""
+    fresh = require_fresh()
+
+    async def dependency(
+        request: Request,
+        service: ServiceName,
+        user: Annotated[User, Depends(current_user)],
+        db: Db,
+    ) -> User:
+        detail = await denial(db, user, service, spec.perm)
+        if detail is not None:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail)
+        if CONTROLS.get(service, {}).get(name) is not spec:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
+        if spec.fresh:
+            await fresh(user, request)
+        return user
+
+    return dependency
+
+
+def _endpoint(name: str, spec: ControlAction) -> Callable[..., Awaitable[ControlOut]]:
+    body_model = spec.body
+
+    async def control(
+        service: ServiceName,
+        body: body_model,  # type: ignore[valid-type]  # each route is built with its action's model
+        request: Request,
+        response: Response,
+        user: Annotated[User, Depends(_guard(name, spec))],
+        db: Db,
+        idempotency_key: Annotated[str, Header(alias="Idempotency-Key", pattern=KEY_PATTERN)],
+    ) -> ControlOut:
+        payload: BaseModel = body
+        sessionmaker: async_sessionmaker[AsyncSession] = request.app.state.sessionmaker
+        fingerprint = _fingerprint(service, name, payload)
+        claimed, existing = await _claim(
+            sessionmaker, user.id, service, spec.perm, idempotency_key, fingerprint
+        )
+        if claimed is None:
+            if existing is None:
+                raise HTTPException(status.HTTP_409_CONFLICT, IN_PROGRESS)
+            return _replay(existing, fingerprint, response)
+        args = {**payload.model_dump(mode="json"), **spec.fixed_args}
+        out: ControlOut | None = None
+        try:
+            await _audit(db, request, user, service, name, args, "requested")
+            try:
+                status_code, out = await _run(_agent(request), service, spec, args)
+                stored = out.model_dump()
+                result = f"job:{out.job_id}" if out.job_id else out.status
+            except AgentError as error:
+                log.warning("control action failed at the agent", action=name, code=error.code)
+                busy = error.code == "busy"
+                status_code = status.HTTP_409_CONFLICT if busy else status.HTTP_502_BAD_GATEWAY
+                stored = {"detail": BUSY if busy else AGENT_DOWN}
+                result = f"agent:{error.code}"
+        except BaseException:
+            await _release(sessionmaker, claimed)
+            raise
+        await _finish(sessionmaker, claimed, status_code, stored, out.job_id if out else None)
+        try:
+            await _audit(db, request, user, service, name, args, result)
+        except Exception:
+            log.exception("audit write failed after a control action", action=name)
+        if out is None:
+            raise HTTPException(status_code, stored["detail"])
+        response.status_code = status_code
+        return out
+
+    control.__name__ = f"control_{name}"
+    return control
+
+
+for _name, _spec in WOLFBET_ACTIONS.items():
+    router.add_api_route(
+        f"/{{service}}/control/{_name}",
+        _endpoint(_name, _spec),
+        methods=["POST"],
+        response_model=ControlOut,
+        status_code=status.HTTP_200_OK,
+        responses={status.HTTP_202_ACCEPTED: {"model": ControlOut}},
+    )
+
+
+@router.get("/{service}/jobs/{job_id}", response_model=JobOut)
+async def get_job(
+    service: ServiceName,
+    job_id: Annotated[str, Path(pattern=JOB_ID_PATTERN)],
+    request: Request,
+    user: Annotated[User, Depends(require(Perm.VIEW))],
+    db: Db,
+) -> JobOut:
+    """A job's status and output line count, for whoever may still run what started it."""
+    if not await job_access(db, user, service, job_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, JOB_NOT_FOUND)
+    try:
+        data = await _agent(request).call("job.get", {"job_id": job_id})
+        return JobOut.model_validate(data)
+    except AgentError as error:
+        if error.code == "not_found":
+            raise HTTPException(status.HTTP_404_NOT_FOUND, JOB_NOT_FOUND) from None
+        log.warning("job lookup failed at the agent", code=error.code)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, AGENT_DOWN) from None
+    except ValidationError:
+        log.warning("job lookup got an unexpected reply")
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, AGENT_DOWN) from None

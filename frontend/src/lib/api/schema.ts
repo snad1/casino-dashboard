@@ -399,6 +399,244 @@ export interface paths {
 		patch: operations['edit_comment__service__comments__comment_id__patch'];
 		trace?: never;
 	};
+	'/{service}/control/cleanup': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Cleanup */
+		post: operations['control_cleanup__service__control_cleanup_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/config_set': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Config Set */
+		post: operations['control_config_set__service__control_config_set_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/doctor_fix': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Doctor Fix */
+		post: operations['control_doctor_fix__service__control_doctor_fix_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/lanes': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Lanes */
+		post: operations['control_lanes__service__control_lanes_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/pause': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Pause */
+		post: operations['control_pause__service__control_pause_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/reload': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Reload */
+		post: operations['control_reload__service__control_reload_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/reset': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Reset */
+		post: operations['control_reset__service__control_reset_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/restart': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Restart */
+		post: operations['control_restart__service__control_restart_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/resume': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Resume */
+		post: operations['control_resume__service__control_resume_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/run_reset': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Run Reset */
+		post: operations['control_run_reset__service__control_run_reset_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/start': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Start */
+		post: operations['control_start__service__control_start_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/stop': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Stop */
+		post: operations['control_stop__service__control_stop_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/stop_all': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Stop All */
+		post: operations['control_stop_all__service__control_stop_all_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/update': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Update */
+		post: operations['control_update__service__control_update_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/{service}/current': {
 		parameters: {
 			query?: never;
@@ -431,6 +669,26 @@ export interface paths {
 		 * @description The latest reconcile run: how far ingest lags and whether the history copy matches.
 		 */
 		get: operations['get_ingest__service__ingest_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/jobs/{job_id}': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * Get Job
+		 * @description A job's status and output line count, for whoever may still run what started it.
+		 */
+		get: operations['get_job__service__jobs__job_id__get'];
 		put?: never;
 		post?: never;
 		delete?: never;
@@ -602,6 +860,11 @@ export interface components {
 			/** Next Before */
 			next_before: number | null;
 		};
+		/** CleanupArgs */
+		CleanupArgs: {
+			/** Days */
+			days?: number | null;
+		};
 		/** CodeIn */
 		CodeIn: {
 			/** Code */
@@ -668,12 +931,31 @@ export interface components {
 			/** Session Id */
 			session_id: number | null;
 		};
+		/** ConfigArgs */
+		ConfigArgs: {
+			/** Pairs */
+			pairs: {
+				[key: string]: string;
+			};
+		};
 		/** ConfirmIn */
 		ConfirmIn: {
 			/** Password */
 			password: string;
 			/** Token */
 			token: string;
+		};
+		/** ControlOut */
+		ControlOut: {
+			/** Exit Code */
+			exit_code: number | null;
+			/** Job Id */
+			job_id: string | null;
+			/**
+			 * Status
+			 * @enum {string}
+			 */
+			status: 'succeeded' | 'failed' | 'running';
 		};
 		/** CurrentOut */
 		CurrentOut: {
@@ -723,12 +1005,37 @@ export interface components {
 			/** Service */
 			service?: string | null;
 		};
+		/** JobOut */
+		JobOut: {
+			/** Cmd */
+			cmd: string;
+			/** Duration Ms */
+			duration_ms: number;
+			/** Exit Code */
+			exit_code: number | null;
+			/** Job Id */
+			job_id: string;
+			/** Lines */
+			lines: number;
+			/**
+			 * Status
+			 * @enum {string}
+			 */
+			status: 'running' | 'succeeded' | 'failed' | 'cancelled' | 'timeout';
+		};
 		/** LaneSeries */
 		LaneSeries: {
 			/** Lane */
 			lane: number;
 			/** Points */
 			points: [string, number | null][];
+		};
+		/** LanesArgs */
+		LanesArgs: {
+			/** Count */
+			count: number;
+			/** Split */
+			split?: ('none' | 'budget' | 'bet' | 'both') | null;
 		};
 		/** LoginIn */
 		LoginIn: {
@@ -750,6 +1057,8 @@ export interface components {
 			/** Totp Enabled */
 			totp_enabled: boolean;
 		};
+		/** NoArgs */
+		NoArgs: Record<string, never>;
 		/** ReconcileOut */
 		ReconcileOut: {
 			/**
@@ -917,12 +1226,25 @@ export interface components {
 			/** Code */
 			code: string;
 		};
+		/** TargetArgs */
+		TargetArgs: {
+			/**
+			 * Target
+			 * @default all
+			 */
+			target: number | 'all';
+		};
 		/** Ticket */
 		Ticket: {
 			/** Expires In */
 			expires_in: number;
 			/** Ticket */
 			ticket: string;
+		};
+		/** UpdateArgs */
+		UpdateArgs: {
+			/** Branch */
+			branch?: string | null;
 		};
 		/** UserList */
 		UserList: {
@@ -1624,6 +1946,650 @@ export interface operations {
 			};
 		};
 	};
+	control_cleanup__service__control_cleanup_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['CleanupArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_config_set__service__control_config_set_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['ConfigArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_doctor_fix__service__control_doctor_fix_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['NoArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_lanes__service__control_lanes_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['LanesArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_pause__service__control_pause_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['TargetArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_reload__service__control_reload_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['TargetArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_reset__service__control_reset_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['NoArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_restart__service__control_restart_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['NoArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_resume__service__control_resume_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['TargetArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_run_reset__service__control_run_reset_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['NoArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_start__service__control_start_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['NoArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_stop__service__control_stop_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['NoArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_stop_all__service__control_stop_all_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['NoArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_update__service__control_update_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['UpdateArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
 	get_current__service__current_get: {
 		parameters: {
 			query?: never;
@@ -1673,6 +2639,38 @@ export interface operations {
 				};
 				content: {
 					'application/json': components['schemas']['IngestOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	get_job__service__jobs__job_id__get: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+				job_id: string;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['JobOut'];
 				};
 			};
 			/** @description Validation Error */

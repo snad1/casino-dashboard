@@ -1,6 +1,8 @@
 """The live WebSocket's door: a short-lived ticket over HTTP, then the authenticated socket."""
 
 import asyncio
+import contextlib
+import re
 from typing import Annotated, Any
 
 import orjson
@@ -10,6 +12,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.websockets import WebSocketState
 
+from app.agent_client import AgentClient, AgentError, StreamEnd
+from app.api.control import job_access
 from app.audit import AuditEntry, record
 from app.auth.models import User
 from app.auth.sessions import current_user
@@ -33,7 +37,10 @@ UNKNOWN_MESSAGE = "Unknown message."
 NOT_PERMITTED = "You do not have permission to see that."
 TOO_MANY_TOPICS = "Too many live topics on one connection."
 LIVE_OFF = "Live updates are off."
+JOB_UNAVAILABLE = "Job output is unavailable right now."
 WS_ACTION = "WS /ws"
+MAX_JOB_TOPICS = 4
+_JOB_TOPIC = re.compile(r"svc:([a-z0-9-]+):job:([0-9a-f]{32})")
 
 log = structlog.get_logger("app.ws")
 router = APIRouter(tags=["live"])
@@ -69,11 +76,31 @@ async def _audit(websocket: WebSocket, user: User | None, result: str) -> None:
         log.exception("audit write failed for a websocket connect")
 
 
+async def _forward_job(
+    hub: Hub, client: Client, agent: AgentClient | None, topic: str, job_id: str
+) -> None:
+    """Relay a job's output lines from the start, then its end; the client dedupes by `seq`."""
+    try:
+        if agent is None:
+            raise AgentError("unconfigured")
+        async for item in agent.stream("job.stream", {"job_id": job_id, "from_seq": 0}):
+            if isinstance(item, StreamEnd):
+                end = {k: item.data.get(k) for k in ("status", "exit_code")}
+                await hub.put(client, {"op": "job_end", "topic": topic, **end})
+            else:
+                line = {k: item.get(k) for k in ("seq", "stream", "line")}
+                await hub.put(client, {"op": "job", "topic": topic, **line})
+    except AgentError as error:
+        log.warning("job output unavailable", code=error.code)
+        await hub.put(client, {"op": "error", "topic": topic, "detail": JOB_UNAVAILABLE})
+
+
 async def _serve(
     websocket: WebSocket, app: FastAPI, user: User, client: Client | None
 ) -> int | None:
     """Handle client frames until the socket closes; a frame over the cap ends it with 1009."""
     hub: Hub | None = app.state.hub
+    jobs: dict[str, asyncio.Task[None]] = {}
 
     async def reply(message: dict[str, Any]) -> None:
         if hub is not None and client is not None:
@@ -81,31 +108,60 @@ async def _serve(
         else:
             await websocket.send_text(encode(message))
 
-    while True:
-        frame = await websocket.receive()
-        if frame["type"] == "websocket.disconnect":
-            return None
-        data = frame.get("bytes") or (frame.get("text") or "").encode()
-        if len(data) > MAX_FRAME_BYTES:
-            return CLOSE_TOO_BIG
-        request = _parse(data)
-        if request is None:
-            await reply({"op": "error", "detail": UNKNOWN_MESSAGE})
-            continue
-        op, name = request
-        if hub is None or client is None:
-            await reply({"op": "error", "topic": name, "detail": LIVE_OFF})
-            continue
-        if op == "unsubscribe":
-            hub.unsubscribe(client, name)
-            continue
-        topic = parse_topic(hub.svc, name)
+    async def follow_job(hub: Hub, client: Client, name: str, svc: str, job_id: str) -> None:
         async with app.state.sessionmaker() as db:
-            allowed = topic is not None and await topic_allowed(db, user.id, name)
-        if topic is None or not allowed:
+            allowed = svc == hub.svc and await job_access(db, user, svc, job_id)
+        if not allowed:
             await reply({"op": "error", "topic": name, "detail": NOT_PERMITTED})
-        elif not hub.subscribe(client, topic):
+        elif name not in jobs and len(jobs) >= MAX_JOB_TOPICS:
             await reply({"op": "error", "topic": name, "detail": TOO_MANY_TOPICS})
+        else:
+            stop_job(name)
+            forward = _forward_job(hub, client, app.state.agent, name, job_id)
+            jobs[name] = asyncio.create_task(forward)
+
+    def stop_job(name: str) -> None:
+        task = jobs.pop(name, None)
+        if task is not None:
+            task.cancel()
+
+    try:
+        while True:
+            frame = await websocket.receive()
+            if frame["type"] == "websocket.disconnect":
+                return None
+            data = frame.get("bytes") or (frame.get("text") or "").encode()
+            if len(data) > MAX_FRAME_BYTES:
+                return CLOSE_TOO_BIG
+            request = _parse(data)
+            if request is None:
+                await reply({"op": "error", "detail": UNKNOWN_MESSAGE})
+                continue
+            op, name = request
+            if hub is None or client is None:
+                await reply({"op": "error", "topic": name, "detail": LIVE_OFF})
+                continue
+            if op == "unsubscribe":
+                stop_job(name)
+                hub.unsubscribe(client, name)
+                continue
+            job = _JOB_TOPIC.fullmatch(name)
+            if job is not None:
+                await follow_job(hub, client, name, job.group(1), job.group(2))
+                continue
+            topic = parse_topic(hub.svc, name)
+            async with app.state.sessionmaker() as db:
+                allowed = topic is not None and await topic_allowed(db, user.id, name)
+            if topic is None or not allowed:
+                await reply({"op": "error", "topic": name, "detail": NOT_PERMITTED})
+            elif not hub.subscribe(client, topic):
+                await reply({"op": "error", "topic": name, "detail": TOO_MANY_TOPICS})
+    finally:
+        for task in jobs.values():
+            task.cancel()
+        for task in jobs.values():
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
 
 def _parse(data: bytes) -> tuple[str, str] | None:

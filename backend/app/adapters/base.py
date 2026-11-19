@@ -1,8 +1,12 @@
-"""What the live pipeline needs from each bot service it watches."""
+"""What the live pipeline and the control API need from each bot service."""
 
-from typing import Protocol
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from typing import Any, Protocol
 
 from pydantic import BaseModel
+
+from app.auth.permissions import Perm
 
 
 class InvalidEvent(Exception):
@@ -29,3 +33,19 @@ class ServiceAdapter(Protocol):
     def parse(self, raw: bytes) -> Event:
         """The typed event in one stream entry's `data` field, or `InvalidEvent`."""
         ...
+
+
+@dataclass(frozen=True)
+class ControlAction:
+    """One control button: who may press it, what it sends to the host agent and how.
+
+    `cmd` is the agent command without the service prefix; `job` runs it through
+    `job.start` and answers with a job id. `fixed_args` are merged over the body.
+    """
+
+    perm: Perm
+    cmd: str
+    body: type[BaseModel]
+    fresh: bool = False
+    job: bool = False
+    fixed_args: Mapping[str, Any] = field(default_factory=dict)

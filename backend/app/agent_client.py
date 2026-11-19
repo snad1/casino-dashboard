@@ -12,6 +12,8 @@ import hmac
 import json
 import secrets
 import time
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -27,8 +29,34 @@ class AgentError(Exception):
         self.code = code
 
 
+@dataclass(frozen=True)
+class StreamEnd:
+    """The final reply of a streamed command, after its last frame."""
+
+    data: dict[str, Any]
+
+
 def _canonical(fields: dict[str, Any]) -> bytes:
     return json.dumps(fields, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+
+
+def _parse(line: bytes) -> dict[str, Any]:
+    try:
+        reply = json.loads(line)
+    except ValueError:
+        raise AgentError("bad_reply") from None
+    if not isinstance(reply, dict):
+        raise AgentError("bad_reply")
+    return reply
+
+
+def _data(reply: dict[str, Any]) -> dict[str, Any]:
+    if not reply.get("ok"):
+        error = reply.get("error")
+        code = error.get("code") if isinstance(error, dict) else None
+        raise AgentError(code if isinstance(code, str) else "bad_reply")
+    data = reply.get("data")
+    return data if isinstance(data, dict) else {}
 
 
 class AgentClient:
@@ -51,33 +79,63 @@ class AgentClient:
         mac = hmac.new(self._token, _canonical(fields), hashlib.sha256).hexdigest()
         return json.dumps({**fields, "mac": mac}).encode() + b"\n"
 
+    async def _open(
+        self, cmd: str, args: dict[str, Any]
+    ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+        reader, writer = await asyncio.open_unix_connection(
+            str(self.socket_path), limit=MAX_REPLY_BYTES
+        )
+        writer.write(self._signed(cmd, args))
+        await writer.drain()
+        return reader, writer
+
+    @staticmethod
+    async def _close(writer: asyncio.StreamWriter) -> None:
+        writer.close()
+        await writer.wait_closed()
+
     async def call(self, cmd: str, args: dict[str, Any] | None = None) -> dict[str, Any]:
         """Send one request and return the reply's `data`; raises `AgentError` otherwise."""
         try:
             async with asyncio.timeout(self.timeout):
-                reader, writer = await asyncio.open_unix_connection(
-                    str(self.socket_path), limit=MAX_REPLY_BYTES
-                )
+                reader, writer = await self._open(cmd, args or {})
                 try:
-                    writer.write(self._signed(cmd, args or {}))
-                    await writer.drain()
                     line = await reader.readline()
                 finally:
-                    writer.close()
-                    await writer.wait_closed()
+                    await self._close(writer)
+        except TimeoutError:
+            raise AgentError("timeout") from None
+        except (OSError, ValueError):
+            raise AgentError("unreachable") from None
+        return _data(_parse(line))
+
+    async def stream(
+        self, cmd: str, args: dict[str, Any] | None = None
+    ) -> AsyncIterator[dict[str, Any] | StreamEnd]:
+        """Yield each frame of a streamed command, then its final reply as `StreamEnd`.
+
+        Only connecting is bounded by the timeout: a job may stay quiet for minutes.
+        """
+        try:
+            async with asyncio.timeout(self.timeout):
+                reader, writer = await self._open(cmd, args or {})
         except TimeoutError:
             raise AgentError("timeout") from None
         except (OSError, ValueError):
             raise AgentError("unreachable") from None
         try:
-            reply = json.loads(line)
-        except ValueError:
-            raise AgentError("bad_reply") from None
-        if not isinstance(reply, dict):
-            raise AgentError("bad_reply")
-        if not reply.get("ok"):
-            error = reply.get("error")
-            code = error.get("code") if isinstance(error, dict) else None
-            raise AgentError(code if isinstance(code, str) else "bad_reply")
-        data = reply.get("data")
-        return data if isinstance(data, dict) else {}
+            while True:
+                try:
+                    line = await reader.readline()
+                except (OSError, ValueError):
+                    raise AgentError("unreachable") from None
+                if not line:
+                    raise AgentError("unreachable")
+                message = _parse(line)
+                if "seq" in message and "ok" not in message:
+                    yield message
+                    continue
+                yield StreamEnd(_data(message))
+                return
+        finally:
+            await self._close(writer)

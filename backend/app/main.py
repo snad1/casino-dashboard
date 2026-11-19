@@ -12,6 +12,7 @@ from redis.asyncio import Redis
 from app.adapters.base import ServiceAdapter
 from app.adapters.wolfbet import WolfBetAdapter
 from app.agent_client import AgentClient
+from app.api.control import router as control_router
 from app.api.history import router as history_router
 from app.audit import AuditMiddleware
 from app.audit import router as audit_router
@@ -52,6 +53,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     sessionmaker = create_sessionmaker(engine)
     redis = Redis.from_url(settings.redis_url)
     session_secret = settings.session_secret.get_secret_value()
+    agent = None
+    if settings.agent_socket is not None and settings.agent_token is not None:
+        agent = AgentClient(settings.agent_socket, settings.agent_token.get_secret_value())
     hub: Hub | None = None
     if settings.live_service is not None:
         if settings.live_service not in ADAPTERS:
@@ -59,9 +63,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         aggregator = Aggregator(settings.live_service)
         hub = Hub(settings.live_service, aggregator)
         consumer = ServiceConsumer(redis, ADAPTERS[settings.live_service](), aggregator.accept)
-        agent = None
-        if settings.agent_socket is not None and settings.agent_token is not None:
-            agent = AgentClient(settings.agent_socket, settings.agent_token.get_secret_value())
         resync = Resync(
             aggregator, sessionmaker, agent, reconnects=lambda: consumer.stats["reconnects"]
         )
@@ -102,6 +103,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.ws_registry = ConnectionRegistry()
     app.state.ws_recheck_seconds = RECHECK_SECONDS
     app.state.hub = hub
+    app.state.agent = agent
     install_error_handlers(app, settings.exposes_error_detail)
     install_step_handler(app)
     # Added innermost first: headers wrap everything, including the generic 500.
@@ -125,6 +127,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(audit_router)
     app.include_router(admin_router)
     app.include_router(history_router)
+    app.include_router(control_router)
     app.include_router(comments_router)
     app.include_router(ws_router)
 

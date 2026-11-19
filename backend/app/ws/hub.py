@@ -8,7 +8,8 @@ still behind after `BEHIND_LIMIT_S` is closed (1013, try again later).
 
 Topics: `svc:<name>` (every lane), `svc:<name>:lane:<k>`, `svc:<name>:session:<id>` and
 `svc:<name>:system` (system metrics) and `svc:<name>:comments` (a signal that a comment
-changed, so open pages reload it; it has no snapshot).
+changed, so open pages reload it; it has no snapshot). Job output (`svc:<name>:job:<id>`)
+is fed by the socket's own reader with `put`, not by ticks.
 """
 
 import asyncio
@@ -122,6 +123,11 @@ class Hub:
     def send(self, client: Client, message: dict[str, Any]) -> None:
         """Queue a message for one socket, behind whatever it already has queued."""
         self._offer(client, encode(message))
+
+    async def put(self, client: Client, message: dict[str, Any]) -> None:
+        """Queue a message, waiting for room: job output lines are never coalesced away."""
+        if not client.closing:
+            await client.queue.put(encode(message))
 
     def unsubscribe(self, client: Client, name: str) -> None:
         client.topics.pop(name, None)

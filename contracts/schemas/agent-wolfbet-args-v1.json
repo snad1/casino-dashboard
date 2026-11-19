@@ -1,0 +1,209 @@
+{
+  "cleanup": {
+    "additionalProperties": false,
+    "properties": {
+      "days": {
+        "anyOf": [
+          {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Days"
+      }
+    },
+    "title": "CleanupArgs",
+    "type": "object"
+  },
+  "config_set": {
+    "additionalProperties": false,
+    "properties": {
+      "pairs": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "maxProperties": 32,
+        "minProperties": 1,
+        "title": "Pairs",
+        "type": "object"
+      }
+    },
+    "required": [
+      "pairs"
+    ],
+    "title": "ConfigArgs",
+    "type": "object"
+  },
+  "doctor": {
+    "additionalProperties": false,
+    "properties": {
+      "fix": {
+        "default": false,
+        "title": "Fix",
+        "type": "boolean"
+      }
+    },
+    "title": "DoctorArgs",
+    "type": "object"
+  },
+  "lanes": {
+    "additionalProperties": false,
+    "properties": {
+      "count": {
+        "maximum": 10,
+        "minimum": 1,
+        "title": "Count",
+        "type": "integer"
+      },
+      "split": {
+        "anyOf": [
+          {
+            "enum": [
+              "none",
+              "budget",
+              "bet",
+              "both"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Split"
+      }
+    },
+    "required": [
+      "count"
+    ],
+    "title": "LanesArgs",
+    "type": "object"
+  },
+  "pause": {
+    "additionalProperties": false,
+    "properties": {
+      "target": {
+        "anyOf": [
+          {
+            "maximum": 10,
+            "minimum": 1,
+            "type": "integer"
+          },
+          {
+            "const": "all",
+            "type": "string"
+          }
+        ],
+        "default": "all",
+        "title": "Target"
+      }
+    },
+    "title": "TargetArgs",
+    "type": "object"
+  },
+  "reload": {
+    "additionalProperties": false,
+    "properties": {
+      "target": {
+        "anyOf": [
+          {
+            "maximum": 10,
+            "minimum": 1,
+            "type": "integer"
+          },
+          {
+            "const": "all",
+            "type": "string"
+          }
+        ],
+        "default": "all",
+        "title": "Target"
+      }
+    },
+    "title": "TargetArgs",
+    "type": "object"
+  },
+  "reset": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "restart": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "resume": {
+    "additionalProperties": false,
+    "properties": {
+      "target": {
+        "anyOf": [
+          {
+            "maximum": 10,
+            "minimum": 1,
+            "type": "integer"
+          },
+          {
+            "const": "all",
+            "type": "string"
+          }
+        ],
+        "default": "all",
+        "title": "Target"
+      }
+    },
+    "title": "TargetArgs",
+    "type": "object"
+  },
+  "run_reset": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "start": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "stop": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "stop_all": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "update": {
+    "additionalProperties": false,
+    "properties": {
+      "branch": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Branch"
+      }
+    },
+    "title": "UpdateArgs",
+    "type": "object"
+  }
+}
