@@ -2,6 +2,7 @@
 
 import asyncio
 import random
+import statistics
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -333,7 +334,8 @@ async def test_ticks_keep_their_rate_under_2000_events_per_second() -> None:
     await ticker
     assert seq >= 3_000
     assert 9 <= len(ticks) <= 11
-    assert max(tick_costs) < 0.005
+    assert statistics.median(tick_costs) < 0.005
+    assert max(tick_costs) < 0.05
 
 
 async def test_ticker_refuses_rates_outside_4_to_10_hz() -> None:

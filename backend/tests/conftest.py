@@ -46,6 +46,7 @@ def secrets_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Pat
     monkeypatch.setenv("SECRETS_DIR", str(directory))
     monkeypatch.setenv("APP_ENV", "testing")
     monkeypatch.setenv("PUBLIC_HOST", PUBLIC_HOST)
+    monkeypatch.setenv("LIVE_SERVICE", "")
     yield directory
 
 
@@ -87,6 +88,7 @@ def db_settings(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Settings]:
             public_host=PUBLIC_HOST,
             postgres_host=container.get_container_host_ip(),
             postgres_port=int(container.get_exposed_port(5432)),
+            live_service=None,
             _secrets_dir=str(directory),
         )
 
@@ -204,6 +206,7 @@ def app_settings(
         postgres_user=APP_ROLE,
         redis_host=redis_server.host,
         redis_port=redis_server.port,
+        live_service=None,
         _secrets_dir=str(directory),
     )
 

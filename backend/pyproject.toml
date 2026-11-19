@@ -18,6 +18,7 @@ dependencies = [
     "zxcvbn>=4.5.0",
     "cryptography>=50.0.2",
     "httpx2>=2.16.0",
+    "orjson>=3.13.0",
 ]
 
 [dependency-groups]

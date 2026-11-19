@@ -1,5 +1,6 @@
 """FastAPI application factory, served with `uvicorn app.main:create_app --factory`."""
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Literal
@@ -8,6 +9,8 @@ from fastapi import FastAPI, status
 from pydantic import BaseModel
 from redis.asyncio import Redis
 
+from app.adapters.base import ServiceAdapter
+from app.adapters.wolfbet import WolfBetAdapter
 from app.audit import AuditMiddleware
 from app.audit import router as audit_router
 from app.auth.csrf import CsrfMiddleware
@@ -19,11 +22,16 @@ from app.auth.stepup import router as step_up_router
 from app.auth.totp import router as totp_router
 from app.db.engine import create_engine, create_sessionmaker
 from app.errors import UnhandledErrorMiddleware, install_error_handlers
+from app.live.aggregator import Aggregator, run_ticker
+from app.live.consumer import ServiceConsumer
 from app.logging import RequestContextMiddleware, configure_logging
 from app.middleware.security import SecurityHeadersMiddleware
 from app.settings import Settings, load_settings
 from app.ws.auth import RECHECK_SECONDS, ConnectionRegistry
+from app.ws.hub import Hub
 from app.ws.routes import router as ws_router
+
+ADAPTERS: dict[str, type[ServiceAdapter]] = {"wolfbet": WolfBetAdapter}
 
 
 class Health(BaseModel):
@@ -37,10 +45,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     engine = create_engine(settings)
     redis = Redis.from_url(settings.redis_url)
     session_secret = settings.session_secret.get_secret_value()
+    hub: Hub | None = None
+    if settings.live_service is not None:
+        if settings.live_service not in ADAPTERS:
+            raise ValueError(f"no live adapter for service {settings.live_service!r}")
+        aggregator = Aggregator(settings.live_service)
+        hub = Hub(settings.live_service, aggregator)
+        consumer = ServiceConsumer(redis, ADAPTERS[settings.live_service](), aggregator.accept)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        """Run the live pipeline (stream to model to sockets) for the app's whole life."""
+        stop = asyncio.Event()
+        tasks = []
+        if hub is not None:
+            tasks = [
+                asyncio.create_task(consumer.run(stop)),
+                asyncio.create_task(run_ticker(aggregator, hub.publish, stop, settings.live_hz)),
+                asyncio.create_task(hub.run_heartbeat(stop)),
+            ]
         yield
+        stop.set()
+        await asyncio.gather(*tasks)
         await engine.dispose()
         await redis.aclose()
 
@@ -59,6 +85,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.allowed_origins = settings.allowed_origins
     app.state.ws_registry = ConnectionRegistry()
     app.state.ws_recheck_seconds = RECHECK_SECONDS
+    app.state.hub = hub
     install_error_handlers(app, settings.exposes_error_detail)
     install_step_handler(app)
     # Added innermost first: headers wrap everything, including the generic 500.

@@ -156,6 +156,8 @@ class Settings(DatabaseSettings):
     redis_user: str = "dashboard"
     agent_socket: Path | None = None
     vapid_public_key: str | None = None
+    live_service: str | None = "wolfbet"
+    live_hz: int = Field(default=5, ge=4, le=10)
 
     session_secret: SecretStr
     totp_key: SecretStr
@@ -170,6 +172,11 @@ class Settings(DatabaseSettings):
         if not _HOSTNAME.fullmatch(value):
             raise ValueError("must be a bare hostname, without scheme or path")
         return value
+
+    @field_validator("live_service", mode="before")
+    @classmethod
+    def _blank_is_off(cls, value: object) -> object:
+        return None if value == "" else value
 
     @field_validator("host_tz")
     @classmethod

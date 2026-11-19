@@ -310,6 +310,10 @@ class Aggregator:
     def tape(self) -> list[dict[str, Any]]:
         return list(self._tape)
 
+    def snapshot(self) -> tuple[dict[int, dict[str, Any]], list[dict[str, Any]]]:
+        """Every lane as of the last tick, and the tape; what a new subscriber starts from."""
+        return {lane: dict(fields) for lane, fields in self._sent.items()}, list(self._tape)
+
 
 async def run_ticker(
     aggregator: Aggregator,
