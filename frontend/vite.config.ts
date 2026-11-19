@@ -12,6 +12,15 @@ export default defineConfig({
 			csp: { mode: 'hash', directives: { 'script-src': ['self'] } }
 		})
 	],
+	server: {
+		proxy: {
+			'/api': {
+				target: 'http://localhost:8010',
+				rewrite: (path) => path.replace(/^\/api/, '')
+			},
+			'/ws': { target: 'ws://localhost:8010', ws: true }
+		}
+	},
 	test: {
 		include: ['src/**/*.test.ts'],
 		environment: 'node'

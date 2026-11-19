@@ -15,6 +15,7 @@ from app.agent_client import AgentClient
 from app.api.history import router as history_router
 from app.audit import AuditMiddleware
 from app.audit import router as audit_router
+from app.auth.admin import router as admin_router
 from app.auth.csrf import CsrfMiddleware
 from app.auth.invites import router as invites_router
 from app.auth.reset import router as reset_router
@@ -121,6 +122,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(invites_router)
     app.include_router(reset_router)
     app.include_router(audit_router)
+    app.include_router(admin_router)
     app.include_router(history_router)
     app.include_router(ws_router)
 

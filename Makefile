@@ -4,6 +4,7 @@
 #   make security   scanners only; see docs/security/scans.md
 #   make e2e        Playwright against a production build (downloads browsers once)
 #   make dev-api    API on http://localhost:8010 with reload (creates local dev secrets once)
+#   make openapi    rewrite contracts/openapi.json and the frontend's generated api types
 
 SHELL       := /bin/bash
 .SHELLFLAGS := -eo pipefail -c
@@ -20,7 +21,7 @@ PIP_AUDIT_VERSION := 2.10.1
 SEMGREP_VERSION   := 1.185.0
 SCAN_IMAGE        := casino-dashboard-api:scan
 
-.PHONY: install lint type test check security bandit pip-audit pnpm-audit semgrep gitleaks hadolint image-scan e2e dev-secrets dev-api
+.PHONY: install lint type test check security openapi bandit pip-audit pnpm-audit semgrep gitleaks hadolint image-scan e2e dev-secrets dev-api
 
 install:
 	uv sync --project backend
@@ -91,3 +92,7 @@ dev-secrets:
 dev-api: dev-secrets
 	cd backend && APP_ENV=local SECRETS_DIR=.secrets PUBLIC_HOST=localhost \
 		uv run uvicorn app.main:create_app --factory --reload --port 8010
+
+openapi:
+	cd backend && OPENAPI_WRITE=1 APP_ENV=testing uv run pytest -q tests/test_openapi_contract.py
+	$(PNPM) gen:api
