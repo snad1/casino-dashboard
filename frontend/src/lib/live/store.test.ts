@@ -185,6 +185,33 @@ describe('live store', () => {
 		expect(seen).toHaveLength(1);
 	});
 
+	it('keeps the tape newest first: a snapshot replaces it and ticks add in one flush', async () => {
+		const { store, socket, flush, settle } = rig();
+		store.start('svc:wolfbet');
+		await settle();
+		const bet = (seq: number) => ({
+			lane: 1,
+			seq,
+			ts_ms: seq,
+			amount: 1,
+			multiplier: 2,
+			result: 60,
+			state: 'win',
+			profit: 1,
+			balance: 9
+		});
+		socket(0).receive({ ...snapshot, tape: [bet(1), bet(2)] });
+		flush();
+		expect(store.tape.map((r) => r.seq)).toEqual([2, 1]);
+		socket(0).receive({ op: 'tick', topic: 'svc:wolfbet', lanes: {}, tape: [bet(3)] });
+		socket(0).receive({ op: 'tick', topic: 'svc:wolfbet', lanes: {}, tape: [bet(4), bet(5)] });
+		flush();
+		expect(store.tape.map((r) => r.seq)).toEqual([5, 4, 3, 2, 1]);
+		socket(0).receive({ ...snapshot, tape: [bet(9)] });
+		flush();
+		expect(store.tape.map((r) => r.seq)).toEqual([9]);
+	});
+
 	it('stop closes the socket and cancels any retry', async () => {
 		const { store, sockets, socket, advance, settle } = rig();
 		store.start('svc:wolfbet');

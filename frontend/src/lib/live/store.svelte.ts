@@ -1,9 +1,11 @@
+import { prependRows, TAPE_MAX } from '#lib/tape';
 import {
 	CLOSE_FORBIDDEN,
 	CLOSE_SIGNED_OUT,
 	parseMessage,
 	type Candle,
-	type Lanes
+	type Lanes,
+	type TapeRow
 } from './protocol';
 
 export const STALE_MS = 6000;
@@ -41,6 +43,7 @@ export interface LiveDeps {
  */
 export class LiveStore {
 	lanes: Lanes = $state({});
+	tape: TapeRow[] = $state.raw([]);
 	connection: Connection = $state('idle');
 	lastTickAt: number | null = $state(null);
 	now: number = $state(0);
@@ -174,6 +177,7 @@ export class LiveStore {
 		const frames = this.#queue;
 		this.#queue = [];
 		let lanes = this.lanes;
+		let tape = this.tape;
 		let fresh = false;
 		const candles: Candle[] = [];
 		for (const raw of frames) {
@@ -183,6 +187,7 @@ export class LiveStore {
 			this.connection = 'live';
 			if (message.op === 'snapshot') {
 				lanes = { ...message.lanes };
+				tape = prependRows([], message.tape, TAPE_MAX);
 				fresh = true;
 			} else if (message.op === 'tick') {
 				const next = { ...lanes };
@@ -192,10 +197,12 @@ export class LiveStore {
 				}
 				lanes = next;
 				candles.push(...message.candles);
+				if (message.tape.length) tape = prependRows(tape, message.tape, TAPE_MAX);
 				fresh = true;
 			}
 		}
 		if (lanes !== this.lanes) this.lanes = lanes;
+		if (tape !== this.tape) this.tape = tape;
 		if (candles.length) for (const listener of this.#candleListeners) listener(candles);
 		if (fresh) {
 			this.now = this.#deps.now();
