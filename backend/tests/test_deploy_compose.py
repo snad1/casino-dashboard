@@ -137,12 +137,24 @@ def test_api_gets_its_secrets_as_files_and_plain_settings_as_env(
         "totp_key": "totp_key",
         "postgres_app_password": "postgres_password",
         "redis_dashboard_password": "redis_dashboard_password",
+        "agent_token": "agent_token",
     }
     env = api["environment"]
     assert env["APP_ENV"] == "production"
     assert env["PUBLIC_HOST"].startswith("${WOLFBET_HOST:?")
     assert env["POSTGRES_HOST"] == "timescale"
     assert env["REDIS_HOST"] == "redis"
+
+
+def test_api_reaches_the_agent_only_through_its_group_and_a_read_only_mount(
+    compose: dict[str, Any],
+) -> None:
+    api = _service(compose, "api")
+    assert api["group_add"] == ["${AGENT_GID:?set AGENT_GID in deploy/.env}"]
+    assert api["volumes"] == ["${AGENT_RUNTIME_DIR:-/run/user/0/casino-agent}:/run/casino-agent:ro"]
+    assert api["environment"]["AGENT_SOCKET"] == "/run/casino-agent/agent.sock"
+    others = [name for name in SERVICES if name != "api"]
+    assert not any("agent_token" in _secrets(_service(compose, name)) for name in others)
 
 
 def test_api_is_served_by_the_factory() -> None:

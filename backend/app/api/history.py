@@ -343,12 +343,8 @@ async def get_series(
     return out
 
 
-@router.get("/current", response_model=CurrentOut)
-async def get_current(service: str, request: Request, _: Viewer, db: Db) -> BaseModel:
-    """Each lane's latest session in the newest epoch, with its totals, for live resync."""
-    cache, key = _cache(request)
-    if (hit := cache.get(key)) is not None:
-        return hit
+async def current_sessions(db: AsyncSession, service: str) -> list[HistorySession]:
+    """Each lane's latest session in the newest epoch."""
     newest_epoch = (
         select(HistorySession.epoch_id)
         .where(HistorySession.service == service)
@@ -362,7 +358,16 @@ async def get_current(service: str, request: Request, _: Viewer, db: Db) -> Base
         .ext(distinct_on(HistorySession.lane))
         .order_by(HistorySession.lane, HistorySession.src_id.desc())
     )
-    rows = list(await db.scalars(query))
+    return list(await db.scalars(query))
+
+
+@router.get("/current", response_model=CurrentOut)
+async def get_current(service: str, request: Request, _: Viewer, db: Db) -> BaseModel:
+    """Each lane's latest session in the newest epoch, with its totals, for live resync."""
+    cache, key = _cache(request)
+    if (hit := cache.get(key)) is not None:
+        return hit
+    rows = await current_sessions(db, service)
     out = CurrentOut(lanes=[_session_out(SessionOut, row) for row in rows])
     cache.put(key, out)
     return out

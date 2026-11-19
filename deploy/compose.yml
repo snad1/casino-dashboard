@@ -101,12 +101,19 @@ services:
       POSTGRES_USER: dashboard_app
       REDIS_HOST: redis
       REDIS_USER: dashboard
+      AGENT_SOCKET: /run/casino-agent/agent.sock
     secrets:
       - session_secret
       - totp_key
       - source: postgres_app_password
         target: postgres_password
       - redis_dashboard_password
+      - agent_token
+    # The agent's socket is 0660 in the casino-agent group; joining it is the only access.
+    group_add:
+      - ${AGENT_GID:?set AGENT_GID in deploy/.env}
+    volumes:
+      - ${AGENT_RUNTIME_DIR:-/run/user/0/casino-agent}:/run/casino-agent:ro
     depends_on:
       timescale:
         condition: service_healthy
@@ -260,3 +267,5 @@ secrets:
     file: ./secrets/redis_publisher_password.txt
   redis_dashboard_password:
     file: ./secrets/redis_dashboard_password.txt
+  agent_token:
+    file: ./secrets/agent_token.txt

@@ -11,6 +11,7 @@ from redis.asyncio import Redis
 
 from app.adapters.base import ServiceAdapter
 from app.adapters.wolfbet import WolfBetAdapter
+from app.agent_client import AgentClient
 from app.api.history import router as history_router
 from app.audit import AuditMiddleware
 from app.audit import router as audit_router
@@ -25,6 +26,7 @@ from app.db.engine import create_engine, create_sessionmaker
 from app.errors import UnhandledErrorMiddleware, install_error_handlers
 from app.live.aggregator import Aggregator, run_ticker
 from app.live.consumer import ServiceConsumer
+from app.live.resync import Resync
 from app.logging import RequestContextMiddleware, configure_logging
 from app.middleware.security import SecurityHeadersMiddleware
 from app.settings import Settings, load_settings
@@ -44,6 +46,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or load_settings()
     configure_logging(settings)
     engine = create_engine(settings)
+    sessionmaker = create_sessionmaker(engine)
     redis = Redis.from_url(settings.redis_url)
     session_secret = settings.session_secret.get_secret_value()
     hub: Hub | None = None
@@ -53,6 +56,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         aggregator = Aggregator(settings.live_service)
         hub = Hub(settings.live_service, aggregator)
         consumer = ServiceConsumer(redis, ADAPTERS[settings.live_service](), aggregator.accept)
+        agent = None
+        if settings.agent_socket is not None and settings.agent_token is not None:
+            agent = AgentClient(settings.agent_socket, settings.agent_token.get_secret_value())
+        resync = Resync(
+            aggregator, sessionmaker, agent, reconnects=lambda: consumer.stats["reconnects"]
+        )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -64,6 +73,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 asyncio.create_task(consumer.run(stop)),
                 asyncio.create_task(run_ticker(aggregator, hub.publish, stop, settings.live_hz)),
                 asyncio.create_task(hub.run_heartbeat(stop)),
+                asyncio.create_task(resync.run(stop)),
             ]
         yield
         stop.set()
@@ -78,7 +88,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url=None,
         lifespan=lifespan,
     )
-    app.state.sessionmaker = create_sessionmaker(engine)
+    app.state.sessionmaker = sessionmaker
     app.state.redis = redis
     app.state.session_secret = session_secret
     app.state.totp_key = settings.totp_key.get_secret_value()

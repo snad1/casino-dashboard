@@ -3,8 +3,10 @@
 Events update the model as they arrive (O(1) each); browsers never see raw events. A tick, a
 few times a second, emits only the changed fields per lane, the bets added to the tape and
 the 1 s candles touched since the last tick, so the cost of fan-out follows the tick rate,
-not the bet rate. Everything is computed from the events and an injected clock, so a replay
-gives the same output every time.
+not the bet rate. Resync seeds a lane from durable totals and the agent's view of the
+daemon, which also tells a dead daemon (`down`) apart from a bot with events turned off.
+Everything is computed from the events and an injected clock, so a replay gives the same
+output every time.
 
 The numbers follow the bot (`wolfbet/wolfbet.py`): ROI % is profit / wagered x 100
 (`build_dashboard_screen`); a win sets the streak to max(streak, 0) + 1 and a loss to
@@ -49,6 +51,17 @@ _RECONCILED = {
     "current_balance": "balance",
 }
 
+# Stored session column -> lane counter a resync sets.
+_SEEDED = (
+    "total_bets",
+    "wins",
+    "losses",
+    "wagered",
+    "profit",
+    "max_win_streak",
+    "max_loss_streak",
+)
+
 
 @dataclass
 class Candle:
@@ -88,6 +101,7 @@ class Lane:
     bps_avg: float | None = None
     bps_ewma: float = 0.0
     gaps: int = 0
+    agent_running: bool | None = None
     last_event_ts_ms: int | None = None
     last_seen: float | None = None
     latencies: deque[float] = field(default_factory=lambda: deque(maxlen=LATENCY_WINDOW))
@@ -134,6 +148,7 @@ class Aggregator:
         self._sent: dict[int, dict[str, Any]] = {}
         self._last_tick: float | None = None
         self._conflict_fields: set[str] = set()
+        self.events_enabled: bool | None = None
 
     def _lane(self, number: int) -> Lane:
         lane = self.lanes.get(number)
@@ -153,6 +168,7 @@ class Aggregator:
             return
         lane.last_seen = now
         lane.last_event_ts_ms = item.ts_ms
+        lane.agent_running = True
         if isinstance(item, BetEvent):
             self._bet(lane, item, now)
         elif isinstance(item, StateEvent):
@@ -201,7 +217,36 @@ class Aggregator:
         self._tape.append(row)
         self._tape_new.append(row)
 
-    def _state(self, lane: Lane, state: dict[str, Any]) -> None:
+    def seed(
+        self,
+        number: int,
+        session: dict[str, Any] | None = None,
+        state: dict[str, Any] | None = None,
+        running: bool | None = None,
+    ) -> None:
+        """Set a lane from its stored session totals, then the daemon's own state on top.
+
+        Used after a restart, a gap or a reconnect, so seeded values never count as a
+        mismatch. `running` is whether the agent found the lane's daemon alive.
+        """
+        lane = self._lane(number)
+        if session is not None:
+            if session["id"] != lane.session_id:
+                lane.new_session(session["id"])
+            for attr in _SEEDED:
+                if session.get(attr) is not None:
+                    setattr(lane, attr, type(getattr(lane, attr))(session[attr]))
+            if session.get("end_balance") is not None:
+                lane.balance = session["end_balance"]
+            for key in ("currency", "strategy"):
+                if session.get(key) is not None:
+                    setattr(lane, key, session[key])
+        if state is not None:
+            self._state(lane, state, count_conflicts=False)
+        if running is not None:
+            lane.agent_running = running
+
+    def _state(self, lane: Lane, state: dict[str, Any], count_conflicts: bool = True) -> None:
         session_id = state.get("session_id")
         if isinstance(session_id, int) and session_id != lane.session_id:
             lane.new_session(session_id)
@@ -210,8 +255,10 @@ class Aggregator:
             if not isinstance(value, int | float) or isinstance(value, bool):
                 continue
             current = getattr(lane, attr)
-            if current is not None and not math.isclose(
-                current, value, rel_tol=0, abs_tol=FLOAT_TOLERANCE
+            if (
+                count_conflicts
+                and current is not None
+                and not math.isclose(current, value, rel_tol=0, abs_tol=FLOAT_TOLERANCE)
             ):
                 self.conflicts += 1
                 self._conflict_fields.add(key)
@@ -236,10 +283,13 @@ class Aggregator:
             lane.paused = True
 
     def _status(self, lane: Lane, now: float) -> str:
+        quiet = lane.last_seen is None or now - lane.last_seen > STALE_AFTER_S
+        if quiet and lane.agent_running is False:
+            return "down"
         if lane.stopped:
             return "stopped"
-        if lane.last_seen is None or now - lane.last_seen > STALE_AFTER_S:
-            return "stale"
+        if quiet:
+            return "events_off" if self.events_enabled is False else "stale"
         return "paused" if lane.paused else "running"
 
     def _snapshot(self, lane: Lane, now: float, elapsed: float | None) -> dict[str, Any]:

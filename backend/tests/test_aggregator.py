@@ -266,6 +266,42 @@ class TestStatus:
         aggregator.apply(lifecycle("stop"))
         assert status() == "stopped"
 
+    def test_a_quiet_lane_is_down_only_when_the_agent_says_so(self) -> None:
+        clock = Clock()
+        aggregator = Aggregator("wolfbet", clock=clock)
+
+        def status() -> str:
+            return str(aggregator._snapshot(aggregator.lanes[1], clock.now, None)["status"])
+
+        aggregator.apply(bet())
+        aggregator.seed(1, running=False)
+        assert status() == "running"
+        clock.now += STALE_AFTER_S + 0.1
+        assert status() == "down"
+        aggregator.apply(lifecycle("stop"))
+        assert status() == "stopped"
+        aggregator.apply(lifecycle("start"))
+        assert status() == "running"
+
+    def test_a_quiet_lane_with_events_off_is_not_stale_or_down(self) -> None:
+        clock = Clock()
+        aggregator = Aggregator("wolfbet", clock=clock)
+        aggregator.apply(bet())
+        aggregator.seed(1, running=True)
+        clock.now += STALE_AFTER_S + 0.1
+        lane = aggregator.lanes[1]
+        assert aggregator._snapshot(lane, clock.now, None)["status"] == "stale"
+        aggregator.events_enabled = False
+        assert aggregator._snapshot(lane, clock.now, None)["status"] == "events_off"
+
+    def test_seed_sets_stored_totals_then_the_daemons_state_without_conflicts(self) -> None:
+        aggregator = Aggregator("wolfbet", clock=Clock())
+        stored = {"id": 4, "total_bets": 120, "profit": 3.5, "wins": 60, "end_balance": 90.0}
+        aggregator.seed(1, stored, {"session_id": 4, "total_bets": 125, "running": True})
+        lane = aggregator.lanes[1]
+        assert (lane.session_id, lane.total_bets, lane.profit, lane.balance) == (4, 125, 3.5, 90.0)
+        assert aggregator.conflicts == 0
+
 
 class TestTick:
     def test_only_changed_fields_and_nothing_when_idle(self) -> None:
