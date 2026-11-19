@@ -62,6 +62,20 @@ describe('parseMessage', () => {
 		expect(odd).toMatchObject({ agent: 'unavailable', host: null, units: [], publisher: {} });
 	});
 
+	it('reads comment change signals', () => {
+		const raw = {
+			op: 'comment',
+			topic: 'svc:wolfbet:comments',
+			kind: 'bet',
+			epoch_id: 1,
+			session_id: null,
+			bet_id: 4,
+			at: null
+		};
+		expect(parseMessage(JSON.stringify(raw))).toEqual(raw);
+		expect(parseMessage(JSON.stringify({ ...raw, kind: 'other' }))).toBeNull();
+	});
+
 	it('ignores anything else', () => {
 		for (const raw of [
 			'not json',

@@ -5,6 +5,7 @@ import {
 	CLOSE_SIGNED_OUT,
 	parseMessage,
 	type Candle,
+	type CommentEvent,
 	type Lanes,
 	type SystemMessage,
 	type TapeRow
@@ -63,6 +64,7 @@ export class LiveStore {
 	#cancelRetry: (() => void) | null = null;
 	#cancelClock: (() => void) | null = null;
 	#candleListeners: Array<(candles: Candle[]) => void> = [];
+	#commentListeners: Array<(event: CommentEvent) => void> = [];
 
 	constructor(deps: LiveDeps) {
 		this.#deps = {
@@ -108,6 +110,14 @@ export class LiveStore {
 		this.#candleListeners.push(listener);
 		return () => {
 			this.#candleListeners = this.#candleListeners.filter((l) => l !== listener);
+		};
+	}
+
+	/** Call `listener` for each comment change; returns the unsubscribe function. */
+	onComment(listener: (event: CommentEvent) => void): () => void {
+		this.#commentListeners.push(listener);
+		return () => {
+			this.#commentListeners = this.#commentListeners.filter((l) => l !== listener);
 		};
 	}
 
@@ -184,6 +194,7 @@ export class LiveStore {
 		let tape = this.tape;
 		let fresh = false;
 		const candles: Candle[] = [];
+		const comments: CommentEvent[] = [];
 		for (const raw of frames) {
 			const message = parseMessage(raw);
 			if (message === null) continue;
@@ -193,6 +204,8 @@ export class LiveStore {
 				lanes = { ...message.lanes };
 				tape = prependRows([], message.tape, TAPE_MAX);
 				fresh = true;
+			} else if (message.op === 'comment') {
+				comments.push(message);
 			} else if (message.op === 'system') {
 				this.system = message;
 				this.dropSamples = addDropSamples(this.dropSamples, message.publisher, this.#deps.now());
@@ -211,6 +224,7 @@ export class LiveStore {
 		if (lanes !== this.lanes) this.lanes = lanes;
 		if (tape !== this.tape) this.tape = tape;
 		if (candles.length) for (const listener of this.#candleListeners) listener(candles);
+		for (const event of comments) for (const listener of this.#commentListeners) listener(event);
 		if (fresh) {
 			this.now = this.#deps.now();
 			this.lastTickAt = this.now;

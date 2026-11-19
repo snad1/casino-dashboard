@@ -354,6 +354,51 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/{service}/comments': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * List Comments
+		 * @description One target's comments, oldest first; chart notes in a range, by their time.
+		 */
+		get: operations['list_comments__service__comments_get'];
+		put?: never;
+		/** Create Comment */
+		post: operations['create_comment__service__comments_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/comments/{comment_id}': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		post?: never;
+		/**
+		 * Delete Comment
+		 * @description The author, or a moderator, removes the comment.
+		 */
+		delete: operations['delete_comment__service__comments__comment_id__delete'];
+		options?: never;
+		head?: never;
+		/**
+		 * Edit Comment
+		 * @description Only the author changes the text.
+		 */
+		patch: operations['edit_comment__service__comments__comment_id__patch'];
+		trace?: never;
+	};
 	'/{service}/current': {
 		parameters: {
 			query?: never;
@@ -561,6 +606,67 @@ export interface components {
 		CodeIn: {
 			/** Code */
 			code: string;
+		};
+		/** CommentEdit */
+		CommentEdit: {
+			/** Body */
+			body: string;
+		};
+		/** CommentIn */
+		CommentIn: {
+			/** At */
+			at?: string | null;
+			/** Bet Id */
+			bet_id?: number | null;
+			/** Body */
+			body: string;
+			/** Epoch Id */
+			epoch_id?: number | null;
+			/**
+			 * Kind
+			 * @enum {string}
+			 */
+			kind: 'session' | 'bet' | 'chart';
+			/** Session Id */
+			session_id?: number | null;
+		};
+		/** CommentList */
+		CommentList: {
+			/** Items */
+			items: components['schemas']['CommentOut'][];
+		};
+		/** CommentOut */
+		CommentOut: {
+			/** At */
+			at: string | null;
+			/** Author */
+			author: string;
+			/** Bet Id */
+			bet_id: number | null;
+			/** Body */
+			body: string;
+			/** Can Delete */
+			can_delete: boolean;
+			/** Can Edit */
+			can_edit: boolean;
+			/**
+			 * Created At
+			 * Format: date-time
+			 */
+			created_at: string;
+			/** Edited At */
+			edited_at: string | null;
+			/** Epoch Id */
+			epoch_id: number | null;
+			/** Id */
+			id: number;
+			/**
+			 * Kind
+			 * @enum {string}
+			 */
+			kind: 'session' | 'bet' | 'chart';
+			/** Session Id */
+			session_id: number | null;
 		};
 		/** ConfirmIn */
 		ConfirmIn: {
@@ -1375,6 +1481,145 @@ export interface operations {
 				};
 				content: {
 					'application/json': components['schemas']['Ticket'];
+				};
+			};
+		};
+	};
+	list_comments__service__comments_get: {
+		parameters: {
+			query: {
+				kind: 'session' | 'bet' | 'chart';
+				epoch_id?: number | null;
+				session_id?: number | null;
+				bet_id?: number | null;
+				from?: string | null;
+				to?: string | null;
+			};
+			header?: never;
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['CommentList'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	create_comment__service__comments_post: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['CommentIn'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			201: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['CommentOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	delete_comment__service__comments__comment_id__delete: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+				comment_id: number;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			204: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content?: never;
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	edit_comment__service__comments__comment_id__patch: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+				comment_id: number;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['CommentEdit'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['CommentOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
 				};
 			};
 		};

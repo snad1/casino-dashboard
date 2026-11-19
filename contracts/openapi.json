@@ -329,6 +329,219 @@
         "title": "CodeIn",
         "type": "object"
       },
+      "CommentEdit": {
+        "properties": {
+          "body": {
+            "maxLength": 8000,
+            "title": "Body",
+            "type": "string"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "title": "CommentEdit",
+        "type": "object"
+      },
+      "CommentIn": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "bet_id": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bet Id"
+          },
+          "body": {
+            "maxLength": 8000,
+            "title": "Body",
+            "type": "string"
+          },
+          "epoch_id": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Epoch Id"
+          },
+          "kind": {
+            "enum": [
+              "session",
+              "bet",
+              "chart"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          }
+        },
+        "required": [
+          "kind",
+          "body"
+        ],
+        "title": "CommentIn",
+        "type": "object"
+      },
+      "CommentList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CommentOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "CommentList",
+        "type": "object"
+      },
+      "CommentOut": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "author": {
+            "title": "Author",
+            "type": "string"
+          },
+          "bet_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bet Id"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "can_delete": {
+            "title": "Can Delete",
+            "type": "boolean"
+          },
+          "can_edit": {
+            "title": "Can Edit",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "edited_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edited At"
+          },
+          "epoch_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Epoch Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "session",
+              "bet",
+              "chart"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "epoch_id",
+          "session_id",
+          "bet_id",
+          "at",
+          "body",
+          "author",
+          "created_at",
+          "edited_at",
+          "can_edit",
+          "can_delete"
+        ],
+        "title": "CommentOut",
+        "type": "object"
+      },
       "ConfirmIn": {
         "properties": {
           "password": {
@@ -2129,6 +2342,305 @@
         "summary": "Ws Ticket",
         "tags": [
           "live"
+        ]
+      }
+    },
+    "/{service}/comments": {
+      "get": {
+        "description": "One target's comments, oldest first; chart notes in a range, by their time.",
+        "operationId": "list_comments__service__comments_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "title": "Service",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "session",
+                "bet",
+                "chart"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "epoch_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Epoch Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "session_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "bet_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Bet Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Comments",
+        "tags": [
+          "comments"
+        ]
+      },
+      "post": {
+        "operationId": "create_comment__service__comments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "title": "Service",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Comment",
+        "tags": [
+          "comments"
+        ]
+      }
+    },
+    "/{service}/comments/{comment_id}": {
+      "delete": {
+        "description": "The author, or a moderator, removes the comment.",
+        "operationId": "delete_comment__service__comments__comment_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "title": "Service",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "comment_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Comment Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Comment",
+        "tags": [
+          "comments"
+        ]
+      },
+      "patch": {
+        "description": "Only the author changes the text.",
+        "operationId": "edit_comment__service__comments__comment_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "title": "Service",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "comment_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Comment Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Edit Comment",
+        "tags": [
+          "comments"
         ]
       }
     },

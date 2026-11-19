@@ -30,6 +30,7 @@ class Perm(StrEnum):
     USERS_MANAGE = "users.manage"
     AUDIT_READ = "audit.read"
     ALERTS_MANAGE = "alerts.manage"
+    COMMENTS_MODERATE = "comments.moderate"
 
 
 _VIEWER = frozenset({Perm.VIEW, Perm.COMMENT})
@@ -56,12 +57,27 @@ async def roles_for(session: AsyncSession, user_id: int, service: str | None) ->
     return {Role(role) for role in rows}
 
 
+async def denial(session: AsyncSession, user: User, service: str | None, perm: Perm) -> str | None:
+    """Why `user` may not use `perm` on `service`, or None when they may.
+
+    An unknown service just grants nothing, so the refusal does not reveal which services
+    exist. A grant that only an owner or admin role gives needs 2FA turned on.
+    """
+    if user.disabled:
+        return FORBIDDEN
+    roles = await roles_for(session, user.id, service)
+    if not any(perm in ROLE_PERMS[role] for role in roles):
+        return FORBIDDEN
+    if perm != Perm.VIEW and not any(perm in ROLE_PERMS[role] for role in roles - NEEDS_TWO_FACTOR):
+        if not await is_enabled(session, user.id):
+            return TWO_FACTOR_NEEDED
+    return None
+
+
 def require(perm: Perm) -> Callable[..., Awaitable[User]]:
     """Dependency that returns the user when one of their roles grants `perm`.
 
-    Roles on the route's `{service}` path parameter count, as do global roles. An unknown
-    service just grants nothing, so the 403 does not reveal which services exist. A grant
-    that only an owner or admin role gives needs 2FA turned on.
+    Roles on the route's `{service}` path parameter count, as do global roles.
     """
 
     async def dependency(
@@ -69,16 +85,9 @@ def require(perm: Perm) -> Callable[..., Awaitable[User]]:
         user: Annotated[User, Depends(current_user)],
         session: Annotated[AsyncSession, Depends(get_session)],
     ) -> User:
-        if user.disabled:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, FORBIDDEN)
-        roles = await roles_for(session, user.id, request.path_params.get("service"))
-        if not any(perm in ROLE_PERMS[role] for role in roles):
-            raise HTTPException(status.HTTP_403_FORBIDDEN, FORBIDDEN)
-        if perm != Perm.VIEW and not any(
-            perm in ROLE_PERMS[role] for role in roles - NEEDS_TWO_FACTOR
-        ):
-            if not await is_enabled(session, user.id):
-                raise HTTPException(status.HTTP_403_FORBIDDEN, TWO_FACTOR_NEEDED)
+        detail = await denial(session, user, request.path_params.get("service"), perm)
+        if detail is not None:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail)
         return user
 
     return dependency

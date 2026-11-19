@@ -23,6 +23,7 @@ from app.auth.routes import router as auth_router
 from app.auth.stepup import install_step_handler
 from app.auth.stepup import router as step_up_router
 from app.auth.totp import router as totp_router
+from app.comments import router as comments_router
 from app.db.engine import create_engine, create_sessionmaker
 from app.errors import UnhandledErrorMiddleware, install_error_handlers
 from app.live.aggregator import Aggregator, run_ticker
@@ -124,6 +125,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(audit_router)
     app.include_router(admin_router)
     app.include_router(history_router)
+    app.include_router(comments_router)
     app.include_router(ws_router)
 
     return app

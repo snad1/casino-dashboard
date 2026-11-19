@@ -14,6 +14,8 @@ describe('can', () => {
 		expect(can(me('admin'), 'users.manage')).toBe(true);
 		expect(can(me('admin'), 'terminal')).toBe(false);
 		expect(can(me('owner'), 'terminal')).toBe(true);
+		expect(can(me('admin'), 'comments.moderate')).toBe(true);
+		expect(can(me('viewer'), 'comments.moderate')).toBe(false);
 	});
 
 	it('limits a service role to that service', () => {

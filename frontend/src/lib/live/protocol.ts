@@ -48,7 +48,17 @@ export interface Candle {
 	balance: number[];
 }
 
+/** A comment on this target changed; the page reloads it to get the text and its own rights. */
+export interface CommentEvent {
+	kind: 'session' | 'bet' | 'chart';
+	epoch_id: number | null;
+	session_id: number | null;
+	bet_id: number | null;
+	at: string | null;
+}
+
 export type ServerMessage =
+	| ({ op: 'comment'; topic: string } & CommentEvent)
 	| { op: 'snapshot'; topic: string; lanes: Lanes; tape: TapeRow[] }
 	| { op: 'tick'; topic: string; lanes: Lanes; candles: Candle[]; tape: TapeRow[] }
 	| { op: 'hb' }
@@ -106,6 +116,13 @@ export function topicFor(service: string): string {
 export function systemTopicFor(service: string): string {
 	return `svc:${service}:system`;
 }
+
+export function commentsTopicFor(service: string): string {
+	return `svc:${service}:comments`;
+}
+
+const KINDS = new Set(['session', 'bet', 'chart']);
+const idOrNull = (value: unknown): number | null => (typeof value === 'number' ? value : null);
 
 const asObject = (value: unknown): Record<string, unknown> | null =>
 	typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -200,6 +217,19 @@ export function parseMessage(raw: string): ServerMessage | null {
 				: null;
 		case 'system':
 			return typeof m.topic === 'string' ? { op: 'system', topic: m.topic, ...systemOf(m) } : null;
+		case 'comment':
+			if (typeof m.topic !== 'string' || typeof m.kind !== 'string' || !KINDS.has(m.kind)) {
+				return null;
+			}
+			return {
+				op: 'comment',
+				topic: m.topic,
+				kind: m.kind as CommentEvent['kind'],
+				epoch_id: idOrNull(m.epoch_id),
+				session_id: idOrNull(m.session_id),
+				bet_id: idOrNull(m.bet_id),
+				at: typeof m.at === 'string' ? m.at : null
+			};
 		default:
 			return null;
 	}

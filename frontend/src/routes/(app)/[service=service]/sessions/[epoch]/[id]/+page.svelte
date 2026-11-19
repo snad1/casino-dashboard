@@ -6,6 +6,7 @@
 	import { ApiError, unwrap } from '#lib/api/client';
 	import { decimalsFor, formatAmount, formatProfit } from '#lib/format';
 	import { api } from '#lib/session.svelte';
+	import Comments from '#components/Comments';
 	import Button from '#ui/Button';
 	import Notice from '#ui/Notice';
 	import VirtualList from '#ui/VirtualList';
@@ -23,6 +24,7 @@
 	let done = $state(false);
 	let busy = false;
 	let error = $state<string | null>(null);
+	let betShown = $state<number | null>(null);
 
 	const decimals = $derived(decimalsFor(detail?.currency));
 	const path = $derived({ service, epoch_id: epoch, session_id: id });
@@ -82,7 +84,7 @@
 
 <svelte:head><title>Session {id} · Casino dashboard</title></svelte:head>
 
-<div class="mx-auto flex h-[calc(100dvh-8rem)] max-w-5xl flex-col gap-4">
+<div class="mx-auto flex max-w-5xl flex-col gap-4">
 	<a href={resolve('/(app)/[service=service]', { service })} class="text-sm text-accent underline"
 		>Back to the dashboard</a
 	>
@@ -101,13 +103,13 @@
 			{/each}
 		</dl>
 	{/if}
-	<div class="min-h-0 flex-1 rounded-lg border border-line bg-surface p-2">
+	<div class="h-96 rounded-lg border border-line bg-surface p-2">
 		<VirtualList items={bets} key={(b) => b.id} rowHeight={28} label="Bets" onend={more}>
 			{#snippet row(bet: Bet)}
 				{@const win = bet.state === 'win'}
 				<div
 					role="row"
-					class="grid h-full grid-cols-[10rem_4.5rem_1fr_4rem_4rem_1fr] items-center gap-2 font-mono text-xs tabular-nums"
+					class="grid h-full grid-cols-[10rem_4.5rem_1fr_4rem_4rem_1fr_5.5rem] items-center gap-2 font-mono text-xs tabular-nums"
 				>
 					<span role="cell" class="text-muted">{new Date(bet.ts).toLocaleString()}</span>
 					<span role="cell" class={win ? 'text-profit' : 'text-loss'}
@@ -121,8 +123,42 @@
 					<span role="cell" class="text-right {win ? 'text-profit' : 'text-loss'}"
 						>{formatProfit(bet.profit ?? 0, decimals)}</span
 					>
+					<span role="cell" class="text-right">
+						<button
+							type="button"
+							aria-pressed={betShown === bet.id}
+							aria-label="Comments on bet {bet.id}"
+							onclick={() => (betShown = betShown === bet.id ? null : bet.id)}
+							class="h-6 rounded-sm border border-line-strong px-2 font-sans text-accent aria-pressed:bg-raised"
+							>Comments</button
+						>
+					</span>
 				</div>
 			{/snippet}
 		</VirtualList>
 	</div>
+	{#if detail}
+		<div class="grid gap-4 md:grid-cols-2">
+			<div class="rounded-lg border border-line bg-surface p-4">
+				<Comments
+					{service}
+					target={{ kind: 'session', epoch_id: epoch, session_id: id }}
+					title="Session comments"
+				/>
+			</div>
+			<div class="rounded-lg border border-line bg-surface p-4">
+				{#if betShown === null}
+					<p class="text-sm text-muted">Pick "Comments" on a bet to see or add its comments.</p>
+				{:else}
+					{#key betShown}
+						<Comments
+							{service}
+							target={{ kind: 'bet', epoch_id: epoch, bet_id: betShown }}
+							title="Comments on bet {betShown}"
+						/>
+					{/key}
+				{/if}
+			</div>
+		</div>
+	{/if}
 </div>

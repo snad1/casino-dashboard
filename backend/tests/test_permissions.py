@@ -32,6 +32,7 @@ EXPECTED: dict[Perm, set[Role]] = {
     P.USERS_MANAGE: {Role.OWNER, Role.ADMIN},
     P.AUDIT_READ: {Role.OWNER, Role.ADMIN},
     P.ALERTS_MANAGE: {Role.OWNER, Role.ADMIN},
+    P.COMMENTS_MODERATE: {Role.OWNER, Role.ADMIN},
     P.TERMINAL: {Role.OWNER},
 }
 

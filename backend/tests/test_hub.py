@@ -81,6 +81,7 @@ async def _settle() -> None:
         ("svc:wolfbet:lane:2", ("lane", 2)),
         ("svc:wolfbet:session:168", ("session", 168)),
         ("svc:wolfbet:system", ("system", None)),
+        ("svc:wolfbet:comments", ("comments", None)),
         ("svc:goated", None),
         ("svc:wolfbet:lane:x", None),
         ("wolfbet", None),
@@ -143,6 +144,22 @@ async def test_system_subscribers_get_the_last_sample_then_each_new_one() -> Non
     assert json.loads(early.sent[-1])["host"] == {"cpu_pct": 12.5}
     assert json.loads(late.sent[0])["host"] == {"cpu_pct": 12.5}
     assert "system" not in lane_only.ops()
+
+
+async def test_comment_subscribers_get_no_snapshot_only_each_change() -> None:
+    hub, _ = _hub()
+    watcher, lanes = Socket(), Socket()
+    _join(hub, watcher, "svc:wolfbet:comments")
+    _join(hub, lanes, "svc:wolfbet")
+    await _settle()
+    assert watcher.sent == []
+    target = {"kind": "session", "epoch_id": 1, "session_id": 7, "bet_id": None, "at": None}
+    hub.publish_comment(target)
+    await _settle()
+    assert [json.loads(m) for m in watcher.sent] == [
+        {"op": "comment", "topic": "svc:wolfbet:comments", **target}
+    ]
+    assert "comment" not in lanes.ops()
 
 
 async def test_a_stuck_socket_never_delays_the_others_and_is_coalesced() -> None:

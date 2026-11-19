@@ -7,7 +7,8 @@ is full, the queued messages are replaced by one fresh snapshot per topic; a soc
 still behind after `BEHIND_LIMIT_S` is closed (1013, try again later).
 
 Topics: `svc:<name>` (every lane), `svc:<name>:lane:<k>`, `svc:<name>:session:<id>` and
-`svc:<name>:system` (system metrics, published once those exist).
+`svc:<name>:system` (system metrics) and `svc:<name>:comments` (a signal that a comment
+changed, so open pages reload it; it has no snapshot).
 """
 
 import asyncio
@@ -28,7 +29,7 @@ MAX_TOPICS = 16
 BEHIND_LIMIT_S = 10.0
 HEARTBEAT_IDLE_S = 15.0
 CLOSE_TOO_SLOW = 1013
-_TOPIC = re.compile(r"svc:([a-z0-9-]+)(?::(lane|session):([0-9]{1,18})|:(system))?")
+_TOPIC = re.compile(r"svc:([a-z0-9-]+)(?::(lane|session):([0-9]{1,18})|:(system|comments))?")
 
 log = structlog.get_logger("app.ws.hub")
 
@@ -46,7 +47,7 @@ def parse_topic(svc: str, name: str) -> Topic | None:
     if match is None or match.group(1) != svc:
         return None
     if match.group(4):
-        return Topic(name, "system")
+        return Topic(name, match.group(4))
     if match.group(2):
         return Topic(name, match.group(2), int(match.group(3)))
     return Topic(name, "service")
@@ -113,7 +114,9 @@ class Hub:
         if topic.name not in client.topics and len(client.topics) >= MAX_TOPICS:
             return False
         client.topics[topic.name] = topic
-        self._offer(client, self._snapshot(topic))
+        snapshot = self._snapshot(topic)
+        if snapshot is not None:
+            self._offer(client, snapshot)
         return True
 
     def send(self, client: Client, message: dict[str, Any]) -> None:
@@ -133,7 +136,9 @@ class Hub:
             return {n for n, fields in lanes.items() if fields.get("session_id") == topic.key}
         return set()
 
-    def _snapshot(self, topic: Topic) -> str:
+    def _snapshot(self, topic: Topic) -> str | None:
+        if topic.kind == "comments":
+            return None
         if topic.kind == "system":
             return encode({"op": "system", "topic": topic.name, **self._system})
         lanes, tape = self.aggregator.snapshot()
@@ -187,6 +192,17 @@ class Hub:
                     encoded[name] = encode({"op": "system", "topic": name, **body})
                 self._offer(client, encoded[name])
 
+    def publish_comment(self, target: dict[str, Any]) -> None:
+        """Tell every comments subscriber that a comment on `target` changed, encoded once."""
+        encoded: dict[str, str] = {}
+        for client in self.clients:
+            for name, topic in client.topics.items():
+                if topic.kind != "comments":
+                    continue
+                if name not in encoded:
+                    encoded[name] = encode({"op": "comment", "topic": name, **target})
+                self._offer(client, encoded[name])
+
     def _offer(self, client: Client, message: str) -> None:
         if client.closing:
             return
@@ -207,7 +223,9 @@ class Hub:
         while not client.queue.empty():
             client.queue.get_nowait()
         for topic in client.topics.values():
-            client.queue.put_nowait(self._snapshot(topic))
+            snapshot = self._snapshot(topic)
+            if snapshot is not None:
+                client.queue.put_nowait(snapshot)
 
     def heartbeat(self) -> None:
         now = self.clock()

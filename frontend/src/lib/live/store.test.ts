@@ -240,6 +240,23 @@ describe('live store', () => {
 		expect(store.stale).toBe(true);
 	});
 
+	it('hands each comment change to listeners', async () => {
+		const { store, socket, flush, settle } = rig();
+		const seen: unknown[] = [];
+		const off = store.onComment((event) => seen.push(event.session_id));
+		store.start('svc:wolfbet');
+		await settle();
+		const change = { op: 'comment', topic: 'svc:wolfbet:comments', kind: 'session', epoch_id: 1 };
+		socket(0).receive({ ...change, session_id: 7 });
+		socket(0).receive({ ...change, session_id: 8 });
+		flush();
+		expect(seen).toEqual([7, 8]);
+		off();
+		socket(0).receive({ ...change, session_id: 9 });
+		flush();
+		expect(seen).toEqual([7, 8]);
+	});
+
 	it('stop closes the socket and cancels any retry', async () => {
 		const { store, sockets, socket, advance, settle } = rig();
 		store.start('svc:wolfbet');

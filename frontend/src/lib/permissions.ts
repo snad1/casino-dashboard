@@ -12,7 +12,8 @@ export type Perm =
 	| 'terminal'
 	| 'users.manage'
 	| 'audit.read'
-	| 'alerts.manage';
+	| 'alerts.manage'
+	| 'comments.moderate';
 
 const ALL: Perm[] = [
 	'view',
@@ -25,7 +26,8 @@ const ALL: Perm[] = [
 	'terminal',
 	'users.manage',
 	'audit.read',
-	'alerts.manage'
+	'alerts.manage',
+	'comments.moderate'
 ];
 const VIEWER: Perm[] = ['view', 'comment'];
 const OPERATOR: Perm[] = [...VIEWER, 'control.basic', 'config.write', 'export', 'logs'];

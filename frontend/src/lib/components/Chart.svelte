@@ -29,7 +29,15 @@
 	} from '#lib/series';
 	import { api } from '#lib/session.svelte';
 
-	let { live, service }: { live: LiveStore; service: string } = $props();
+	type Props = {
+		live: LiveStore;
+		service: string;
+		notes?: Array<{ at: string | null }>;
+		onrange?: (range: { from: string; to: string }) => void;
+		onpick?: (at: string) => void;
+	};
+
+	let { live, service, notes = [], onrange, onpick }: Props = $props();
 
 	const LOAD_FAILED = "Couldn't load the chart history. Retrying when you change the range.";
 	const PRESETS: Preset[] = ['1h', '24h', '7d', '30d'];
@@ -67,6 +75,8 @@
 	let request = 0;
 	let ignoreRangeUntil = 0;
 	let debounce: ReturnType<typeof setTimeout> | undefined;
+	let shownSessions: Session[] = [];
+	let step = 1;
 
 	const nowSeconds = () => Math.floor(Date.now() / 1000);
 	const iso = (seconds: number) => new Date(seconds * 1000).toISOString();
@@ -101,12 +111,22 @@
 
 	type Session = { lane: number; started_at: string | null; ended_at: string | null };
 
-	function placeMarkers(sessions: Session[], step: number) {
+	function placeMarkers() {
 		if (!markers) return;
 		const color = token('--color-info');
 		const snap = (at: string) => (Math.floor(Date.parse(at) / 1000 / step) * step) as UTCTimestamp;
 		const list: SeriesMarker<Time>[] = [];
-		for (const s of sessions) {
+		for (const note of notes) {
+			if (note.at)
+				list.push({
+					time: snap(note.at),
+					position: 'aboveBar',
+					shape: 'square',
+					color: token('--color-warn'),
+					text: 'Note'
+				});
+		}
+		for (const s of shownSessions) {
 			if (s.started_at)
 				list.push({
 					time: snap(s.started_at),
@@ -156,7 +176,10 @@
 			loaded = range;
 			folder = new LiveFolder(metric, lane, data.res, points.at(-1) ?? null);
 			draw(fit);
-			placeMarkers(sessions?.items ?? [], RES_SECONDS[data.res]);
+			shownSessions = sessions?.items ?? [];
+			step = RES_SECONDS[data.res];
+			placeMarkers();
+			onrange?.({ from: iso(range.from), to: iso(range.to) });
 		} catch {
 			if (id !== request) return;
 			error = LOAD_FAILED;
@@ -189,6 +212,11 @@
 		reload();
 	}
 
+	$effect(() => {
+		void notes;
+		placeMarkers();
+	});
+
 	onMount(() => {
 		let stopCandles = () => {};
 		let disposed = false;
@@ -210,6 +238,9 @@
 				timeScale: { borderColor: token('--color-line'), timeVisible: true, secondsVisible: true }
 			});
 			chart.timeScale().subscribeVisibleLogicalRangeChange(onVisibleRange);
+			chart.subscribeClick((param) => {
+				if (param.time !== undefined) onpick?.(iso(Number(param.time)));
+			});
 			stopCandles = live.onCandles((candles) => {
 				if (!folder || !series) return;
 				for (const candle of candles) {

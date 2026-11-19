@@ -2,7 +2,7 @@
 	import { onDestroy, type Snippet } from 'svelte';
 	import { page } from '$app/state';
 	import { liveFor } from '#lib/live/index';
-	import { systemTopicFor, topicFor } from '#lib/live/protocol';
+	import { commentsTopicFor, systemTopicFor, topicFor } from '#lib/live/protocol';
 	import Guard from '#ui/Guard';
 
 	let { children }: { children: Snippet } = $props();
@@ -15,6 +15,7 @@
 		current = service;
 		liveFor(service).start(topicFor(service));
 		liveFor(service).start(systemTopicFor(service));
+		liveFor(service).start(commentsTopicFor(service));
 	});
 	onDestroy(() => {
 		if (current) liveFor(current).stop();
