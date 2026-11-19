@@ -19,9 +19,17 @@ export interface LaneFields {
 export type LaneStatus = 'running' | 'paused' | 'stopped' | 'stale' | 'down' | 'events_off';
 export type Lanes = Record<number, LaneFields>;
 
+/** One lane's second: open, high, low and close of its session profit and its balance. */
+export interface Candle {
+	lane: number;
+	t: number;
+	profit: number[];
+	balance: number[];
+}
+
 export type ServerMessage =
 	| { op: 'snapshot'; topic: string; lanes: Lanes }
-	| { op: 'tick'; topic: string; lanes: Lanes }
+	| { op: 'tick'; topic: string; lanes: Lanes; candles: Candle[] }
 	| { op: 'hb' }
 	| { op: 'error'; topic?: string; detail: string }
 	| { op: 'system'; topic: string };
@@ -31,6 +39,14 @@ export const CLOSE_FORBIDDEN = 4403;
 
 export function topicFor(service: string): string {
 	return `svc:${service}`;
+}
+
+function isCandle(value: unknown): value is Candle {
+	if (typeof value !== 'object' || value === null) return false;
+	const c = value as Record<string, unknown>;
+	const ohlc = (v: unknown) =>
+		Array.isArray(v) && v.length === 4 && v.every((n) => typeof n === 'number');
+	return typeof c.lane === 'number' && typeof c.t === 'number' && ohlc(c.profit) && ohlc(c.balance);
 }
 
 function isLanes(value: unknown): value is Lanes {
@@ -54,9 +70,13 @@ export function parseMessage(raw: string): ServerMessage | null {
 		case 'hb':
 			return { op: 'hb' };
 		case 'snapshot':
-		case 'tick':
 			if (typeof m.topic !== 'string' || !isLanes(m.lanes)) return null;
-			return { op: m.op, topic: m.topic, lanes: m.lanes };
+			return { op: 'snapshot', topic: m.topic, lanes: m.lanes };
+		case 'tick': {
+			if (typeof m.topic !== 'string' || !isLanes(m.lanes)) return null;
+			const candles = Array.isArray(m.candles) ? m.candles.filter(isCandle) : [];
+			return { op: 'tick', topic: m.topic, lanes: m.lanes, candles };
+		}
 		case 'error':
 			return typeof m.detail === 'string'
 				? {

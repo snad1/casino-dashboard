@@ -168,6 +168,23 @@ describe('live store', () => {
 		expect(store.stale).toBe(false);
 	});
 
+	it('hands the candles of each frame to listeners once', async () => {
+		const { store, socket, flush, settle } = rig();
+		const seen: unknown[] = [];
+		const off = store.onCandles((candles) => seen.push(candles));
+		store.start('svc:wolfbet');
+		await settle();
+		const candle = { lane: 1, t: 5, profit: [0, 1, 0, 1], balance: [9, 9, 9, 9] };
+		socket(0).receive({ op: 'tick', topic: 'svc:wolfbet', lanes: {}, candles: [candle] });
+		socket(0).receive({ op: 'tick', topic: 'svc:wolfbet', lanes: {}, candles: [candle] });
+		flush();
+		expect(seen).toEqual([[candle, candle]]);
+		off();
+		socket(0).receive({ op: 'tick', topic: 'svc:wolfbet', lanes: {}, candles: [candle] });
+		flush();
+		expect(seen).toHaveLength(1);
+	});
+
 	it('stop closes the socket and cancels any retry', async () => {
 		const { store, sockets, socket, advance, settle } = rig();
 		store.start('svc:wolfbet');

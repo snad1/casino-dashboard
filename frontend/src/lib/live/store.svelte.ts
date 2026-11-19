@@ -1,4 +1,10 @@
-import { CLOSE_FORBIDDEN, CLOSE_SIGNED_OUT, parseMessage, type Lanes } from './protocol';
+import {
+	CLOSE_FORBIDDEN,
+	CLOSE_SIGNED_OUT,
+	parseMessage,
+	type Candle,
+	type Lanes
+} from './protocol';
 
 export const STALE_MS = 6000;
 const BACKOFF_BASE_MS = 500;
@@ -49,6 +55,7 @@ export class LiveStore {
 	#running = false;
 	#cancelRetry: (() => void) | null = null;
 	#cancelClock: (() => void) | null = null;
+	#candleListeners: Array<(candles: Candle[]) => void> = [];
 
 	constructor(deps: LiveDeps) {
 		this.#deps = {
@@ -87,6 +94,14 @@ export class LiveStore {
 			socket.close(1000);
 		}
 		this.connection = 'idle';
+	}
+
+	/** Call `listener` with each frame's new 1 s candles; returns the unsubscribe function. */
+	onCandles(listener: (candles: Candle[]) => void): () => void {
+		this.#candleListeners.push(listener);
+		return () => {
+			this.#candleListeners = this.#candleListeners.filter((l) => l !== listener);
+		};
 	}
 
 	/** The delay before reconnect attempt `attempt` (0-based): doubling, capped, jittered. */
@@ -160,6 +175,7 @@ export class LiveStore {
 		this.#queue = [];
 		let lanes = this.lanes;
 		let fresh = false;
+		const candles: Candle[] = [];
 		for (const raw of frames) {
 			const message = parseMessage(raw);
 			if (message === null) continue;
@@ -175,10 +191,12 @@ export class LiveStore {
 					next[lane] = { ...lanes[lane], ...diff };
 				}
 				lanes = next;
+				candles.push(...message.candles);
 				fresh = true;
 			}
 		}
 		if (lanes !== this.lanes) this.lanes = lanes;
+		if (candles.length) for (const listener of this.#candleListeners) listener(candles);
 		if (fresh) {
 			this.now = this.#deps.now();
 			this.lastTickAt = this.now;

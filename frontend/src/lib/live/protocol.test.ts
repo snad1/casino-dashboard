@@ -6,7 +6,7 @@ describe('parseMessage', () => {
 		expect(parseMessage('{"op":"hb"}')).toEqual({ op: 'hb' });
 		expect(
 			parseMessage('{"op":"tick","topic":"svc:wolfbet","lanes":{"1":{"profit":1}},"tape":[]}')
-		).toEqual({ op: 'tick', topic: 'svc:wolfbet', lanes: { 1: { profit: 1 } } });
+		).toEqual({ op: 'tick', topic: 'svc:wolfbet', lanes: { 1: { profit: 1 } }, candles: [] });
 	});
 
 	it('ignores anything else', () => {

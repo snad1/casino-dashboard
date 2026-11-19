@@ -26,7 +26,9 @@ const SNAPSHOT = {
 async function liveRig(page: import('@playwright/test').Page) {
 	await stubApi(page, {
 		'GET /auth/me': () => ({ status: 200, json: viewerMe }),
-		'POST /ws-ticket': () => ({ status: 200, json: { ticket: 'one-time', expires_in: 30 } })
+		'POST /ws-ticket': () => ({ status: 200, json: { ticket: 'one-time', expires_in: 30 } }),
+		'GET /wolfbet/series': () => ({ status: 200, json: { res: '1s', series: [] } }),
+		'GET /wolfbet/sessions': () => ({ status: 200, json: { items: [], next_cursor: null } })
 	});
 	const sockets: WebSocketRoute[] = [];
 	await page.routeWebSocket(/\/ws\?ticket=/, (ws) => {

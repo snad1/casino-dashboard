@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import Chart from '#components/Chart';
+	import { liveFor } from '#lib/live/index';
 
 	const panels = [
 		{ id: 'sessions', title: 'Sessions', area: 'lg:col-span-3 lg:row-span-2' },
@@ -21,7 +23,13 @@
 			class="min-h-40 rounded-lg border border-line bg-surface p-4 {panel.area}"
 		>
 			<h2 id="{panel.id}-title" class="text-sm font-semibold text-muted">{panel.title}</h2>
-			<p class="mt-2 text-sm text-muted">Waiting for live data.</p>
+			{#if panel.id === 'chart' && page.params.service}
+				<div class="mt-2 h-80">
+					<Chart live={liveFor(page.params.service)} service={page.params.service} />
+				</div>
+			{:else}
+				<p class="mt-2 text-sm text-muted">Waiting for live data.</p>
+			{/if}
 		</section>
 	{/each}
 </div>
