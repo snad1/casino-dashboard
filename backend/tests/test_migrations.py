@@ -13,6 +13,7 @@ from sqlalchemy.pool import NullPool
 
 import app.audit  # registers the audit log on Base.metadata
 import app.auth.models  # registers the auth tables on Base.metadata
+import app.history.models  # registers the history tables on Base.metadata
 import app.mail.models  # noqa: F401  # registers the outbox on Base.metadata
 from app.db.models import Base
 from app.settings import Settings
