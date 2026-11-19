@@ -102,6 +102,7 @@ class Lane:
     bps_ewma: float = 0.0
     gaps: int = 0
     agent_running: bool | None = None
+    publisher: dict[str, Any] | None = None
     last_event_ts_ms: int | None = None
     last_seen: float | None = None
     latencies: deque[float] = field(default_factory=lambda: deque(maxlen=LATENCY_WINDOW))
@@ -129,6 +130,21 @@ class Tick:
     @property
     def empty(self) -> bool:
         return not (self.snapshot_diff or self.tape_new or self.candles_new)
+
+
+def _count(value: Any) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
+def _publisher(events: dict[str, Any]) -> dict[str, Any]:
+    """The bot's event-publisher counters; its error text stays out of the dashboard."""
+    return {
+        "enabled": events.get("enabled") is True,
+        "connected": events.get("connected") is True,
+        "sent": _count(events.get("sent")),
+        "queued": _count(events.get("queued")),
+        "dropped": _count(events.get("dropped")) + _count(events.get("overflow")),
+    }
 
 
 def _percentile(sorted_values: list[float], fraction: float) -> float:
@@ -269,6 +285,9 @@ class Aggregator:
         for key in ("currency", "strategy"):
             if isinstance(state.get(key), str):
                 setattr(lane, key, state[key])
+        events = state.get("events")
+        if isinstance(events, dict):
+            lane.publisher = _publisher(events)
         bps = state.get("bets_per_second")
         if isinstance(bps, int | float) and not isinstance(bps, bool):
             lane.bps_avg = float(bps)

@@ -234,6 +234,27 @@ class TestReconcile:
         assert lane.total_bets == 3
         assert aggregator.conflicts == 1
 
+    def test_publisher_counters_come_from_state_without_the_error_text(self) -> None:
+        aggregator = Aggregator("wolfbet", clock=Clock())
+        events = {
+            "enabled": True,
+            "running": True,
+            "connected": False,
+            "sent": 900,
+            "queued": 3,
+            "dropped": 2,
+            "overflow": 5,
+            "last_error": "redis://user:pw@host refused",
+        }
+        aggregator.apply(state(lane=2, session_id=1, events=events))
+        assert aggregator.lanes[2].publisher == {
+            "enabled": True,
+            "connected": False,
+            "sent": 900,
+            "queued": 3,
+            "dropped": 7,
+        }
+
     def test_new_session_restarts_the_lane(self) -> None:
         aggregator = Aggregator("wolfbet", clock=Clock())
         aggregator.apply(bet(seq=0, session_id=1, session_profit=5.0))

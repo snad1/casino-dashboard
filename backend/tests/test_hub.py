@@ -125,6 +125,26 @@ async def test_lane_and_session_topics_only_carry_their_lane() -> None:
     assert list(json.loads(session11.sent[1])["lanes"]) == ["1"]
 
 
+async def test_system_subscribers_get_the_last_sample_then_each_new_one() -> None:
+    hub, _ = _hub()
+    early, lane_only = Socket(), Socket()
+    _join(hub, early, "svc:wolfbet:system")
+    _join(hub, lane_only, "svc:wolfbet:lane:1")
+    await _settle()
+    assert json.loads(early.sent[0]) == {
+        "op": "system",
+        "topic": "svc:wolfbet:system",
+        "agent": "pending",
+    }
+    hub.publish_system({"ts_ms": 1, "agent": "ok", "host": {"cpu_pct": 12.5}})
+    late = Socket()
+    _join(hub, late, "svc:wolfbet:system")
+    await _settle()
+    assert json.loads(early.sent[-1])["host"] == {"cpu_pct": 12.5}
+    assert json.loads(late.sent[0])["host"] == {"cpu_pct": 12.5}
+    assert "system" not in lane_only.ops()
+
+
 async def test_a_stuck_socket_never_delays_the_others_and_is_coalesced() -> None:
     hub, aggregator = _hub()
     fast, stuck = Socket(), Socket(stuck=True)

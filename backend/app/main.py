@@ -27,6 +27,7 @@ from app.errors import UnhandledErrorMiddleware, install_error_handlers
 from app.live.aggregator import Aggregator, run_ticker
 from app.live.consumer import ServiceConsumer
 from app.live.resync import Resync
+from app.live.system import SystemPublisher
 from app.logging import RequestContextMiddleware, configure_logging
 from app.middleware.security import SecurityHeadersMiddleware
 from app.settings import Settings, load_settings
@@ -62,6 +63,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         resync = Resync(
             aggregator, sessionmaker, agent, reconnects=lambda: consumer.stats["reconnects"]
         )
+        system = SystemPublisher(hub, aggregator, agent)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -74,6 +76,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 asyncio.create_task(run_ticker(aggregator, hub.publish, stop, settings.live_hz)),
                 asyncio.create_task(hub.run_heartbeat(stop)),
                 asyncio.create_task(resync.run(stop)),
+                asyncio.create_task(system.run(stop)),
             ]
         yield
         stop.set()

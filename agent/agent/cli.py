@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import secrets
 import socket
 import sys
@@ -14,6 +15,7 @@ from agent import __version__
 from agent.config import AgentConfig, ConfigError, load_config
 from agent.files import FileStore
 from agent.jobs import JobManager
+from agent.metrics import DEFAULT_PROJECT, Metrics
 from agent.protocol import PROTO_VERSION, signed_request
 from agent.server import DEFAULT_HANDLERS, AgentServer
 from agent.services.wolfbet import WolfBetPaths, WolfBetService
@@ -44,7 +46,14 @@ async def _serve(config: AgentConfig) -> None:
     jobs = JobManager(files=files)
     service = WolfBetService(paths, busy=lambda: jobs.mutating_running("wolfbet"), files=files)
     jobs.register("wolfbet", service)
-    handlers = {**DEFAULT_HANDLERS, **service.handlers(), **jobs.handlers(), **files.handlers()}
+    metrics = Metrics(project=os.environ.get("CASINO_AGENT_COMPOSE_PROJECT", DEFAULT_PROJECT))
+    handlers = {
+        **DEFAULT_HANDLERS,
+        **service.handlers(),
+        **jobs.handlers(),
+        **files.handlers(),
+        "metrics": metrics.handler,
+    }
     sweeper = asyncio.create_task(files.sweep_forever())
     try:
         await AgentServer(config, handlers=handlers).serve_forever()

@@ -81,6 +81,7 @@ class Hub:
         self.clock = clock
         self.clients: set[Client] = set()
         self.closed_slow = 0
+        self._system: dict[str, Any] = {"agent": "pending"}
 
     def register(
         self,
@@ -133,6 +134,8 @@ class Hub:
         return set()
 
     def _snapshot(self, topic: Topic) -> str:
+        if topic.kind == "system":
+            return encode({"op": "system", "topic": topic.name, **self._system})
         lanes, tape = self.aggregator.snapshot()
         keep = self._lanes_for(topic, lanes)
         return encode(
@@ -171,6 +174,18 @@ class Hub:
                 continue
             for client in subscribers:
                 self._offer(client, message)
+
+    def publish_system(self, body: dict[str, Any]) -> None:
+        """Keep the latest system sample and send it to every system subscriber, encoded once."""
+        self._system = body
+        encoded: dict[str, str] = {}
+        for client in self.clients:
+            for name, topic in client.topics.items():
+                if topic.kind != "system":
+                    continue
+                if name not in encoded:
+                    encoded[name] = encode({"op": "system", "topic": name, **body})
+                self._offer(client, encoded[name])
 
     def _offer(self, client: Client, message: str) -> None:
         if client.closing:
