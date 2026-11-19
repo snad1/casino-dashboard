@@ -8,6 +8,10 @@
 | Frame rate | `make perf` | by hand | never; prints numbers to record below |
 | Memory soak | `make soak` (`SOAK_MINUTES=60`) | by hand | the JS heap grows more than 20% between the first and last sixth of the run |
 
+## Installable app
+
+Lighthouse 13 has no PWA category; Lighthouse removed it in version 12. `e2e/pwa.spec.ts` asks Chromium itself through `Page.getInstallabilityErrors`, the same check the browser runs before it offers "Install". The same spec checks the manifest, the icons, the offline page, and that no `/api` response ever comes from the service worker or its cache.
+
 ## Bundle budget
 
 A page's first load is the client entry, every layout above the page and the page itself, with their static imports and CSS. Chunks loaded with `import()` (the chart library, and the terminal later) are not counted, so heavy libraries must stay behind a dynamic import. `BUNDLE_BUDGET_KB` overrides the 250 KB limit for a trial run.

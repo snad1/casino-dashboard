@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Offline · Casino dashboard</title>
+		<style>
+			:root {
+				color-scheme: dark;
+				--canvas: #0f1115;
+				--surface: #171a21;
+				--ink: #e6e8eb;
+				--muted: #9aa3b2;
+				--accent: #5b9cff;
+				--on-accent: #0f1115;
+			}
+			@media (prefers-color-scheme: light) {
+				:root {
+					color-scheme: light;
+					--canvas: #f7f8fa;
+					--surface: #ffffff;
+					--ink: #14171c;
+					--muted: #545d6b;
+					--accent: #2459b8;
+					--on-accent: #ffffff;
+				}
+			}
+			body {
+				margin: 0;
+				min-height: 100dvh;
+				display: grid;
+				place-items: center;
+				background: var(--canvas);
+				color: var(--ink);
+				font-family: system-ui, sans-serif;
+			}
+			main {
+				max-width: 24rem;
+				margin: 1rem;
+				padding: 1.5rem;
+				border-radius: 12px;
+				background: var(--surface);
+			}
+			h1 {
+				margin: 0 0 0.5rem;
+				font-size: 1.25rem;
+			}
+			p {
+				margin: 0 0 1.25rem;
+				color: var(--muted);
+			}
+			a {
+				display: inline-flex;
+				align-items: center;
+				min-height: 44px;
+				padding: 0 1rem;
+				border-radius: 8px;
+				background: var(--accent);
+				color: var(--on-accent);
+				font-weight: 600;
+				text-decoration: none;
+			}
+			a:focus-visible {
+				outline: 2px solid var(--ink);
+				outline-offset: 2px;
+			}
+		</style>
+	</head>
+	<body>
+		<main>
+			<h1>You're offline</h1>
+			<p>The dashboard needs a connection to show live data.</p>
+			<a href="./">Try again</a>
+		</main>
+	</body>
+</html>

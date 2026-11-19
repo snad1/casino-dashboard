@@ -2,8 +2,9 @@ import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
 import { createApi, unwrap } from '#lib/api/client';
 import type { Me } from '#lib/permissions';
+import { SERVICE } from '#lib/service';
 
-export const DEFAULT_SERVICE = 'wolfbet';
+export const DEFAULT_SERVICE = SERVICE;
 
 /** The signed-in user, as the api reported it; null when signed out or not loaded yet. */
 export const session = $state<{ me: Me | null }>({ me: null });

@@ -87,6 +87,7 @@ const heading = (name: string) => (page: Page) =>
 const PAGES: Array<[string, (page: Page) => ReturnType<Page['getByRole']>]> = [
 	['/login', heading('Sign in')],
 	['/reset', heading('Reset your password')],
+	['/offline.html', heading("You're offline")],
 	['/wolfbet', (page) => page.getByRole('article', { name: 'Lane 1' })],
 	['/wolfbet/sessions/1/6', heading('Session 6')],
 	['/wolfbet/control', heading('Control')],

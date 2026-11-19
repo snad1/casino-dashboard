@@ -22,7 +22,8 @@
 		"budget": "node scripts/bundle-budget.mjs",
 		"e2e:stack": "playwright test -c playwright.stack.config.ts",
 		"perf": "playwright test -c playwright.perf.config.ts perf/framerate.spec.ts",
-		"soak": "playwright test -c playwright.perf.config.ts perf/soak.spec.ts"
+		"soak": "playwright test -c playwright.perf.config.ts perf/soak.spec.ts",
+		"icons": "node scripts/icons.mjs"
 	},
 	"dependencies": {
 		"@xterm/xterm": "^6.0.0",
