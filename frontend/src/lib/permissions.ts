@@ -57,6 +57,7 @@ export function can(me: Me | null, perm: Perm, service: string | null = null): b
 const ROLE_NAMES: Partial<Record<Perm, string>> = {
 	'control.basic': 'operator',
 	'config.write': 'operator',
+	export: 'operator',
 	'control.destructive': 'admin'
 };
 

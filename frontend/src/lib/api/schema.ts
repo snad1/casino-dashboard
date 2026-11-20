@@ -374,6 +374,26 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/{service}/analytics/export': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * Export Analytics
+		 * @description The window's sessions, the ones the report counts, oldest first, as a download.
+		 */
+		get: operations['export_analytics__service__analytics_export_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/{service}/comments': {
 		parameters: {
 			query?: never;
@@ -2468,6 +2488,40 @@ export interface operations {
 				content: {
 					'application/json': components['schemas']['AnalyticsOut'];
 				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	export_analytics__service__analytics_export_get: {
+		parameters: {
+			query?: {
+				since?: string | null;
+				until?: string | null;
+				lane?: number | null;
+				format?: 'csv' | 'json';
+			};
+			header?: never;
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content?: never;
 			};
 			/** @description Validation Error */
 			422: {

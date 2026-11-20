@@ -7,37 +7,47 @@ from the history copy and marked `source: "history"`; it is kept only a second s
 bot's numbers come back as soon as the agent does. Charts always come from history: hour
 of day and daily ups and downs from the hourly rollup over every epoch, profit and length
 distributions from the sessions the report counts.
+
+The export is the sessions of that window from the history copy, as CSV or JSON, for
+operators: the bot's own export can't filter by date or lane, so this one has the
+dashboard's columns, not the bot's file format.
 """
 
+import csv
+import io
+import json
 import re
 from datetime import datetime
 from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, ValidationError
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters.wolfbet.analytics import AnalyticsReport, SessionWindow, history_report
+from app.adapters.wolfbet.analytics import AnalyticsReport, SessionWindow, _rows, history_report
 from app.adapters.wolfbet.control import LANES_MAX
 from app.agent_client import AgentError
 from app.api.control import CONTROLS, NOT_CONTROLLABLE, ServiceName, agent_or_error
-from app.api.history import _cache
+from app.api.history import SessionDetail, _cache, _session_out
 from app.auth.models import User
 from app.auth.permissions import Perm, require
 from app.db.engine import get_session
+from app.history.models import HistorySession
 
 BOT_SECONDS = 60.0
 HISTORY_SECONDS = 1.0
 BINS = 20
 INVALID_WINDOW = "That date range is not valid."
+_FORMULA = ("=", "+", "-", "@", "\t", "\r")
 _BOUND = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}([ T][0-9]{2}:[0-9]{2}(:[0-9]{2})?)?")
 
 log = structlog.get_logger("app.analytics")
 router = APIRouter(tags=["analytics"])
 Viewer = Annotated[User, Depends(require(Perm.VIEW))]
+Exporter = Annotated[User, Depends(require(Perm.EXPORT))]
 Db = Annotated[AsyncSession, Depends(get_session)]
 Bound = Annotated[str | None, Query(max_length=19)]
 
@@ -141,27 +151,26 @@ async def _bins(
     db: AsyncSession, value_sql: str, window: SessionWindow
 ) -> list[tuple[float, float, int]]:
     """`BINS` equal-width bins from the lowest to the highest value; one bin when all match."""
-    rows = (
-        await db.execute(
-            text(
-                f"WITH s AS (SELECT {value_sql} AS v FROM sessions"  # noqa: S608  # nosec B608: fixed SQL, values are bound
-                f" WHERE {window.newest_epoch}), r AS (SELECT min(v) AS lo, max(v) AS hi FROM s)"
-                f" SELECT least(width_bucket(s.v, r.lo, r.hi, {BINS}), {BINS}) AS bin,"
-                " count(*) AS n, r.lo, r.hi FROM s, r WHERE s.v IS NOT NULL AND r.hi > r.lo"
-                " GROUP BY bin, r.lo, r.hi"
-                " UNION ALL SELECT 1, count(*), r.lo, r.hi FROM s, r"
-                " WHERE s.v IS NOT NULL AND r.hi = r.lo GROUP BY r.lo, r.hi"
-            ),
-            window.params,
-        )
-    ).all()
+    rows = await _rows(
+        db,
+        (
+            f"WITH s AS (SELECT {value_sql} AS v FROM sessions"  # noqa: S608  # nosec B608: fixed SQL, values are bound
+            f" WHERE {window.newest_epoch}), r AS (SELECT min(v) AS lo, max(v) AS hi FROM s)"
+            f" SELECT least(width_bucket(s.v, r.lo, r.hi, {BINS}), {BINS}) AS bin,"
+            " count(*) AS n, r.lo, r.hi FROM s, r WHERE s.v IS NOT NULL AND r.hi > r.lo"
+            " GROUP BY bin, r.lo, r.hi"
+            " UNION ALL SELECT 1, count(*), r.lo, r.hi FROM s, r"
+            " WHERE s.v IS NOT NULL AND r.hi = r.lo GROUP BY r.lo, r.hi"
+        ),
+        window.params,
+    )
     if not rows:
         return []
-    lo, hi = float(rows[0].lo), float(rows[0].hi)
+    lo, hi = float(rows[0]["lo"]), float(rows[0]["hi"])
     if hi == lo:
-        return [(lo, hi, int(rows[0].n))]
+        return [(lo, hi, int(rows[0]["n"]))]
     width = (hi - lo) / BINS
-    counts = {int(row.bin): int(row.n) for row in rows}
+    counts = {int(row["bin"]): int(row["n"]) for row in rows}
     return [
         (lo + i * width, hi if i == BINS - 1 else lo + (i + 1) * width, counts.get(i + 1, 0))
         for i in range(BINS)
@@ -170,34 +179,32 @@ async def _bins(
 
 async def chart_data(db: AsyncSession, window: SessionWindow) -> Charts:
     where, params = _rollup_filter(window)
-    hours = (
-        await db.execute(
-            text(
-                "SELECT extract(hour FROM bucket AT TIME ZONE :tz)::int AS hour,"  # noqa: S608  # nosec B608: fixed SQL, values are bound
-                " sum(bets)::bigint AS bets, sum(wins)::bigint AS wins,"
-                " coalesce(sum(wagered), 0) AS wagered, coalesce(sum(profit), 0) AS profit"
-                f" FROM bets_1h WHERE {where} GROUP BY 1 ORDER BY 1"
-            ),
-            params,
-        )
-    ).all()
-    days = (
-        await db.execute(
-            text(
-                "SELECT (bucket AT TIME ZONE :tz)::date AS day,"  # noqa: S608  # nosec B608: fixed SQL, values are bound
-                f" coalesce(sum(profit), 0) AS profit FROM bets_1h WHERE {where}"
-                " GROUP BY 1 ORDER BY 1"
-            ),
-            params,
-        )
-    ).all()
+    hours = await _rows(
+        db,
+        (
+            "SELECT extract(hour FROM bucket AT TIME ZONE :tz)::int AS hour,"  # noqa: S608  # nosec B608: fixed SQL, values are bound
+            " sum(bets)::bigint AS bets, sum(wins)::bigint AS wins,"
+            " coalesce(sum(wagered), 0) AS wagered, coalesce(sum(profit), 0) AS profit"
+            f" FROM bets_1h WHERE {where} GROUP BY 1 ORDER BY 1"
+        ),
+        params,
+    )
+    days = await _rows(
+        db,
+        (
+            "SELECT (bucket AT TIME ZONE :tz)::date AS day,"  # noqa: S608  # nosec B608: fixed SQL, values are bound
+            f" coalesce(sum(profit), 0) AS profit FROM bets_1h WHERE {where}"
+            " GROUP BY 1 ORDER BY 1"
+        ),
+        params,
+    )
     profit = await _bins(db, "coalesce(profit, 0)", window)
     length = await _bins(
         db, "extract(epoch FROM coalesce(ended_at, now()) - started_at)::float8", window
     )
     return Charts(
-        by_hour=[HourRow.model_validate(dict(row._mapping)) for row in hours],
-        by_day=[DayRow(day=row.day.isoformat(), profit=row.profit) for row in days],
+        by_hour=[HourRow.model_validate(row) for row in hours],
+        by_day=[DayRow(day=row["day"].isoformat(), profit=row["profit"]) for row in days],
         profit_bins=[ProfitBin(lo=lo, hi=hi, sessions=n) for lo, hi, n in profit],
         duration_bins=[DurationBin(lo_sec=lo, hi_sec=hi, sessions=n) for lo, hi, n in length],
     )
@@ -231,3 +238,56 @@ async def get_analytics(
     out = AnalyticsOut(source=source, report=report, charts=await chart_data(db, window))
     cache.put(key, out, None if source == "bot" else HISTORY_SECONDS)
     return out
+
+
+def _cell(value: Any) -> Any:
+    """A CSV cell a spreadsheet will not run: text that starts like a formula gets a `'`."""
+    return f"'{value}" if isinstance(value, str) and value.startswith(_FORMULA) else value
+
+
+def _csv(rows: list[SessionDetail]) -> str:
+    out = io.StringIO()
+    writer = csv.writer(out)
+    columns = list(SessionDetail.model_fields)
+    writer.writerow(columns)
+    for row in rows:
+        values = row.model_dump(mode="json")
+        writer.writerow([_cell(values[c]) for c in columns])
+    return out.getvalue()
+
+
+@router.get("/{service}/analytics/export", response_class=Response)
+async def export_analytics(
+    service: ServiceName,
+    request: Request,
+    _: Exporter,
+    db: Db,
+    since: Bound = None,
+    until: Bound = None,
+    lane: Annotated[int | None, Query(ge=1, le=LANES_MAX)] = None,
+    file_format: Annotated[Literal["csv", "json"], Query(alias="format")] = "csv",
+) -> Response:
+    """The window's sessions, the ones the report counts, oldest first, as a download."""
+    if service not in CONTROLS:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
+    since, until = _bound(since), _bound(until)
+    window = SessionWindow(service, since, until, lane, ZoneInfo(request.app.state.host_tz))
+    query = (
+        select(HistorySession)
+        .where(text(window.newest_epoch).bindparams(**window.params))
+        .order_by(HistorySession.started_at, HistorySession.src_id)
+    )
+    rows = [_session_out(SessionDetail, row) for row in await db.scalars(query)]
+    if file_format == "csv":
+        body, media = _csv(rows), "text/csv; charset=utf-8"
+    else:
+        body, media = json.dumps([r.model_dump(mode="json") for r in rows]), "application/json"
+    name = f"{service}-sessions-{since or 'all'}-{until or 'all'}.{file_format}".replace(":", "")
+    return Response(
+        body,
+        media_type=media,
+        headers={
+            "Content-Disposition": f'attachment; filename="{name}"',
+            "Cache-Control": "no-store",
+        },
+    )
