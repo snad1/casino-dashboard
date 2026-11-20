@@ -9,84 +9,54 @@ Docker Compose stack for one service's dashboard (WolfBet first), run on the sam
 | `api` | built from `../backend` | 1.0 | 512m | internal | none |
 | `ingest` | built from `../backend` | 0.5 | 256m | internal | none |
 | `mailer` | built from `../backend` | 0.25 | 128m | internal, egress | none |
-| `migrate` | built from `../backend` (one-shot, `tools` profile) | 0.5 | 256m | internal | none |
-| `caddy` | `caddy:2.11.9-alpine` | 0.25 | 128m | internal, edge | `80`, `443` |
+| `migrate` | built from `../backend` (one-shot, before the app services) | 0.5 | 256m | internal | none |
+| `caddy` | built from `caddy/Dockerfile` (SPA inside) | 0.25 | 128m | internal, edge | none (Coolify's proxy routes to port 80) |
 
 Every service runs with `cpu_shares: 256` (the bots keep the default 1024), `no-new-privileges`, a healthcheck and `restart: unless-stopped`. `api`, `ingest` and `mailer` run as uid 10001 on a read-only root filesystem with all capabilities dropped. The `internal` network has no route out; only `mailer` also joins `egress`, so it alone can reach the mail provider, and only it holds the mail key.
 
 ## Install
 
-Run from `casino-dashboard/` on the server, as the user that runs Docker.
+The stack runs as a **Coolify Docker Compose resource** on the bot's host: Coolify owns Docker and the proxy on ports 80 and 443, terminates TLS for `wolfbet.<domain>` and routes it to the `caddy` service on port 80. Nothing else is published, except Redis on `127.0.0.1:6379` for the bot daemon.
 
-1. Configuration:
-
-   ```bash
-   cp deploy/env.example deploy/.env      # set WOLFBET_HOST, BOT_DATA_DIR and MAIL_FROM
-   ```
-
-2. Secrets, one value per file, never in `.env` or `compose.yml`:
+1. Check out this repository on the server as `~/casino-dashboard` (`wolfctl dash` looks there; `WOLFCTL_DASH_DIR` overrides it), then prepare the host as root:
 
    ```bash
-   mkdir -p deploy/secrets && chmod 700 deploy/secrets
-   for s in session_secret totp_key postgres_password postgres_app_password redis_publisher_password redis_dashboard_password; do
-     openssl rand -base64 36 | tr -d '\n' > deploy/secrets/$s.txt
-     chmod 644 deploy/secrets/$s.txt
-   done
+   cd ~/casino-dashboard
+   sudo -E deploy/install.sh --host wolfbet.example.com --mail-from no-reply@example.com \
+       --coolify-url https://coolify.example.com --coolify-app <resource uuid> --coolify-token-prompt
    ```
 
-   The Brevo key comes from Brevo (SMTP & API, API keys), not from `openssl`:
+   It installs what is missing (`ufw`, `openssl`, `uv`), then the host agent (`agent/install.sh`, with the api container's uid allowed). It writes the secrets into `deploy/secrets/` and opens only the SSH port, 80 and 443 in ufw. It stops if Postgres or Redis listen on a public address, and checks that the name resolves to this server. It also saves the config `wolfctl dash` reads in `~/.config/casino-dashboard/` (mode 600) and prints the environment for Coolify. It never prints a secret and never replaces one that exists, so it is safe to run again. `--dry-run` shows the steps without changing anything. The Coolify flags are optional on a first run: add them later by running it again.
+
+   Secrets it makes once with `openssl` (one value per file): `session_secret totp_key postgres_password postgres_app_password redis_publisher_password redis_dashboard_password`, the agent token copied from `~/.config/casino-agent/token`, and a push key pair (`vapid_private_key`; its public half goes in the printed environment). The Brevo key is asked for without echo, or taken from `--brevo-key-file`. `telegram_bot_token.txt` starts empty, which keeps Telegram alerts off. Telegram alerts use a bot of their own (from @BotFather), never the wolfbet TG bot; put its token in the file and redeploy.
+
+   The directory (mode 700, root only) is what keeps the files private on the host. The files themselves are world-readable because compose bind-mounts them unchanged and three different container users read them: Redis (uid 999), the api (uid 10001) and Postgres. A missing file stops the deploy; a missing, short or placeholder secret makes the api exit, naming the secret but never printing it.
+
+   Docker publishes container ports past ufw. Keep Coolify's own dashboard (port 8000) behind its domain or block it at the provider's firewall.
+
+2. In Coolify, add a **Docker Compose** resource from this repository with the compose file `deploy/compose.yml`. Set the domain `https://wolfbet.example.com` on the `caddy` service (port 80), paste the environment the installer printed, and deploy. Coolify builds the images (the SPA is built inside the `caddy` image, so the host needs no Node). Every deploy runs `migrate` first; `api`, `ingest` and `mailer` start only after it succeeds, so a failing migration stops the deploy instead of crash-looping the api. `migrate` is the only container that gets the owner password (`postgres_password`); the api and mailer sign in as `dashboard_app`, whose password (`postgres_app_password`) the migration sets.
+
+3. Create the owner (once; asks for the password twice):
 
    ```bash
-   (umask 022; printf '%s' 'xkeysib-...' > deploy/secrets/brevo_api_key.txt)
+   sudo -E deploy/install.sh --owner-email you@example.com
    ```
 
-   Telegram alerts use a bot of their own, never the wolfbet TG bot. Create one with @BotFather and save its token; an empty file keeps Telegram alerts off:
+4. Check: `wolfctl dash status` shows the agent running, every container `(healthy)` and `Health: ok`.
 
-   ```bash
-   (umask 022; printf '%s' '123456789:AA...' > deploy/secrets/telegram_bot_token.txt)
-   # or, without Telegram alerts:
-   (umask 022; : > deploy/secrets/telegram_bot_token.txt)
-   ```
+### Every day
 
-   Push notifications are signed with a key pair of the dashboard's own. Make it once; the private key stays in the secret file (only the mailer reads it), the public key goes in `deploy/.env` as `VAPID_PUBLIC_KEY`:
+```bash
+wolfctl dash status
+wolfctl dash logs api            # or caddy, ingest, mailer, migrate, redis, timescale, agent
+wolfctl dash update              # pull ~/casino-dashboard, update the agent, deploy in Coolify
+wolfctl dash stop                # stack and agent only; the bots keep running
+wolfctl dash start
+```
 
-   ```bash
-   (umask 022; openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -nocrypt > deploy/secrets/vapid_private_key.txt)
-   openssl ec -in deploy/secrets/vapid_private_key.txt -pubout -outform DER 2>/dev/null | tail -c 65 | base64 | tr '/+' '_-' | tr -d '=\n'; echo
-   # or, without push notifications:
-   (umask 022; : > deploy/secrets/vapid_private_key.txt)
-   ```
+To send mail through an SMTP relay instead, set `MAIL_BACKEND: smtp` plus `SMTP_HOST`, `SMTP_PORT` and `SMTP_USER` on `mailer`, and give it an `smtp_password` secret in place of `brevo_api_key`. The relay must offer STARTTLS; the mailer refuses to send without it.
 
-   Changing the key pair later turns push off on every device until each user turns it on again.
-
-   To send through an SMTP relay instead, set `MAIL_BACKEND: smtp` plus `SMTP_HOST`, `SMTP_PORT` and `SMTP_USER` on `mailer`, and give it an `smtp_password` secret in place of `brevo_api_key`. The relay must offer STARTTLS; the mailer refuses to send without it.
-
-   The directory (mode 700, root only) is what keeps the files private on the host. The files themselves are world-readable because compose bind-mounts them unchanged and three different container users read them: Redis (uid 999), the api (uid 10001) and Postgres.
-
-   A missing file stops `docker compose up`. An empty Redis secret makes Redis refuse to start. A missing, short (under 32 bytes) or placeholder `session_secret`, `totp_key`, `postgres_app_password` or `redis_dashboard_password` makes the api exit; its log names the secret but never prints the value.
-
-3. Build the SPA, then start:
-
-   ```bash
-   (cd frontend && pnpm install --frozen-lockfile && pnpm build)
-   cd deploy && docker compose build
-   docker compose up -d timescale
-   docker compose run --rm migrate
-   docker compose up -d
-   docker compose ps          # all six show (healthy)
-   ```
-
-4. Apply database migrations after every pull, before restarting the api:
-
-   ```bash
-   docker compose run --rm migrate && docker compose up -d
-   ```
-
-   Migrations never run on api start, so a failing one cannot crash-loop the api. `migrate` is the only container that gets the owner password (`postgres_password`). The api and mailer sign in to Postgres as `dashboard_app`, whose password (`postgres_app_password`) the migration sets; that role may read and write the app tables but only append to `audit_log`.
-
-5. Check: `curl -s https://$WOLFBET_HOST/api/healthz` returns `{"status":"ok"}`.
-
-After every `pnpm build`, run `docker compose restart caddy`: the build replaces `frontend/build`, and Caddy keeps serving the old directory until it remounts.
+Changing the push key pair later turns push off on every device until each user turns it on again.
 
 ## Redis users
 

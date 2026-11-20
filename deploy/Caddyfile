@@ -1,5 +1,9 @@
 {
 	admin off
+	# Coolify's proxy sits in front: keep the client address it forwards.
+	servers {
+		trusted_proxies static private_ranges
+	}
 }
 
 # Liveness for the container healthcheck; this port is not published.
@@ -7,7 +11,7 @@ http://:2020 {
 	respond /health 200
 }
 
-{$WOLFBET_HOST} {
+{$CADDY_ADDRESS::80} {
 	encode zstd gzip
 
 	header {

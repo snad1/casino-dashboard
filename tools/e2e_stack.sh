@@ -35,8 +35,7 @@ make_secrets() {
 up() {
     docker info >/dev/null 2>&1 || { echo "the e2e stack needs Docker running" >&2; exit 1; }
     make_secrets
-    (cd "$ROOT/frontend" && pnpm build >/dev/null)
-    compose build api
+    compose build api caddy
     compose up -d --wait timescale redis
     compose run --rm migrate
     compose run --rm -e E2E_EMAIL -e E2E_PASSWORD -v "$ROOT/tools:/tools:ro" \

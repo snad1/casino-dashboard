@@ -9,8 +9,9 @@ import yaml
 
 DEPLOY = Path(__file__).resolve().parents[2] / "deploy"
 SERVICES = ("timescale", "redis", "api", "ingest", "mailer", "migrate", "caddy")
-# One-shot tools: started by hand with `docker compose run --rm`, never restarted.
+# One-shot: runs to completion before the app services on every deploy, never restarted.
 TOOLS = ("migrate",)
+NEEDS_MIGRATION = ("api", "ingest", "mailer")
 CAPS = {
     "timescale": (1.0, "1g"),
     "redis": (0.25, "320m"),
@@ -59,7 +60,7 @@ def test_every_service_is_capped_and_hardened(compose: dict[str, Any], name: str
     assert "no-new-privileges:true" in service["security_opt"]
     if name in TOOLS:
         assert service["restart"] == "no"
-        assert service["profiles"] == ["tools"]
+        assert "profiles" not in service
     else:
         assert service["restart"] == "unless-stopped"
         assert "test" in service["healthcheck"]
@@ -80,13 +81,31 @@ def test_app_containers_are_locked_down(compose: dict[str, Any], name: str) -> N
     assert service["networks"] == (["internal", "egress"] if name == "mailer" else ["internal"])
 
 
-def test_only_caddy_is_public(compose: dict[str, Any]) -> None:
+def test_nothing_is_public_and_redis_stays_on_loopback(compose: dict[str, Any]) -> None:
+    """Coolify's proxy owns 80/443 and reaches caddy over its network; the host publishes
+    only Redis, on loopback, for the bot daemon."""
     for name in SERVICES:
-        for port in _service(compose, name).get("ports", []):
-            if name == "caddy":
-                assert str(port).split(":")[0] in {"80", "443"}
-            else:
-                assert str(port).startswith("127.0.0.1:"), f"{name} publishes {port}"
+        ports = _service(compose, name).get("ports", [])
+        if name == "redis":
+            assert ports == ["127.0.0.1:6379:6379"]
+        else:
+            assert ports == [], f"{name} publishes {ports}"
+
+
+@pytest.mark.parametrize("name", NEEDS_MIGRATION)
+def test_app_services_start_only_after_migrations(compose: dict[str, Any], name: str) -> None:
+    depends = _service(compose, name)["depends_on"]
+    assert depends["migrate"] == {"condition": "service_completed_successfully"}
+
+
+def test_caddy_image_carries_the_spa(compose: dict[str, Any]) -> None:
+    caddy = _service(compose, "caddy")
+    assert caddy["build"] == {"context": "../frontend", "dockerfile": "../deploy/caddy/Dockerfile"}
+    assert not any("frontend/build" in str(v) for v in caddy["volumes"])
+    dockerfile = (DEPLOY / "caddy" / "Dockerfile").read_text()
+    assert "pnpm install --frozen-lockfile" in dockerfile
+    assert "COPY --from=build /app/build /srv" in dockerfile
+    assert "FROM caddy:2.11.9-alpine" in dockerfile
 
 
 def test_internal_network_has_no_route_out(compose: dict[str, Any]) -> None:
@@ -177,8 +196,8 @@ def test_api_caps_websocket_frames_and_pings_idle_sockets() -> None:
 
 
 def test_secrets_come_from_files(compose: dict[str, Any]) -> None:
-    for secret in compose["secrets"].values():
-        assert secret["file"].startswith("./secrets/")
+    for name, secret in compose["secrets"].items():
+        assert secret["file"] == f"${{SECRETS_DIR:-./secrets}}/{name}.txt"
 
 
 def test_ingest_reads_the_bot_directory_read_only(compose: dict[str, Any]) -> None:
@@ -253,3 +272,9 @@ def test_caddy_sends_security_headers() -> None:
     ):
         assert header in caddyfile
     assert "admin off" in caddyfile
+
+
+def test_caddy_serves_plain_http_behind_the_proxy_and_keeps_the_client_address() -> None:
+    caddyfile = (DEPLOY / "Caddyfile").read_text()
+    assert "{$CADDY_ADDRESS::80} {" in caddyfile
+    assert "trusted_proxies static private_ranges" in caddyfile
