@@ -137,7 +137,8 @@ class CurrentOut(BaseModel):
 class _Cache:
     """A tiny per-process cache; the api runs one worker, so this is shared by every client."""
 
-    def __init__(self) -> None:
+    def __init__(self, ttl: float | None = None) -> None:
+        self.ttl = ttl
         self.entries: dict[str, tuple[float, BaseModel]] = {}
 
     def get(self, key: str) -> BaseModel | None:
@@ -146,19 +147,23 @@ class _Cache:
             return None
         return hit[1]
 
-    def put(self, key: str, value: BaseModel) -> None:
+    def put(self, key: str, value: BaseModel, ttl: float | None = None) -> None:
         now = time.monotonic()
         if len(self.entries) >= CACHE_ENTRIES:
             self.entries = {k: v for k, v in self.entries.items() if v[0] >= now}
             while len(self.entries) >= CACHE_ENTRIES:
                 self.entries.pop(next(iter(self.entries)))
-        self.entries[key] = (now + CACHE_SECONDS, value)
+        ttl = ttl if ttl is not None else self.ttl if self.ttl is not None else CACHE_SECONDS
+        self.entries[key] = (now + ttl, value)
 
 
-def _cache(request: Request) -> tuple[_Cache, str]:
-    cache: _Cache | None = getattr(request.app.state, "history_cache", None)
+def _cache(
+    request: Request, name: str = "history_cache", ttl: float | None = None
+) -> tuple[_Cache, str]:
+    cache: _Cache | None = getattr(request.app.state, name, None)
     if cache is None:
-        cache = request.app.state.history_cache = _Cache()
+        cache = _Cache(ttl)
+        setattr(request.app.state, name, cache)
     key = (
         request.url.path
         + "?"

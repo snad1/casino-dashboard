@@ -354,6 +354,26 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/{service}/analytics': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * Get Analytics
+		 * @description The report for sessions started in the window (a bare `until` date counts whole).
+		 */
+		get: operations['get_analytics__service__analytics_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/{service}/comments': {
 		parameters: {
 			query?: never;
@@ -1047,6 +1067,37 @@ export interface components {
 			/** Typed Confirm */
 			typed_confirm: boolean;
 		};
+		/** AnalyticsOut */
+		AnalyticsOut: {
+			charts: components['schemas']['Charts'];
+			report: components['schemas']['AnalyticsReport'];
+			/**
+			 * Source
+			 * @enum {string}
+			 */
+			source: 'bot' | 'history';
+		};
+		/** AnalyticsReport */
+		AnalyticsReport: {
+			/** By Game */
+			by_game: components['schemas']['GameRow'][];
+			/** By Lane */
+			by_lane: components['schemas']['LaneRow'][];
+			/** By Strategy */
+			by_strategy: components['schemas']['StrategyRow'][];
+			lifetime: components['schemas']['Lifetime'];
+			span: components['schemas']['Span'];
+			/** Top Best */
+			top_best: components['schemas']['TopSession'][];
+			/** Top Worst */
+			top_worst: components['schemas']['TopSession'][];
+			/**
+			 * V
+			 * @constant
+			 */
+			v: 1;
+			window: components['schemas']['Window'];
+		};
 		/** AuditOut */
 		AuditOut: {
 			/** Action */
@@ -1143,6 +1194,17 @@ export interface components {
 			items: components['schemas']['BetOut'][];
 			/** Next Before */
 			next_before: number | null;
+		};
+		/** Charts */
+		Charts: {
+			/** By Day */
+			by_day: components['schemas']['DayRow'][];
+			/** By Hour */
+			by_hour: components['schemas']['HourRow'][];
+			/** Duration Bins */
+			duration_bins: components['schemas']['DurationBin'][];
+			/** Profit Bins */
+			profit_bins: components['schemas']['ProfitBin'][];
 		};
 		/** CleanupArgs */
 		CleanupArgs: {
@@ -1313,6 +1375,13 @@ export interface components {
 			/** Lanes */
 			lanes: components['schemas']['SessionOut'][];
 		};
+		/** DayRow */
+		DayRow: {
+			/** Day */
+			day: string;
+			/** Profit */
+			profit: number;
+		};
 		/** DiffRow */
 		DiffRow: {
 			/**
@@ -1336,6 +1405,15 @@ export interface components {
 			code: string;
 			/** Password */
 			password: string;
+		};
+		/** DurationBin */
+		DurationBin: {
+			/** Hi Sec */
+			hi_sec: number;
+			/** Lo Sec */
+			lo_sec: number;
+			/** Sessions */
+			sessions: number;
 		};
 		/** Enrolment */
 		Enrolment: {
@@ -1364,6 +1442,23 @@ export interface components {
 			 */
 			service: 'cli' | 'tg' | 'web';
 		};
+		/** GameRow */
+		GameRow: {
+			/** Bets */
+			bets: number;
+			/** Game */
+			game: string;
+			/** Losses */
+			losses: number;
+			/** Profit */
+			profit: number;
+			/** Sessions */
+			sessions: number;
+			/** Wagered */
+			wagered: number;
+			/** Wins */
+			wins: number;
+		};
 		/** HTTPValidationError */
 		HTTPValidationError: {
 			/** Detail */
@@ -1376,6 +1471,19 @@ export interface components {
 			 * @constant
 			 */
 			status: 'ok';
+		};
+		/** HourRow */
+		HourRow: {
+			/** Bets */
+			bets: number;
+			/** Hour */
+			hour: number;
+			/** Profit */
+			profit: number;
+			/** Wagered */
+			wagered: number;
+			/** Wins */
+			wins: number;
 		};
 		/** IngestOut */
 		IngestOut: {
@@ -1419,6 +1527,23 @@ export interface components {
 			/** Min */
 			min: number;
 		};
+		/** LaneRow */
+		LaneRow: {
+			/** Bets */
+			bets: number;
+			/** Lane */
+			lane: string;
+			/** Losses */
+			losses: number;
+			/** Profit */
+			profit: number;
+			/** Sessions */
+			sessions: number;
+			/** Wagered */
+			wagered: number;
+			/** Wins */
+			wins: number;
+		};
 		/** LaneSeries */
 		LaneSeries: {
 			/** Lane */
@@ -1432,6 +1557,31 @@ export interface components {
 			count: number;
 			/** Split */
 			split?: ('none' | 'budget' | 'bet' | 'both') | null;
+		};
+		/** Lifetime */
+		Lifetime: {
+			/** Best Profit */
+			best_profit: number | null;
+			/** Bets Total */
+			bets_total: number | null;
+			/** Losses Total */
+			losses_total: number | null;
+			/** Profit Total */
+			profit_total: number | null;
+			/** Sessions In Loss */
+			sessions_in_loss: number | null;
+			/** Sessions In Profit */
+			sessions_in_profit: number | null;
+			/** Sessions Total */
+			sessions_total: number | null;
+			/** Wagered Total */
+			wagered_total: number | null;
+			/** Win Rate Pct */
+			win_rate_pct: number | null;
+			/** Wins Total */
+			wins_total: number | null;
+			/** Worst Profit */
+			worst_profit: number | null;
 		};
 		/** LoginIn */
 		LoginIn: {
@@ -1479,6 +1629,15 @@ export interface components {
 			};
 			/** Warnings */
 			warnings: string[];
+		};
+		/** ProfitBin */
+		ProfitBin: {
+			/** Hi */
+			hi: number;
+			/** Lo */
+			lo: number;
+			/** Sessions */
+			sessions: number;
 		};
 		/** ReconcileOut */
 		ReconcileOut: {
@@ -1642,10 +1801,38 @@ export interface components {
 			/** Next Cursor */
 			next_cursor: string | null;
 		};
+		/** Span */
+		Span: {
+			/** Bet Sec */
+			bet_sec: number;
+			/** First */
+			first: string | null;
+			/** Last */
+			last: string | null;
+			/** Span Sec */
+			span_sec: number;
+		};
 		/** StepUpIn */
 		StepUpIn: {
 			/** Code */
 			code: string;
+		};
+		/** StrategyRow */
+		StrategyRow: {
+			/** Bets */
+			bets: number;
+			/** Losses */
+			losses: number;
+			/** Profit */
+			profit: number;
+			/** Sessions */
+			sessions: number;
+			/** Strategy */
+			strategy: string;
+			/** Wagered */
+			wagered: number;
+			/** Wins */
+			wins: number;
 		};
 		/** TargetArgs */
 		TargetArgs: {
@@ -1661,6 +1848,27 @@ export interface components {
 			expires_in: number;
 			/** Ticket */
 			ticket: string;
+		};
+		/** TopSession */
+		TopSession: {
+			/** Bets */
+			bets: number | null;
+			/** Game */
+			game: string;
+			/** Id */
+			id: number;
+			/** Losses */
+			losses: number | null;
+			/** Profit */
+			profit: number | null;
+			/** Started At */
+			started_at: string | null;
+			/** Strategy */
+			strategy: string;
+			/** Wagered */
+			wagered: number | null;
+			/** Wins */
+			wins: number | null;
 		};
 		/** UpdateArgs */
 		UpdateArgs: {
@@ -1702,6 +1910,15 @@ export interface components {
 			msg: string;
 			/** Error Type */
 			type: string;
+		};
+		/** Window */
+		Window: {
+			/** Lane */
+			lane: number | null;
+			/** Since */
+			since: string | null;
+			/** Until */
+			until: string | null;
 		};
 	};
 	responses: never;
@@ -2224,6 +2441,41 @@ export interface operations {
 				};
 				content: {
 					'application/json': components['schemas']['Ticket'];
+				};
+			};
+		};
+	};
+	get_analytics__service__analytics_get: {
+		parameters: {
+			query?: {
+				since?: string | null;
+				until?: string | null;
+				lane?: number | null;
+			};
+			header?: never;
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['AnalyticsOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
 				};
 			};
 		};

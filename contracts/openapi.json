@@ -89,6 +89,98 @@
         "title": "ActionOut",
         "type": "object"
       },
+      "AnalyticsOut": {
+        "properties": {
+          "charts": {
+            "$ref": "#/components/schemas/Charts"
+          },
+          "report": {
+            "$ref": "#/components/schemas/AnalyticsReport"
+          },
+          "source": {
+            "enum": [
+              "bot",
+              "history"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "report",
+          "charts"
+        ],
+        "title": "AnalyticsOut",
+        "type": "object"
+      },
+      "AnalyticsReport": {
+        "additionalProperties": false,
+        "properties": {
+          "by_game": {
+            "items": {
+              "$ref": "#/components/schemas/GameRow"
+            },
+            "title": "By Game",
+            "type": "array"
+          },
+          "by_lane": {
+            "items": {
+              "$ref": "#/components/schemas/LaneRow"
+            },
+            "title": "By Lane",
+            "type": "array"
+          },
+          "by_strategy": {
+            "items": {
+              "$ref": "#/components/schemas/StrategyRow"
+            },
+            "title": "By Strategy",
+            "type": "array"
+          },
+          "lifetime": {
+            "$ref": "#/components/schemas/Lifetime"
+          },
+          "span": {
+            "$ref": "#/components/schemas/Span"
+          },
+          "top_best": {
+            "items": {
+              "$ref": "#/components/schemas/TopSession"
+            },
+            "title": "Top Best",
+            "type": "array"
+          },
+          "top_worst": {
+            "items": {
+              "$ref": "#/components/schemas/TopSession"
+            },
+            "title": "Top Worst",
+            "type": "array"
+          },
+          "v": {
+            "const": 1,
+            "title": "V",
+            "type": "integer"
+          },
+          "window": {
+            "$ref": "#/components/schemas/Window"
+          }
+        },
+        "required": [
+          "v",
+          "window",
+          "lifetime",
+          "span",
+          "by_game",
+          "by_strategy",
+          "by_lane",
+          "top_best",
+          "top_worst"
+        ],
+        "title": "AnalyticsReport",
+        "type": "object"
+      },
       "AuditOut": {
         "properties": {
           "action": {
@@ -487,6 +579,46 @@
           "next_before"
         ],
         "title": "BetPage",
+        "type": "object"
+      },
+      "Charts": {
+        "properties": {
+          "by_day": {
+            "items": {
+              "$ref": "#/components/schemas/DayRow"
+            },
+            "title": "By Day",
+            "type": "array"
+          },
+          "by_hour": {
+            "items": {
+              "$ref": "#/components/schemas/HourRow"
+            },
+            "title": "By Hour",
+            "type": "array"
+          },
+          "duration_bins": {
+            "items": {
+              "$ref": "#/components/schemas/DurationBin"
+            },
+            "title": "Duration Bins",
+            "type": "array"
+          },
+          "profit_bins": {
+            "items": {
+              "$ref": "#/components/schemas/ProfitBin"
+            },
+            "title": "Profit Bins",
+            "type": "array"
+          }
+        },
+        "required": [
+          "by_hour",
+          "by_day",
+          "profit_bins",
+          "duration_bins"
+        ],
+        "title": "Charts",
         "type": "object"
       },
       "CleanupArgs": {
@@ -1067,6 +1199,24 @@
         "title": "CurrentOut",
         "type": "object"
       },
+      "DayRow": {
+        "properties": {
+          "day": {
+            "title": "Day",
+            "type": "string"
+          },
+          "profit": {
+            "title": "Profit",
+            "type": "number"
+          }
+        },
+        "required": [
+          "day",
+          "profit"
+        ],
+        "title": "DayRow",
+        "type": "object"
+      },
       "DiffRow": {
         "properties": {
           "apply": {
@@ -1122,6 +1272,29 @@
           "code"
         ],
         "title": "DisableIn",
+        "type": "object"
+      },
+      "DurationBin": {
+        "properties": {
+          "hi_sec": {
+            "title": "Hi Sec",
+            "type": "number"
+          },
+          "lo_sec": {
+            "title": "Lo Sec",
+            "type": "number"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lo_sec",
+          "hi_sec",
+          "sessions"
+        ],
+        "title": "DurationBin",
         "type": "object"
       },
       "Enrolment": {
@@ -1187,6 +1360,50 @@
         "title": "FollowArgs",
         "type": "object"
       },
+      "GameRow": {
+        "additionalProperties": false,
+        "properties": {
+          "bets": {
+            "title": "Bets",
+            "type": "number"
+          },
+          "game": {
+            "title": "Game",
+            "type": "string"
+          },
+          "losses": {
+            "title": "Losses",
+            "type": "number"
+          },
+          "profit": {
+            "title": "Profit",
+            "type": "number"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          },
+          "wagered": {
+            "title": "Wagered",
+            "type": "number"
+          },
+          "wins": {
+            "title": "Wins",
+            "type": "number"
+          }
+        },
+        "required": [
+          "sessions",
+          "bets",
+          "wins",
+          "losses",
+          "profit",
+          "wagered",
+          "game"
+        ],
+        "title": "GameRow",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1212,6 +1429,39 @@
           "status"
         ],
         "title": "Health",
+        "type": "object"
+      },
+      "HourRow": {
+        "properties": {
+          "bets": {
+            "title": "Bets",
+            "type": "integer"
+          },
+          "hour": {
+            "title": "Hour",
+            "type": "integer"
+          },
+          "profit": {
+            "title": "Profit",
+            "type": "number"
+          },
+          "wagered": {
+            "title": "Wagered",
+            "type": "number"
+          },
+          "wins": {
+            "title": "Wins",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hour",
+          "bets",
+          "wins",
+          "wagered",
+          "profit"
+        ],
+        "title": "HourRow",
         "type": "object"
       },
       "IngestOut": {
@@ -1342,6 +1592,50 @@
         "title": "LaneRange",
         "type": "object"
       },
+      "LaneRow": {
+        "additionalProperties": false,
+        "properties": {
+          "bets": {
+            "title": "Bets",
+            "type": "number"
+          },
+          "lane": {
+            "title": "Lane",
+            "type": "string"
+          },
+          "losses": {
+            "title": "Losses",
+            "type": "number"
+          },
+          "profit": {
+            "title": "Profit",
+            "type": "number"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          },
+          "wagered": {
+            "title": "Wagered",
+            "type": "number"
+          },
+          "wins": {
+            "title": "Wins",
+            "type": "number"
+          }
+        },
+        "required": [
+          "sessions",
+          "bets",
+          "wins",
+          "losses",
+          "profit",
+          "wagered",
+          "lane"
+        ],
+        "title": "LaneRow",
+        "type": "object"
+      },
       "LaneSeries": {
         "properties": {
           "lane": {
@@ -1412,6 +1706,147 @@
           "count"
         ],
         "title": "LanesArgs",
+        "type": "object"
+      },
+      "Lifetime": {
+        "additionalProperties": false,
+        "properties": {
+          "best_profit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Profit"
+          },
+          "bets_total": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bets Total"
+          },
+          "losses_total": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Losses Total"
+          },
+          "profit_total": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit Total"
+          },
+          "sessions_in_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sessions In Loss"
+          },
+          "sessions_in_profit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sessions In Profit"
+          },
+          "sessions_total": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sessions Total"
+          },
+          "wagered_total": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wagered Total"
+          },
+          "win_rate_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Win Rate Pct"
+          },
+          "wins_total": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wins Total"
+          },
+          "worst_profit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worst Profit"
+          }
+        },
+        "required": [
+          "sessions_total",
+          "bets_total",
+          "wins_total",
+          "losses_total",
+          "wagered_total",
+          "profit_total",
+          "best_profit",
+          "worst_profit",
+          "sessions_in_profit",
+          "sessions_in_loss",
+          "win_rate_pct"
+        ],
+        "title": "Lifetime",
         "type": "object"
       },
       "LoginIn": {
@@ -1542,6 +1977,29 @@
           "warnings"
         ],
         "title": "PreviewOut",
+        "type": "object"
+      },
+      "ProfitBin": {
+        "properties": {
+          "hi": {
+            "title": "Hi",
+            "type": "number"
+          },
+          "lo": {
+            "title": "Lo",
+            "type": "number"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lo",
+          "hi",
+          "sessions"
+        ],
+        "title": "ProfitBin",
         "type": "object"
       },
       "ReconcileOut": {
@@ -2252,6 +2710,49 @@
         "title": "SessionPage",
         "type": "object"
       },
+      "Span": {
+        "additionalProperties": false,
+        "properties": {
+          "bet_sec": {
+            "title": "Bet Sec",
+            "type": "number"
+          },
+          "first": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First"
+          },
+          "last": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last"
+          },
+          "span_sec": {
+            "title": "Span Sec",
+            "type": "number"
+          }
+        },
+        "required": [
+          "first",
+          "last",
+          "span_sec",
+          "bet_sec"
+        ],
+        "title": "Span",
+        "type": "object"
+      },
       "StepUpIn": {
         "properties": {
           "code": {
@@ -2265,6 +2766,50 @@
           "code"
         ],
         "title": "StepUpIn",
+        "type": "object"
+      },
+      "StrategyRow": {
+        "additionalProperties": false,
+        "properties": {
+          "bets": {
+            "title": "Bets",
+            "type": "number"
+          },
+          "losses": {
+            "title": "Losses",
+            "type": "number"
+          },
+          "profit": {
+            "title": "Profit",
+            "type": "number"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          },
+          "strategy": {
+            "title": "Strategy",
+            "type": "string"
+          },
+          "wagered": {
+            "title": "Wagered",
+            "type": "number"
+          },
+          "wins": {
+            "title": "Wins",
+            "type": "number"
+          }
+        },
+        "required": [
+          "sessions",
+          "bets",
+          "wins",
+          "losses",
+          "profit",
+          "wagered",
+          "strategy"
+        ],
+        "title": "StrategyRow",
         "type": "object"
       },
       "TargetArgs": {
@@ -2305,6 +2850,102 @@
           "expires_in"
         ],
         "title": "Ticket",
+        "type": "object"
+      },
+      "TopSession": {
+        "additionalProperties": false,
+        "properties": {
+          "bets": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bets"
+          },
+          "game": {
+            "title": "Game",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "losses": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Losses"
+          },
+          "profit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "strategy": {
+            "title": "Strategy",
+            "type": "string"
+          },
+          "wagered": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wagered"
+          },
+          "wins": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wins"
+          }
+        },
+        "required": [
+          "id",
+          "game",
+          "strategy",
+          "bets",
+          "wins",
+          "losses",
+          "profit",
+          "wagered",
+          "started_at"
+        ],
+        "title": "TopSession",
         "type": "object"
       },
       "UpdateArgs": {
@@ -2421,6 +3062,51 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "Window": {
+        "additionalProperties": false,
+        "properties": {
+          "lane": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lane"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until"
+          }
+        },
+        "required": [
+          "since",
+          "until",
+          "lane"
+        ],
+        "title": "Window",
         "type": "object"
       }
     }
@@ -3118,6 +3804,102 @@
         "summary": "Ws Ticket",
         "tags": [
           "live"
+        ]
+      }
+    },
+    "/{service}/analytics": {
+      "get": {
+        "description": "The report for sessions started in the window (a bare `until` date counts whole).",
+        "operationId": "get_analytics__service__analytics_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Service",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 19,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 19,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Until"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lane",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 10,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lane"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Analytics",
+        "tags": [
+          "analytics"
         ]
       }
     },
