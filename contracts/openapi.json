@@ -4378,6 +4378,65 @@
         "summary": "Healthz"
       }
     },
+    "/terminal/recordings/{session_id}": {
+      "get": {
+        "description": "A terminal session's asciicast v2 recording, for the owner with a fresh code.",
+        "operationId": "terminal_recording_terminal_recordings__session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Terminal Recording",
+        "tags": [
+          "terminal"
+        ]
+      }
+    },
+    "/terminal/ticket": {
+      "post": {
+        "description": "A one-time pass for opening the terminal socket from this session within 30 s.",
+        "operationId": "terminal_ticket_terminal_ticket_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ticket"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Terminal Ticket",
+        "tags": [
+          "terminal"
+        ]
+      }
+    },
     "/ws-ticket": {
       "post": {
         "description": "A one-time pass for opening the live socket from this session within 30 s.",

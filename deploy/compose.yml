@@ -104,6 +104,7 @@ services:
       AGENT_SOCKET: /run/casino-agent/agent.sock
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      TERMINAL_IP_ALLOWLIST: ${TERMINAL_IP_ALLOWLIST:-}
     secrets:
       - session_secret
       - totp_key

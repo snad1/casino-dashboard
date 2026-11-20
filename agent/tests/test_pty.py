@@ -241,6 +241,42 @@ async def test_open_and_close_go_to_the_job_audit(work: Path) -> None:
     assert [r["seq"] for r in records] == [1, 2]
 
 
+# ── recordings ──
+async def _read_recording(m: PtyManager, session_id: str) -> tuple[bytes, dict[str, Any]]:
+    stream = await m.handlers()["pty.recording"]({"session_id": session_id})
+    body = b"".join([base64.b64decode(f["data"]) async for f in stream.frames])
+    return body, await stream.final()
+
+
+async def test_recording_reads_back_whole(pty: PtyManager, work: Path) -> None:
+    s = pty.open(80, 24)
+    await pty.write(s.id, b"echo $((40+2))\n")
+    await _read_until(pty, s, b"42")
+    await pty.close(s.id)
+    body, final = await _read_recording(pty, s.id)
+    assert body == (work / "recordings" / f"{s.id}.cast").read_bytes()
+    assert final == {"session_id": s.id, "bytes": len(body)}
+    assert json.loads(body.splitlines()[0])["version"] == 2
+
+
+async def test_unknown_linked_or_malformed_recordings_are_refused(
+    pty: PtyManager, work: Path
+) -> None:
+    h = pty.handlers()
+    with pytest.raises(NotFound):
+        await h["pty.recording"]({"session_id": "0" * 32})
+    (work / "secret").write_text("x")
+    (work / "recordings").mkdir(mode=0o700)
+    (work / "recordings" / f"{'1' * 32}.cast").symlink_to(work / "secret")
+    with pytest.raises(NotFound):
+        await h["pty.recording"]({"session_id": "1" * 32})
+    (work / "recordings" / f"{'2' * 32}.cast").mkdir()
+    with pytest.raises(NotFound):
+        await h["pty.recording"]({"session_id": "2" * 32})
+    with pytest.raises(InvalidArgs):
+        await h["pty.recording"]({"session_id": "../secret"})
+
+
 # ── launch and env ──
 def _which(found: set[str]) -> Any:
     def which(name: str, path: str | None = None) -> str | None:

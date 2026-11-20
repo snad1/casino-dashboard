@@ -115,7 +115,7 @@ const PAGES: Array<[string, (page: Page) => ReturnType<Page['getByRole']>]> = [
 	['/wolfbet/control', heading('Control')],
 	['/wolfbet/config', heading('Config')],
 	['/wolfbet/analytics', heading('Analytics')],
-	['/wolfbet/terminal', heading('Terminal')],
+	['/wolfbet/terminal', heading("You don't have access to this page.")],
 	['/alerts', heading('Alerts')],
 	['/admin/users', heading('Users')],
 	['/admin/audit', heading('Audit log')]

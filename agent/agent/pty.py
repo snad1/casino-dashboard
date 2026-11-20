@@ -8,8 +8,8 @@ after 60 min, when the shell exits or when its recording reaches its cap. Ending
 the tmux client only, so the shell and its jobs stay in tmux for the next open.
 
 Everything typed and printed is written as asciicast v2 to
-`<state>/recordings/<session_id>.cast` (mode 0600); the open and the end of a session go
-to the audit trail the api pulls with `job.audit`.
+`<state>/recordings/<session_id>.cast` (mode 0600) and read back with `pty.recording`;
+the open and the end of a session go to the audit trail the api pulls with `job.audit`.
 """
 
 import asyncio
@@ -24,6 +24,7 @@ import os
 import pwd
 import shutil
 import signal
+import stat
 import struct
 import termios
 import time
@@ -54,6 +55,7 @@ BACKLOG_BYTES = 1024 * 1024
 WRITE_BYTES = 16 * 1024
 WRITE_TIMEOUT_S = 5.0
 RECORDING_BYTES = 64 * 1024 * 1024
+RECORDING_CHUNK = 64 * 1024
 HANGUP_GRACE_S = 2.0
 KILL_WAIT_S = 5.0
 REAP_POLL_S = 0.05
@@ -483,6 +485,46 @@ class PtyManager:
                 yield {"seq": last, "data": base64.b64encode(frame).decode()}
             await asyncio.sleep(self.flush_s)
 
+    # ── recordings ──
+    def _open_recording(self, session_id: str) -> int:
+        """A read-only fd of a session's recording: a regular file in the dir, never a link."""
+        if self.recordings_dir.is_symlink():
+            raise NotFound(session_id)
+        flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
+        try:
+            fd = os.open(self.recordings_dir / f"{session_id}.cast", flags)
+        except OSError:
+            raise NotFound(session_id) from None
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            os.close(fd)
+            raise NotFound(session_id)
+        return fd
+
+    def recording(self, session_id: str) -> Streaming:
+        """A session's asciicast file as chunks (also while it is still being written)."""
+        os.close(self._open_recording(session_id))
+        sent = 0
+
+        async def frames() -> AsyncIterator[dict[str, Any]]:
+            nonlocal sent
+            try:
+                fd = self._open_recording(session_id)
+            except NotFound:
+                return
+            try:
+                seq = 0
+                while data := os.read(fd, RECORDING_CHUNK):
+                    yield {"seq": seq, "data": base64.b64encode(data).decode()}
+                    sent += len(data)
+                    seq += 1
+            finally:
+                os.close(fd)
+
+        async def final() -> dict[str, Any]:
+            return {"session_id": session_id, "bytes": sent}
+
+        return Streaming(frames=frames(), final=final, frame=Chunk)
+
     # ── protocol ops ──
     def handlers(self) -> dict[str, Handler]:
         async def pty_open(raw: dict[str, Any]) -> dict[str, Any]:
@@ -517,10 +559,14 @@ class PtyManager:
         async def pty_close(raw: dict[str, Any]) -> dict[str, Any]:
             return (await self.close(parse_args(SessionRef, raw).session_id)).summary()
 
+        async def pty_recording(raw: dict[str, Any]) -> Streaming:
+            return self.recording(parse_args(SessionRef, raw).session_id)
+
         return {
             "pty.open": pty_open,
             "pty.stream": pty_stream,
             "pty.write": pty_write,
             "pty.resize": pty_resize,
             "pty.close": pty_close,
+            "pty.recording": pty_recording,
         }

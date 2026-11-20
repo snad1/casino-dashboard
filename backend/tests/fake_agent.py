@@ -1,18 +1,20 @@
 """A stand-in for the host agent on a real unix socket, on its own thread and event loop.
 
 It serves sync tests (the app under `TestClient` runs on another loop) and async ones
-alike. `reply` maps each request to the lines it answers with, frames first; `hang`
-makes it read the request and never answer.
+alike. `reply` maps each request to the lines it answers with, frames first, either as a
+list or as an async iterator that writes each line as it comes; `hang` makes it read the
+request and never answer.
 """
 
 import asyncio
+import contextlib
 import hashlib
 import hmac
 import json
 import secrets
 import tempfile
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +22,8 @@ import pytest
 
 TOKEN = secrets.token_urlsafe(48)
 JOB_ID = "ab" * 16
-Reply = Callable[[dict[str, Any]], list[dict[str, Any]]]
+Lines = list[dict[str, Any]] | AsyncIterator[dict[str, Any]]
+Reply = Callable[[dict[str, Any]], Lines]
 
 
 def agent_mac(fields: dict[str, Any]) -> str:
@@ -90,9 +93,16 @@ class FakeAgent:
         if self.hang:
             await asyncio.sleep(5)
         else:
-            for line in self.reply(request):
-                writer.write(json.dumps(line).encode() + b"\n")
-            await writer.drain()
+            lines = self.reply(request)
+            with contextlib.suppress(ConnectionError):  # the api may end a stream early
+                if isinstance(lines, list):
+                    for line in lines:
+                        writer.write(json.dumps(line).encode() + b"\n")
+                else:
+                    async for line in lines:
+                        writer.write(json.dumps(line).encode() + b"\n")
+                        await writer.drain()
+                await writer.drain()
         writer.close()
 
     def start(self) -> None:

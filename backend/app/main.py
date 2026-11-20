@@ -44,6 +44,7 @@ from app.settings import Settings, load_settings
 from app.ws.auth import RECHECK_SECONDS, ConnectionRegistry
 from app.ws.hub import Hub
 from app.ws.routes import router as ws_router
+from app.ws.terminal import router as terminal_router
 
 ADAPTERS: dict[str, type[ServiceAdapter]] = {"wolfbet": WolfBetAdapter}
 
@@ -127,6 +128,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.alerts = alerts
     app.state.telegram_bot_username = settings.telegram_bot_username
     app.state.vapid_public_key = settings.vapid_public_key
+    app.state.terminal_ip_allowlist = settings.terminal_ip_allowlist
     install_error_handlers(app, settings.exposes_error_detail)
     install_step_handler(app)
     # Added innermost first: headers wrap everything, including the generic 500.
@@ -157,5 +159,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(files_router)
     app.include_router(comments_router)
     app.include_router(ws_router)
+    app.include_router(terminal_router)
 
     return app

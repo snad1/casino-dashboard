@@ -415,6 +415,46 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/terminal/recordings/{session_id}': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * Terminal Recording
+		 * @description A terminal session's asciicast v2 recording, for the owner with a fresh code.
+		 */
+		get: operations['terminal_recording_terminal_recordings__session_id__get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/terminal/ticket': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/**
+		 * Terminal Ticket
+		 * @description A one-time pass for opening the terminal socket from this session within 30 s.
+		 */
+		post: operations['terminal_ticket_terminal_ticket_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/ws-ticket': {
 		parameters: {
 			query?: never;
@@ -2885,6 +2925,55 @@ export interface operations {
 				};
 				content: {
 					'application/json': components['schemas']['Health'];
+				};
+			};
+		};
+	};
+	terminal_recording_terminal_recordings__session_id__get: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				session_id: string;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content?: never;
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	terminal_ticket_terminal_ticket_post: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Ticket'];
 				};
 			};
 		};

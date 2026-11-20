@@ -61,6 +61,17 @@ def new_login(when: str, ip: str, browser: str) -> Rendered:
     )
 
 
+def terminal_opened(who: str, when: str, ip: str, browser: str) -> Rendered:
+    return _render(
+        "The web terminal was opened",
+        [
+            f"{who} opened the web terminal at {when} from {ip} ({browser}).",
+            "The session is recorded. If this was not you, change your password and sign out "
+            "everywhere now.",
+        ],
+    )
+
+
 def lockout(until: str) -> Rendered:
     return _render(
         "Your casino dashboard account is locked",

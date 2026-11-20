@@ -8,6 +8,7 @@ placeholder or low-variety secret, and the error never contains the value.
 
 import os
 import re
+from ipaddress import IPv4Network, IPv6Network
 from pathlib import Path
 from typing import Annotated, Any, Literal, Self
 from urllib.parse import quote
@@ -20,6 +21,7 @@ from pydantic.fields import FieldInfo
 from pydantic_settings import (
     BaseSettings,
     EnvSettingsSource,
+    NoDecode,
     PydanticBaseSettingsSource,
     SettingsConfigDict,
 )
@@ -186,6 +188,9 @@ class Settings(DatabaseSettings):
     live_service: str | None = "wolfbet"
     live_hz: int = Field(default=5, ge=4, le=10)
     telegram_bot_username: str | None = None
+    terminal_ip_allowlist: Annotated[list[IPv4Network | IPv6Network], NoDecode] = Field(
+        default_factory=list
+    )
 
     session_secret: SecretStr
     totp_key: SecretStr
@@ -224,6 +229,12 @@ class Settings(DatabaseSettings):
         if not _HOSTNAME.fullmatch(value):
             raise ValueError("must be a bare hostname, without scheme or path")
         return value
+
+    @field_validator("terminal_ip_allowlist", mode="before")
+    @classmethod
+    def _networks(cls, value: object) -> object:
+        """`203.0.113.0/24, 2001:db8::/32`, commas or spaces; blank allows any address."""
+        return value.replace(",", " ").split() if isinstance(value, str) else value
 
     @field_validator("live_service", mode="before")
     @classmethod

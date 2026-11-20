@@ -30,6 +30,8 @@ MAX_SOCKETS_PER_USER = 5
 RECHECK_SECONDS = 60.0
 MAX_FRAME_BYTES = 16 * 1024
 USED_TICKETS_KEY = "auth:ws:used"
+LIVE_TICKET = b"ws"
+TERMINAL_TICKET = b"term"
 CLOSE_SIGNED_OUT = 4401
 CLOSE_FORBIDDEN = 4403
 _TOPIC = re.compile(r"svc:([a-z0-9-]+)(?::[A-Za-z0-9:_-]+)?")
@@ -54,21 +56,28 @@ def _b64(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
 
-def _signature(secret: str, raw_session: bytes, payload: bytes) -> str:
-    message = b"ws:" + hashlib.sha256(raw_session).digest() + payload
+def _signature(secret: str, raw_session: bytes, payload: bytes, purpose: bytes) -> str:
+    message = purpose + b":" + hashlib.sha256(raw_session).digest() + payload
     return hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
 
 
-def issue_ticket(secret: str, raw_session: bytes, now: float | None = None) -> str:
+def issue_ticket(
+    secret: str, raw_session: bytes, now: float | None = None, purpose: bytes = LIVE_TICKET
+) -> str:
+    """A signed one-time pass; `purpose` keeps a live-socket ticket from opening the terminal."""
     expires = int(now if now is not None else time.time()) + TICKET_TTL_SECONDS
     payload = secrets.token_bytes(16) + expires.to_bytes(8, "big")
-    return f"{_b64(payload)}.{_signature(secret, raw_session, payload)}"
+    return f"{_b64(payload)}.{_signature(secret, raw_session, payload, purpose)}"
 
 
 def check_ticket(
-    secret: str, raw_session: bytes, ticket: str, now: float | None = None
+    secret: str,
+    raw_session: bytes,
+    ticket: str,
+    now: float | None = None,
+    purpose: bytes = LIVE_TICKET,
 ) -> tuple[str, int] | None:
-    """(nonce, expiry) for a ticket this session was given and that has not expired."""
+    """(nonce, expiry) for a ticket this session was given for `purpose` and still valid."""
     encoded, _, signature = ticket.partition(".")
     try:
         payload = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
@@ -76,7 +85,7 @@ def check_ticket(
         return None
     if len(payload) != 24:
         return None
-    if not hmac.compare_digest(signature, _signature(secret, raw_session, payload)):
+    if not hmac.compare_digest(signature, _signature(secret, raw_session, payload, purpose)):
         return None
     expires = int.from_bytes(payload[16:], "big")
     if expires < (now if now is not None else time.time()):
@@ -127,6 +136,7 @@ async def authenticate(
     redis: Redis,
     secret: str,
     allowed_origins: list[str],
+    purpose: bytes = LIVE_TICKET,
 ) -> tuple[User, bytes]:
     """The user and raw session id behind a handshake, or `Denied`."""
     if handshake.origin not in allowed_origins:
@@ -135,7 +145,7 @@ async def authenticate(
     loaded = await load_session(db, raw) if raw is not None else None
     if raw is None or loaded is None:
         raise Denied(401, NOT_SIGNED_IN)
-    checked = check_ticket(secret, raw, handshake.ticket or "")
+    checked = check_ticket(secret, raw, handshake.ticket or "", purpose=purpose)
     if checked is None:
         raise Denied(403, NOT_ALLOWED)
     try:
