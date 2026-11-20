@@ -11,7 +11,7 @@ from pydantic import BaseModel, SecretStr
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters.wolfbet.control import ACTIONS, ConfigArgs
+from app.adapters.wolfbet.control import ACTIONS, ConfigArgs, NoArgs
 from app.api.control import AGENT_DOWN, BUSY, JOB_NOT_FOUND, KEY_REUSED
 from app.audit import AuditLog
 from app.auth.models import ApiSession, Role
@@ -38,6 +38,10 @@ BODIES: dict[str, dict[str, Any]] = {
     "lanes": {"count": 3, "split": "budget"},
     "cleanup": {"days": 7},
     "update": {"branch": "main"},
+    "logs": {"service": "cli", "lines": 100},
+    "benchmark": {"count": 5, "lanes": 2},
+    "backtest": {"simulate": 1000, "seed": 42},
+    "export": {"format": "csv"},
 }
 JOBS = {name for name, spec in ACTIONS.items() if spec.job}
 ALLOWED: dict[Role, set[str]] = {
@@ -51,6 +55,13 @@ ALLOWED: dict[Role, set[str]] = {
         "restart",
         "config_set",
         "lanes",
+        "logs",
+        "logs_follow",
+        "diagnose",
+        "doctor",
+        "benchmark",
+        "backtest",
+        "export",
     },
     Role.ADMIN: set(ACTIONS),
     Role.OWNER: set(ACTIONS),
@@ -102,9 +113,14 @@ def test_every_action_for_every_role(signed_in_as: Any, fake_agent: FakeAgent, r
         assert response.status_code == (202 if action in JOBS else 200), action
         body = response.json()
         if action in JOBS:
-            assert body == {"status": "running", "exit_code": None, "job_id": JOB_ID}
+            assert body == {
+                "status": "running",
+                "exit_code": None,
+                "job_id": JOB_ID,
+                "output": None,
+            }
         else:
-            assert body == {"status": "succeeded", "exit_code": 0, "job_id": None}
+            assert body["status"] == "succeeded" and body["exit_code"] == 0, action
     sent = {call["cmd"] for call in fake_agent.calls}
     assert all(call["mac_ok"] for call in fake_agent.calls)
     if role == Role.VIEWER:
@@ -132,7 +148,7 @@ def test_a_failed_command_reports_its_exit_code(signed_in_as: Any, fake_agent: F
     fake_agent.reply = lambda request: [ok(request, {"exit_code": 3, "stderr": "no", "stdout": ""})]
     response = _post(signed_in_as(Role.OPERATOR), "stop")
     assert response.status_code == 200
-    assert response.json() == {"status": "failed", "exit_code": 3, "job_id": None}
+    assert response.json() == {"status": "failed", "exit_code": 3, "job_id": None, "output": ""}
 
 
 def test_config_and_destructive_actions_need_a_fresh_step_up(
@@ -305,6 +321,12 @@ def test_body_models_match_the_agent_argument_contract() -> None:
         if spec.fixed_args:
             assert set(spec.fixed_args) <= set(contract[spec.cmd]["properties"]), name
             continue
+        if body is NoArgs:
+            # The api may take fewer fields than the agent (doctor never takes `fix`) if the
+            # agent defaults every field the api leaves out.
+            agent = contract[spec.cmd]["properties"]
+            assert all("default" in field for field in agent.values()), name
+            continue
         assert body.model_json_schema() == contract[spec.cmd], name
 
 
@@ -359,6 +381,7 @@ def test_the_menu_lists_every_action_with_its_confirm_text(
         "confirm": "Reset statistics",
         "perm": "control.destructive",
         "typed_confirm": True,
+        "confirm_first": True,
         "job": False,
     }
     typed = {name for name, action in by_name.items() if action["typed_confirm"]}
@@ -409,3 +432,69 @@ def test_bad_config_changes_never_reach_the_agent(
     client = signed_in_as(Role.OPERATOR)
     assert _post(client, "config_set", {"changes": changes}).status_code == 422
     assert fake_agent.calls == []
+
+
+def test_reads_run_without_a_confirm_and_return_clean_output(
+    signed_in_as: Any, fake_agent: FakeAgent
+) -> None:
+    client = signed_in_as(Role.OPERATOR)
+    menu = {a["name"]: a for a in client.get("/wolfbet/control").json()["actions"]}
+    reads = {name for name, action in menu.items() if not action["confirm_first"]}
+    assert reads == {"logs", "logs_follow", "diagnose", "doctor", "benchmark", "backtest", "export"}
+    fake_agent.reply = lambda request: [
+        ok(request, {"exit_code": 0, "stderr": "", "stdout": "\x1b[32mINFO\x1b[0m  ok\r\nnext\x07"})
+    ]
+    response = _post(client, "logs")
+    assert response.json()["output"] == "INFO  ok\nnext"
+    [call] = fake_agent.calls
+    assert (call["cmd"], call["args"]) == ("wolfbet.logs", {"service": "cli", "lines": 100})
+
+
+@pytest.mark.parametrize(
+    ("action", "body"),
+    [
+        ("export", {"format": "json"}),
+        ("backtest", {"simulate": 10, "replay_session": 3}),
+        ("logs", {"service": "ssh", "lines": 10}),
+        ("logs", {"lines": 5000}),
+        ("benchmark", {"count": 1}),
+        ("backtest", {"preset": "-x"}),
+    ],
+)
+def test_bad_tool_bodies_never_reach_the_agent(
+    signed_in_as: Any, fake_agent: FakeAgent, action: str, body: dict[str, Any]
+) -> None:
+    assert _post(signed_in_as(Role.OPERATOR), action, body).status_code == 422
+    assert fake_agent.calls == []
+
+
+def test_a_job_is_cancelled_by_who_may_see_it(
+    signed_in_as: Any, fake_agent: FakeAgent, control_settings: Settings, account: Account
+) -> None:
+    client = signed_in_as(Role.OPERATOR)
+    job_id = _post(client, "logs_follow").json()["job_id"]
+    token = client.get("/auth/me").json()["csrf_token"]
+    cancel = client.post(f"/wolfbet/jobs/{job_id}/cancel", headers={"x-csrf-token": token})
+    assert cancel.status_code == 200
+    assert cancel.json()["status"] == "cancelled"
+    assert fake_agent.cmds()[-1] == "job.cancel"
+    other = client.post(f"/wolfbet/jobs/{'cd' * 16}/cancel", headers={"x-csrf-token": token})
+    assert other.status_code == 404
+    _set_role(control_settings, account.id, Role.VIEWER)
+    refused = client.post(f"/wolfbet/jobs/{job_id}/cancel", headers={"x-csrf-token": token})
+    assert refused.status_code == 404
+
+
+def test_a_running_log_follow_never_holds_up_the_buttons(
+    signed_in_as: Any, fake_agent: FakeAgent
+) -> None:
+    client = signed_in_as(Role.OPERATOR)
+    _post(client, "logs_follow")
+    _post(client, "benchmark")
+    follow = {**job_summary(), "cmd": "wolfbet.benchmark"}
+    fake_agent.reply = lambda request: [
+        ok(request, follow) if request["cmd"] == "job.get" else fail(request, "busy")
+    ]
+    assert client.get("/wolfbet/control").json()["running_job"] is None
+    asked = [call["cmd"] for call in fake_agent.calls if call["cmd"] == "job.get"]
+    assert len(asked) == 1

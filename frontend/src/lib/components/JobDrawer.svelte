@@ -4,6 +4,7 @@
 	import { liveFor } from '#lib/live/index';
 	import { jobTopicFor, type JobLine } from '#lib/live/protocol';
 	import Button from '#ui/Button';
+	import JobOutput from './JobOutput.svelte';
 
 	let dialog: HTMLDialogElement | undefined = $state();
 	let lines: JobLine[] = $state.raw([]);
@@ -55,12 +56,6 @@
 			</div>
 			<Button onclick={() => control.closeJob()}>Close</Button>
 		</header>
-		<ol class="flex-1 overflow-auto p-4 font-mono text-xs" aria-label="Output lines">
-			{#each lines as line (line.seq)}
-				<li class={line.stream === 'stderr' ? 'text-loss' : 'text-ink'}>{line.line}</li>
-			{:else}
-				<li class="text-muted">{done ? 'No output.' : 'Waiting for output...'}</li>
-			{/each}
-		</ol>
+		<JobOutput {lines} {done} class="flex-1 p-4" />
 	</div>
 </dialog>

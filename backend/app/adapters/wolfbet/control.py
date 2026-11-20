@@ -6,6 +6,7 @@ Schemas are pinned in `contracts/schemas/agent-wolfbet-args-v1.json`, which both
 test against.
 """
 
+import math
 import re
 from typing import Annotated, Any, Literal
 
@@ -17,6 +18,7 @@ from app.auth.permissions import Perm
 LANES_MAX = 10
 MAX_CONFIG_PAIRS = 32
 _BRANCH = re.compile(r"[A-Za-z0-9._/-]{1,100}")
+_NAME = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 
 
 def _branch(value: str) -> str:
@@ -32,9 +34,23 @@ def _branch(value: str) -> str:
     return value
 
 
+def _name(value: str) -> str:
+    if not _NAME.fullmatch(value) or value.startswith(("-", ".")):
+        raise ValueError("must be 1-64 letters, digits, '_', '.' or '-', not starting with - or .")
+    return value
+
+
+def _finite(value: float) -> float:
+    if not math.isfinite(value):
+        raise ValueError("must be a finite number")
+    return value
+
+
 Lane = Annotated[int, Field(ge=1, le=LANES_MAX)]
 LaneTarget = Lane | Literal["all"]
 Branch = Annotated[str, AfterValidator(_branch)]
+Name = Annotated[str, AfterValidator(_name)]
+PositiveFloat = Annotated[float, Field(gt=0, le=1e12), AfterValidator(_finite)]
 
 
 class Args(BaseModel):
@@ -60,6 +76,47 @@ class CleanupArgs(Args):
 
 class UpdateArgs(Args):
     branch: Branch | None = None
+
+
+class LogsArgs(Args):
+    service: Literal["cli", "tg", "web"] = "cli"
+    lines: int = Field(default=200, ge=1, le=2000)
+
+
+class FollowArgs(Args):
+    service: Literal["cli", "tg", "web"] = "cli"
+
+
+class BenchmarkArgs(Args):
+    count: int = Field(default=20, ge=3, le=200)
+    lanes: Lane | None = None
+
+
+class BacktestArgs(Args):
+    simulate: int | None = Field(default=None, ge=1, le=5_000_000)
+    replay_session: int | None = Field(default=None, ge=1)
+    seed: int | None = Field(default=None, ge=0, le=2**32 - 1)
+    sessions: int | None = Field(default=None, ge=1, le=1_000_000)
+    runs: int | None = Field(default=None, ge=1, le=100_000)
+    balance: PositiveFloat | None = None
+    preset: Name | None = None
+
+    @model_validator(mode="after")
+    def _one_source(self) -> "BacktestArgs":
+        if self.simulate is not None and self.replay_session is not None:
+            raise ValueError("simulate and replay_session are exclusive")
+        return self
+
+
+class ExportArgs(Args):
+    session_id: int | None = Field(default=None, ge=1)
+    format: Literal["csv", "json"] = "csv"
+
+    @model_validator(mode="after")
+    def _json_needs_a_session(self) -> "ExportArgs":
+        if self.format == "json" and self.session_id is None:
+            raise ValueError("a JSON export needs session_id")
+        return self
 
 
 class ConfigArgs(Args):
@@ -96,6 +153,8 @@ def config_pairs(body: ConfigChanges) -> dict[str, Any]:
 _BASIC = Perm.CONTROL_BASIC
 _CONFIG = Perm.CONFIG_WRITE
 _DESTRUCTIVE = Perm.CONTROL_DESTRUCTIVE
+_LOGS = Perm.LOGS
+_EXPORT = Perm.EXPORT
 
 ACTIONS: dict[str, ControlAction] = {
     "start": ControlAction(
@@ -243,5 +302,86 @@ ACTIONS: dict[str, ControlAction] = {
         fresh=True,
         job=True,
         fixed_args={"fix": True},
+    ),
+    "logs": ControlAction(
+        _LOGS,
+        "logs",
+        LogsArgs,
+        label="Load",
+        title="Load the {service} logs?",
+        effect="Shows the newest log lines.",
+        confirm="Load",
+        confirm_first=False,
+        exclusive=False,
+    ),
+    "logs_follow": ControlAction(
+        _LOGS,
+        "logs_follow",
+        FollowArgs,
+        label="Follow",
+        title="Follow the {service} logs?",
+        effect="New log lines stream in until you stop.",
+        confirm="Follow",
+        job=True,
+        confirm_first=False,
+        exclusive=False,
+    ),
+    "diagnose": ControlAction(
+        _BASIC,
+        "diagnose",
+        NoArgs,
+        label="Diagnose",
+        title="Diagnose {service}?",
+        effect="Reads the running session and names what limits its speed. Places no bets.",
+        confirm="Diagnose",
+        confirm_first=False,
+        exclusive=False,
+    ),
+    "doctor": ControlAction(
+        _BASIC,
+        "doctor",
+        NoArgs,
+        label="Doctor",
+        title="Run doctor on {service}?",
+        effect="Checks the host and the bot and lists fixes. Changes nothing.",
+        confirm="Doctor",
+        job=True,
+        confirm_first=False,
+    ),
+    "benchmark": ControlAction(
+        _BASIC,
+        "benchmark",
+        BenchmarkArgs,
+        label="Benchmark",
+        title="Benchmark the {service} api?",
+        effect="Times {count} api calls. Places no bets.",
+        confirm="Benchmark",
+        job=True,
+        confirm_first=False,
+        exclusive=False,
+    ),
+    "backtest": ControlAction(
+        _EXPORT,
+        "backtest",
+        BacktestArgs,
+        label="Run backtest",
+        title="Run a backtest?",
+        effect="Simulates the strategy offline. No api calls and no real balance.",
+        confirm="Run backtest",
+        job=True,
+        confirm_first=False,
+        exclusive=False,
+    ),
+    "export": ControlAction(
+        _EXPORT,
+        "export",
+        ExportArgs,
+        label="Export",
+        title="Export sessions?",
+        effect="Writes the sessions to a file you can download for an hour.",
+        confirm="Export",
+        job=True,
+        confirm_first=False,
+        exclusive=False,
     ),
 }

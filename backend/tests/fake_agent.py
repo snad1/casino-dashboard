@@ -57,6 +57,8 @@ def default_reply(request: dict[str, Any]) -> list[dict[str, Any]]:
         return [ok(request, {"job_id": JOB_ID})]
     if cmd == "job.get":
         return [ok(request, job_summary())]
+    if cmd == "job.cancel":
+        return [ok(request, job_summary("cancelled", -15))]
     if cmd == "job.stream":
         frames = [
             {"id": request["id"], "seq": n, "stream": "stdout", "line": f"step {n}"}

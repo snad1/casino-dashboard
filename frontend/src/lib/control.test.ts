@@ -20,6 +20,7 @@ const action = (perm: string): Action => ({
 	confirm: '',
 	perm,
 	typed_confirm: false,
+	confirm_first: true,
 	job: false
 });
 const me = (role: string): Me => ({

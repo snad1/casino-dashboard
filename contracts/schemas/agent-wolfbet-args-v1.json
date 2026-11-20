@@ -1,4 +1,134 @@
 {
+  "backtest": {
+    "additionalProperties": false,
+    "properties": {
+      "balance": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "maximum": 1000000000000.0,
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Balance"
+      },
+      "preset": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Preset"
+      },
+      "replay_session": {
+        "anyOf": [
+          {
+            "minimum": 1,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Replay Session"
+      },
+      "runs": {
+        "anyOf": [
+          {
+            "maximum": 100000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Runs"
+      },
+      "seed": {
+        "anyOf": [
+          {
+            "maximum": 4294967295,
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Seed"
+      },
+      "sessions": {
+        "anyOf": [
+          {
+            "maximum": 1000000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Sessions"
+      },
+      "simulate": {
+        "anyOf": [
+          {
+            "maximum": 5000000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Simulate"
+      }
+    },
+    "title": "BacktestArgs",
+    "type": "object"
+  },
+  "benchmark": {
+    "additionalProperties": false,
+    "properties": {
+      "count": {
+        "default": 20,
+        "maximum": 200,
+        "minimum": 3,
+        "title": "Count",
+        "type": "integer"
+      },
+      "lanes": {
+        "anyOf": [
+          {
+            "maximum": 10,
+            "minimum": 1,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Lanes"
+      }
+    },
+    "title": "BenchmarkArgs",
+    "type": "object"
+  },
   "cleanup": {
     "additionalProperties": false,
     "properties": {
@@ -39,6 +169,12 @@
     "title": "ConfigArgs",
     "type": "object"
   },
+  "diagnose": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
   "doctor": {
     "additionalProperties": false,
     "properties": {
@@ -49,6 +185,35 @@
       }
     },
     "title": "DoctorArgs",
+    "type": "object"
+  },
+  "export": {
+    "additionalProperties": false,
+    "properties": {
+      "format": {
+        "default": "csv",
+        "enum": [
+          "csv",
+          "json"
+        ],
+        "title": "Format",
+        "type": "string"
+      },
+      "session_id": {
+        "anyOf": [
+          {
+            "minimum": 1,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Session Id"
+      }
+    },
+    "title": "ExportArgs",
     "type": "object"
   },
   "lanes": {
@@ -83,6 +248,47 @@
       "count"
     ],
     "title": "LanesArgs",
+    "type": "object"
+  },
+  "logs": {
+    "additionalProperties": false,
+    "properties": {
+      "lines": {
+        "default": 200,
+        "maximum": 2000,
+        "minimum": 1,
+        "title": "Lines",
+        "type": "integer"
+      },
+      "service": {
+        "default": "cli",
+        "enum": [
+          "cli",
+          "tg",
+          "web"
+        ],
+        "title": "Service",
+        "type": "string"
+      }
+    },
+    "title": "LogsArgs",
+    "type": "object"
+  },
+  "logs_follow": {
+    "additionalProperties": false,
+    "properties": {
+      "service": {
+        "default": "cli",
+        "enum": [
+          "cli",
+          "tg",
+          "web"
+        ],
+        "title": "Service",
+        "type": "string"
+      }
+    },
+    "title": "FollowArgs",
     "type": "object"
   },
   "pause": {

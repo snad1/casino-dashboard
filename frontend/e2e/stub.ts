@@ -53,7 +53,7 @@ const action = (
 	label: string,
 	title: string,
 	confirm: string,
-	options: { job?: boolean } = {}
+	options: { job?: boolean; read?: boolean } = {}
 ) => ({
 	name,
 	label,
@@ -62,6 +62,7 @@ const action = (
 	confirm,
 	perm,
 	typed_confirm: perm === 'control.destructive',
+	confirm_first: !options.read,
 	job: options.job ?? false
 });
 
@@ -102,6 +103,19 @@ export const controlMenu = {
 			'Delete old bets'
 		),
 		action('update', 'control.destructive', 'Update', 'Update {service}?', 'Update', { job: true }),
+		action('logs', 'logs', 'Load', 'Load logs?', 'Load', { read: true }),
+		action('logs_follow', 'logs', 'Follow', 'Follow logs?', 'Follow', { read: true, job: true }),
+		action('diagnose', 'control.basic', 'Diagnose', 'Diagnose?', 'Diagnose', { read: true }),
+		action('doctor', 'control.basic', 'Doctor', 'Doctor?', 'Doctor', { read: true, job: true }),
+		action('benchmark', 'control.basic', 'Benchmark', 'Benchmark?', 'Benchmark', {
+			read: true,
+			job: true
+		}),
+		action('backtest', 'export', 'Run backtest', 'Backtest?', 'Run backtest', {
+			read: true,
+			job: true
+		}),
+		action('export', 'export', 'Export', 'Export?', 'Export', { read: true, job: true }),
 		action('doctor_fix', 'control.destructive', 'Doctor fix', 'Run doctor fix?', 'Run doctor fix', {
 			job: true
 		})

@@ -43,7 +43,10 @@ class ControlAction:
     `job.start` and answers with a job id. `agent_args` turns the body into the agent's
     arguments when they differ (default: the body's fields); `fixed_args` are merged over.
     `label`, `title`, `effect` and `confirm` are the button and confirm-modal text; the
-    last three may name `{service}` or a body field such as `{target}`.
+    last three may name `{service}` or a body field such as `{target}`. A read with
+    `confirm_first` False runs on the press, without a modal. `exclusive` jobs run one at a
+    time per service on the host (the agent refuses a second), so while one runs the
+    other control buttons wait; reads such as a log follow are not exclusive.
     """
 
     perm: Perm
@@ -54,6 +57,8 @@ class ControlAction:
     effect: str
     confirm: str
     fresh: bool = False
+    confirm_first: bool = True
+    exclusive: bool = True
     job: bool = False
     agent_args: Callable[[Any], dict[str, Any]] | None = None
     fixed_args: Mapping[str, Any] = field(default_factory=dict)

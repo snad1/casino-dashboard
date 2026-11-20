@@ -459,6 +459,40 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/{service}/control/backtest': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Backtest */
+		post: operations['control_backtest__service__control_backtest_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/benchmark': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Benchmark */
+		post: operations['control_benchmark__service__control_benchmark_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/{service}/control/cleanup': {
 		parameters: {
 			query?: never;
@@ -493,6 +527,40 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/{service}/control/diagnose': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Diagnose */
+		post: operations['control_diagnose__service__control_diagnose_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/doctor': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Doctor */
+		post: operations['control_doctor__service__control_doctor_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/{service}/control/doctor_fix': {
 		parameters: {
 			query?: never;
@@ -510,6 +578,23 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/{service}/control/export': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Export */
+		post: operations['control_export__service__control_export_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/{service}/control/lanes': {
 		parameters: {
 			query?: never;
@@ -521,6 +606,40 @@ export interface paths {
 		put?: never;
 		/** Control Lanes */
 		post: operations['control_lanes__service__control_lanes_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/logs': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Logs */
+		post: operations['control_logs__service__control_logs_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/logs_follow': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Logs Follow */
+		post: operations['control_logs_follow__service__control_logs_follow_post'];
 		delete?: never;
 		options?: never;
 		head?: never;
@@ -757,6 +876,46 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/{service}/jobs/{job_id}/cancel': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/**
+		 * Cancel Job
+		 * @description Stop a running job (a log follow, say); a finished job is returned as it is.
+		 */
+		post: operations['cancel_job__service__jobs__job_id__cancel_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/jobs/{job_id}/file': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * Download Job File
+		 * @description The export's file as an attachment named `<service>-export-<job>.<format>`.
+		 */
+		get: operations['download_job_file__service__jobs__job_id__file_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/{service}/series': {
 		parameters: {
 			query?: never;
@@ -854,6 +1013,8 @@ export interface components {
 		ActionOut: {
 			/** Confirm */
 			confirm: string;
+			/** Confirm First */
+			confirm_first: boolean;
 			/** Effect */
 			effect: string;
 			/** Job */
@@ -905,6 +1066,33 @@ export interface components {
 			items: components['schemas']['AuditOut'][];
 			/** Next Before Id */
 			next_before_id: number | null;
+		};
+		/** BacktestArgs */
+		BacktestArgs: {
+			/** Balance */
+			balance?: number | null;
+			/** Preset */
+			preset?: string | null;
+			/** Replay Session */
+			replay_session?: number | null;
+			/** Runs */
+			runs?: number | null;
+			/** Seed */
+			seed?: number | null;
+			/** Sessions */
+			sessions?: number | null;
+			/** Simulate */
+			simulate?: number | null;
+		};
+		/** BenchmarkArgs */
+		BenchmarkArgs: {
+			/**
+			 * Count
+			 * @default 20
+			 */
+			count: number;
+			/** Lanes */
+			lanes?: number | null;
 		};
 		/** BetOut */
 		BetOut: {
@@ -1095,6 +1283,8 @@ export interface components {
 			exit_code: number | null;
 			/** Job Id */
 			job_id: string | null;
+			/** Output */
+			output?: string | null;
 			/**
 			 * Status
 			 * @enum {string}
@@ -1136,6 +1326,26 @@ export interface components {
 			otpauth_uri: string;
 			/** Secret */
 			secret: string;
+		};
+		/** ExportArgs */
+		ExportArgs: {
+			/**
+			 * Format
+			 * @default csv
+			 * @enum {string}
+			 */
+			format: 'csv' | 'json';
+			/** Session Id */
+			session_id?: number | null;
+		};
+		/** FollowArgs */
+		FollowArgs: {
+			/**
+			 * Service
+			 * @default cli
+			 * @enum {string}
+			 */
+			service: 'cli' | 'tg' | 'web';
 		};
 		/** HTTPValidationError */
 		HTTPValidationError: {
@@ -1214,6 +1424,20 @@ export interface components {
 			email: string;
 			/** Password */
 			password: string;
+		};
+		/** LogsArgs */
+		LogsArgs: {
+			/**
+			 * Lines
+			 * @default 200
+			 */
+			lines: number;
+			/**
+			 * Service
+			 * @default cli
+			 * @enum {string}
+			 */
+			service: 'cli' | 'tg' | 'web';
 		};
 		/** Me */
 		Me: {
@@ -2223,6 +2447,98 @@ export interface operations {
 			};
 		};
 	};
+	control_backtest__service__control_backtest_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['BacktestArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_benchmark__service__control_benchmark_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['BenchmarkArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
 	control_cleanup__service__control_cleanup_post: {
 		parameters: {
 			query?: never;
@@ -2315,6 +2631,98 @@ export interface operations {
 			};
 		};
 	};
+	control_diagnose__service__control_diagnose_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['NoArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_doctor__service__control_doctor_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['NoArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
 	control_doctor_fix__service__control_doctor_fix_post: {
 		parameters: {
 			query?: never;
@@ -2361,6 +2769,52 @@ export interface operations {
 			};
 		};
 	};
+	control_export__service__control_export_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['ExportArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
 	control_lanes__service__control_lanes_post: {
 		parameters: {
 			query?: never;
@@ -2375,6 +2829,98 @@ export interface operations {
 		requestBody: {
 			content: {
 				'application/json': components['schemas']['LanesArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_logs__service__control_logs_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['LogsArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_logs_follow__service__control_logs_follow_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['FollowArgs'];
 			};
 		};
 		responses: {
@@ -2948,6 +3494,72 @@ export interface operations {
 				};
 				content: {
 					'application/json': components['schemas']['JobOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	cancel_job__service__jobs__job_id__cancel_post: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+				job_id: string;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['JobOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	download_job_file__service__jobs__job_id__file_get: {
+		parameters: {
+			query?: {
+				format?: 'csv' | 'json';
+			};
+			header?: never;
+			path: {
+				service: string;
+				job_id: string;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': unknown;
 				};
 			};
 			/** @description Validation Error */

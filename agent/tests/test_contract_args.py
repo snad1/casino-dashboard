@@ -25,6 +25,12 @@ CONTROL_COMMANDS = (
     "cleanup",
     "update",
     "doctor",
+    "logs",
+    "logs_follow",
+    "diagnose",
+    "benchmark",
+    "backtest",
+    "export",
 )
 
 

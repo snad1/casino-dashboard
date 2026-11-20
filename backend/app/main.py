@@ -14,6 +14,7 @@ from app.adapters.wolfbet import WolfBetAdapter
 from app.agent_client import AgentClient
 from app.api.config import router as config_router
 from app.api.control import router as control_router
+from app.api.files import router as files_router
 from app.api.history import router as history_router
 from app.audit import AuditMiddleware
 from app.audit import router as audit_router
@@ -130,6 +131,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(history_router)
     app.include_router(control_router)
     app.include_router(config_router)
+    app.include_router(files_router)
     app.include_router(comments_router)
     app.include_router(ws_router)
 

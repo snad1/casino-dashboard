@@ -64,6 +64,10 @@ KEY_REUSED = "This request was already sent with different settings. Reload and 
 IN_PROGRESS = "This action is still being sent. Wait for it to finish."
 NOT_CONTROLLABLE = "That action is not available for this service."
 JOB_NOT_FOUND = "Job not found."
+# Terminal escapes and control characters; newlines and tabs stay.
+_ESCAPES = re.compile(
+    r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-_]|[\x00-\x08\x0b-\x1f\x7f]"
+)
 
 CONTROLS: dict[str, dict[str, ControlAction]] = {"wolfbet": WOLFBET_ACTIONS}
 
@@ -101,6 +105,7 @@ class ControlOut(BaseModel):
     status: Literal["succeeded", "failed", "running"]
     exit_code: int | None
     job_id: str | None
+    output: str | None = None
 
 
 class JobOut(BaseModel):
@@ -120,6 +125,7 @@ class ActionOut(BaseModel):
     confirm: str
     perm: str
     typed_confirm: bool
+    confirm_first: bool
     job: bool
 
 
@@ -249,9 +255,14 @@ async def _run(
         if not isinstance(job_id, str) or not re.fullmatch(JOB_ID_PATTERN, job_id):
             raise AgentError("bad_reply")
         return status.HTTP_202_ACCEPTED, ControlOut(status="running", exit_code=None, job_id=job_id)
-    code = _exit_code(await agent.call(cmd, args))
+    data = await agent.call(cmd, args)
+    code = _exit_code(data)
     outcome: Literal["succeeded", "failed"] = "succeeded" if code == 0 else "failed"
-    return status.HTTP_200_OK, ControlOut(status=outcome, exit_code=code, job_id=None)
+    stdout = data.get("stdout")
+    output = _ESCAPES.sub("", stdout) if isinstance(stdout, str) else None
+    return status.HTTP_200_OK, ControlOut(
+        status=outcome, exit_code=code, job_id=None, output=output
+    )
 
 
 async def _audit(
@@ -370,17 +381,22 @@ async def _running_job(
 ) -> JobOut | None:
     """The newest job started here that is still running and that `user` may see, if any.
 
-    The agent forgets finished jobs after an hour, so only that hour is checked. An agent
-    that can't answer leaves it unknown (None); the page still loads.
+    Only exclusive jobs count: a log follow or a backtest never holds up the buttons. The
+    agent forgets finished jobs after an hour, so only that hour is checked. An agent that
+    can't answer leaves it unknown (None); the page still loads.
     """
     agent: AgentClient | None = request.app.state.agent
     if agent is None:
         return None
+    specs = CONTROLS[service].values()
+    exclusive = {f"{service}.{spec.cmd}" for spec in specs if spec.exclusive}
+    exclusive_perms = {spec.perm.value for spec in specs if spec.exclusive and spec.job}
     rows = await db.scalars(
         select(ControlRequest)
         .where(
             ControlRequest.service == service,
             ControlRequest.job_id.is_not(None),
+            ControlRequest.perm.in_(exclusive_perms),
             ControlRequest.created_at >= datetime.now(UTC) - RUNNING_LOOKBACK,
         )
         .order_by(ControlRequest.id.desc())
@@ -399,7 +415,7 @@ async def _running_job(
         except ValidationError:
             log.warning("running job lookup got an unexpected reply")
             return None
-        if job.status == "running":
+        if job.status == "running" and job.cmd in exclusive:
             return job
     return None
 
@@ -425,6 +441,7 @@ async def control_menu(
                 confirm=spec.confirm,
                 perm=spec.perm.value,
                 typed_confirm=spec.perm == Perm.CONTROL_DESTRUCTIVE,
+                confirm_first=spec.confirm_first,
                 job=spec.job,
             )
             for name, spec in actions.items()
@@ -433,25 +450,51 @@ async def control_menu(
     )
 
 
+JobId = Annotated[str, Path(pattern=JOB_ID_PATTERN)]
+
+
+async def job_call(
+    request: Request, db: AsyncSession, user: User, service: str, job_id: str, cmd: str
+) -> dict[str, Any]:
+    """Run agent `cmd` on a job `user` may see; a job they may not see reads as not found."""
+    if not await job_access(db, user, service, job_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, JOB_NOT_FOUND)
+    try:
+        return await agent_or_error(request).call(cmd, {"job_id": job_id})
+    except AgentError as error:
+        if error.code == "not_found":
+            raise HTTPException(status.HTTP_404_NOT_FOUND, JOB_NOT_FOUND) from None
+        log.warning("job call failed at the agent", cmd=cmd, code=error.code)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, AGENT_DOWN) from None
+
+
+def _job_out(data: dict[str, Any]) -> JobOut:
+    try:
+        return JobOut.model_validate(data)
+    except ValidationError:
+        log.warning("job reply did not match the schema")
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, AGENT_DOWN) from None
+
+
 @router.get("/{service}/jobs/{job_id}", response_model=JobOut)
 async def get_job(
     service: ServiceName,
-    job_id: Annotated[str, Path(pattern=JOB_ID_PATTERN)],
+    job_id: JobId,
     request: Request,
     user: Annotated[User, Depends(require(Perm.VIEW))],
     db: Db,
 ) -> JobOut:
     """A job's status and output line count, for whoever may still run what started it."""
-    if not await job_access(db, user, service, job_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, JOB_NOT_FOUND)
-    try:
-        data = await agent_or_error(request).call("job.get", {"job_id": job_id})
-        return JobOut.model_validate(data)
-    except AgentError as error:
-        if error.code == "not_found":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, JOB_NOT_FOUND) from None
-        log.warning("job lookup failed at the agent", code=error.code)
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, AGENT_DOWN) from None
-    except ValidationError:
-        log.warning("job lookup got an unexpected reply")
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, AGENT_DOWN) from None
+    return _job_out(await job_call(request, db, user, service, job_id, "job.get"))
+
+
+@router.post("/{service}/jobs/{job_id}/cancel", response_model=JobOut)
+async def cancel_job(
+    service: ServiceName,
+    job_id: JobId,
+    request: Request,
+    user: Annotated[User, Depends(require(Perm.VIEW))],
+    db: Db,
+) -> JobOut:
+    """Stop a running job (a log follow, say); a finished job is returned as it is."""
+    return _job_out(await job_call(request, db, user, service, job_id, "job.cancel"))

@@ -9,20 +9,29 @@
 		body = {},
 		label,
 		danger = false,
-		compact = false
+		compact = false,
+		busy,
+		onpress,
+		submit = false
 	}: {
 		name: ActionName;
 		body?: ActionBody;
 		label?: string;
 		danger?: boolean;
 		compact?: boolean;
+		/** Replaces the service-wide busy state, for a read that only waits for itself. */
+		busy?: boolean;
+		/** Runs instead of the confirm modal, for a read the page handles itself. */
+		onpress?: () => void;
+		/** A submit button for the surrounding form, which sends the action itself. */
+		submit?: boolean;
 	} = $props();
 
 	const id = $props.id();
 	const action = $derived(control.action(name));
 	const reason = $derived(
 		action && control.service
-			? disabledReason(action, session.me, control.service, control.running)
+			? disabledReason(action, session.me, control.service, busy ?? control.running)
 			: null
 	);
 </script>
@@ -34,7 +43,8 @@
 			disabled={reason !== null}
 			aria-describedby={reason ? `${id}-reason` : undefined}
 			title={compact && reason ? reason : undefined}
-			onclick={() => void control.ask(name, body)}
+			type={submit ? 'submit' : 'button'}
+			onclick={submit ? undefined : () => (onpress ? onpress() : void control.ask(name, body))}
 		>
 			{label ?? action.label}
 		</Button>

@@ -11,7 +11,7 @@ import {
 	type Job
 } from '#lib/control';
 import { liveFor } from '#lib/live/index';
-import { jobTopicFor } from '#lib/live/protocol';
+import { jobTopicFor, type JobMessage } from '#lib/live/protocol';
 import { api } from '#lib/session.svelte';
 import { toast } from '#lib/toast.svelte';
 
@@ -124,6 +124,54 @@ class Control {
 	cancel(): void {
 		this.pending?.settle(null);
 		this.pending = null;
+	}
+
+	/**
+	 * Send a read (an action with `confirm_first` off) on the press, without a modal or the
+	 * job drawer; failures show as a toast and give null.
+	 */
+	async run(name: ActionName, body: ActionBody = {}): Promise<ControlOut | null> {
+		const action = this.action(name);
+		const service = this.service;
+		if (!action || !service) return null;
+		try {
+			return await this.#send(service, { action, body, key: newKey(), settle: () => {} });
+		} catch (e) {
+			toast('error', message(e));
+			return null;
+		}
+	}
+
+	/** Follow a job's output lines and end on this page; returns the function that stops. */
+	watch(jobId: string, listener: (message: JobMessage) => void): () => void {
+		const service = this.service;
+		if (!service) return () => {};
+		const live = liveFor(service);
+		const topic = jobTopicFor(service, jobId);
+		live.start(topic);
+		const off = live.onJob((message) => {
+			if (message.topic === topic) listener(message);
+		});
+		return () => {
+			off();
+			live.unfollow(topic);
+		};
+	}
+
+	/** Stop a job; `keepalive` lets the request finish while the page is closing. */
+	async stopJob(jobId: string, keepalive = false): Promise<void> {
+		const service = this.service;
+		if (!service) return;
+		try {
+			await unwrap(
+				api.POST('/{service}/jobs/{job_id}/cancel', {
+					params: { path: { service, job_id: jobId } },
+					keepalive
+				})
+			);
+		} catch (e) {
+			if (!keepalive) toast('error', message(e));
+		}
 	}
 
 	closeJob(): void {
