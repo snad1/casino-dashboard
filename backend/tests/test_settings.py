@@ -174,3 +174,15 @@ def test_error_detail_only_outside_staging_and_production(
     for env, exposed in cases:
         monkeypatch.setenv("APP_ENV", env)
         assert load_settings().exposes_error_detail is exposed
+
+
+def test_the_alert_bot_username_is_checked_and_blank_means_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TELEGRAM_BOT_USERNAME", "@casino_alert_bot")
+    assert load_settings().telegram_bot_username == "casino_alert_bot"
+    monkeypatch.setenv("TELEGRAM_BOT_USERNAME", " ")
+    assert load_settings().telegram_bot_username is None
+    monkeypatch.setenv("TELEGRAM_BOT_USERNAME", "bad name/x")
+    with pytest.raises(ValidationError, match="telegram_bot_username"):
+        load_settings()

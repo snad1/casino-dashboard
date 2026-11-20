@@ -14,6 +14,7 @@ from app.adapters.base import ServiceAdapter
 from app.adapters.wolfbet import WolfBetAdapter
 from app.agent_client import AgentClient
 from app.alerts.engine import Engine
+from app.api.alerts import router as alerts_router
 from app.api.analytics import router as analytics_router
 from app.api.config import router as config_router
 from app.api.control import router as control_router
@@ -64,6 +65,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings.agent_socket is not None and settings.agent_token is not None:
         agent = AgentClient(settings.agent_socket, settings.agent_token.get_secret_value())
     hub: Hub | None = None
+    alerts: Engine | None = None
     if settings.live_service is not None:
         if settings.live_service not in ADAPTERS:
             raise ValueError(f"no live adapter for service {settings.live_service!r}")
@@ -81,7 +83,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """Run the live pipeline (stream to model to sockets) for the app's whole life."""
         stop = asyncio.Event()
         tasks = []
-        if hub is not None:
+        if hub is not None and alerts is not None:
             try:
                 await alerts.start()
             except Exception:
@@ -118,6 +120,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.hub = hub
     app.state.agent = agent
     app.state.host_tz = settings.host_tz
+    app.state.alerts = alerts
+    app.state.telegram_bot_username = settings.telegram_bot_username
     install_error_handlers(app, settings.exposes_error_detail)
     install_step_handler(app)
     # Added innermost first: headers wrap everything, including the generic 500.
@@ -142,6 +146,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_router)
     app.include_router(history_router)
     app.include_router(analytics_router)
+    app.include_router(alerts_router)
     app.include_router(control_router)
     app.include_router(config_router)
     app.include_router(files_router)

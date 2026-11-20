@@ -25,6 +25,9 @@ from pydantic_settings import (
 AppEnv = Literal["local", "development", "testing", "staging", "production"]
 
 
+_BOT_NAME = re.compile(r"[A-Za-z0-9_]{5,32}")
+
+
 def _known_zone(value: str) -> str:
     try:
         ZoneInfo(value)
@@ -169,12 +172,26 @@ class Settings(DatabaseSettings):
     vapid_public_key: str | None = None
     live_service: str | None = "wolfbet"
     live_hz: int = Field(default=5, ge=4, le=10)
+    telegram_bot_username: str | None = None
 
     session_secret: SecretStr
     totp_key: SecretStr
     redis_dashboard_password: SecretStr
     agent_token: SecretStr | None = None
     vapid_private_key: SecretStr | None = None
+
+    @field_validator("telegram_bot_username", mode="before")
+    @classmethod
+    def _bot_username(cls, value: object) -> object:
+        """The alert bot's public @name, used only to build its link; blank means none."""
+        if not isinstance(value, str):
+            return value
+        name = value.strip().removeprefix("@")
+        if not name:
+            return None
+        if not _BOT_NAME.fullmatch(name):
+            raise ValueError("must be a Telegram bot username (5-32 letters, digits or _)")
+        return name
 
     @field_validator("public_host")
     @classmethod

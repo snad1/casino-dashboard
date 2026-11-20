@@ -102,6 +102,7 @@ services:
       REDIS_HOST: redis
       REDIS_USER: dashboard
       AGENT_SOCKET: /run/casino-agent/agent.sock
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
     secrets:
       - session_secret
       - totp_key

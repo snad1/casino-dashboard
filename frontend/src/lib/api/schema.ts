@@ -81,6 +81,47 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/alerts/me/channels': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/** Get My Channels */
+		get: operations['get_my_channels_alerts_me_channels_get'];
+		/**
+		 * Set My Channels
+		 * @description Turn the caller's channels on or off and set their quiet hours (host time).
+		 */
+		put: operations['set_my_channels_alerts_me_channels_put'];
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/alerts/me/telegram-link': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/**
+		 * Link Telegram
+		 * @description A ten-minute link that opens the alert bot with the caller's one-time code.
+		 */
+		post: operations['link_telegram_alerts_me_telegram_link_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/audit': {
 		parameters: {
 			query?: never;
@@ -348,6 +389,82 @@ export interface paths {
 		 * @description A one-time pass for opening the live socket from this session within 30 s.
 		 */
 		post: operations['ws_ticket_ws_ticket_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/alerts/events': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * List Events
+		 * @description Newest first; pass `next_before` back as `before` for the next page.
+		 */
+		get: operations['list_events__service__alerts_events_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/alerts/rules': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/** List Rules */
+		get: operations['list_rules__service__alerts_rules_get'];
+		put?: never;
+		/** Create Rule */
+		post: operations['create_rule__service__alerts_rules_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/alerts/rules/{rule_id}': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		/** Update Rule */
+		put: operations['update_rule__service__alerts_rules__rule_id__put'];
+		post?: never;
+		/** Delete Rule */
+		delete: operations['delete_rule__service__alerts_rules__rule_id__delete'];
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/alerts/rules/{rule_id}/test': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/**
+		 * Test Rule
+		 * @description Send a test alert for the rule to the caller only, on their own channels.
+		 */
+		post: operations['test_rule__service__alerts_rules__rule_id__test_post'];
 		delete?: never;
 		options?: never;
 		head?: never;
@@ -1215,6 +1332,32 @@ export interface components {
 			/** Next Before */
 			next_before: number | null;
 		};
+		/** ChannelsIn */
+		ChannelsIn: {
+			/** Email Enabled */
+			email_enabled: boolean;
+			/** Quiet End */
+			quiet_end?: string | null;
+			/** Quiet Start */
+			quiet_start?: string | null;
+			/** Telegram Enabled */
+			telegram_enabled: boolean;
+		};
+		/** ChannelsOut */
+		ChannelsOut: {
+			/** Email Enabled */
+			email_enabled: boolean;
+			/** Quiet End */
+			quiet_end: string | null;
+			/** Quiet Start */
+			quiet_start: string | null;
+			/** Telegram Available */
+			telegram_available: boolean;
+			/** Telegram Enabled */
+			telegram_enabled: boolean;
+			/** Telegram Linked */
+			telegram_linked: boolean;
+		};
 		/** Charts */
 		Charts: {
 			/** By Day */
@@ -1442,6 +1585,31 @@ export interface components {
 			/** Secret */
 			secret: string;
 		};
+		/** EventOut */
+		EventOut: {
+			/**
+			 * Fired At
+			 * Format: date-time
+			 */
+			fired_at: string;
+			/** Id */
+			id: number;
+			/** Kind */
+			kind: string;
+			/** Lane */
+			lane: number | null;
+			/** Message */
+			message: string;
+			/** Value */
+			value: number | null;
+		};
+		/** EventPage */
+		EventPage: {
+			/** Items */
+			items: components['schemas']['EventOut'][];
+			/** Next Before */
+			next_before: number | null;
+		};
 		/** ExportArgs */
 		ExportArgs: {
 			/**
@@ -1540,6 +1708,20 @@ export interface components {
 			status: 'running' | 'succeeded' | 'failed' | 'cancelled' | 'timeout';
 		};
 		JsonValue: unknown;
+		/**
+		 * Kind
+		 * @enum {string}
+		 */
+		Kind:
+			| 'profit'
+			| 'loss'
+			| 'drawdown'
+			| 'down'
+			| 'stop_reason'
+			| 'bps_below'
+			| 'publisher_dropped'
+			| 'ingest_lag'
+			| 'reconcile_mismatch';
 		/** LaneRange */
 		LaneRange: {
 			/** Max */
@@ -1602,6 +1784,16 @@ export interface components {
 			wins_total: number | null;
 			/** Worst Profit */
 			worst_profit: number | null;
+		};
+		/** LinkOut */
+		LinkOut: {
+			/**
+			 * Expires At
+			 * Format: date-time
+			 */
+			expires_at: string;
+			/** Url */
+			url: string;
 		};
 		/** LoginIn */
 		LoginIn: {
@@ -1707,6 +1899,47 @@ export interface components {
 			role: string;
 			/** Service */
 			service: string | null;
+		};
+		/** RuleIn */
+		RuleIn: {
+			/**
+			 * Cooldown S
+			 * @default 600
+			 */
+			cooldown_s: number;
+			/**
+			 * Enabled
+			 * @default false
+			 */
+			enabled: boolean;
+			kind: components['schemas']['Kind'];
+			/** Lane */
+			lane?: number | null;
+			/** Name */
+			name: string;
+			/** Params */
+			params?: {
+				[key: string]: unknown;
+			};
+		};
+		/** RuleOut */
+		RuleOut: {
+			/** Cooldown S */
+			cooldown_s: number;
+			/** Enabled */
+			enabled: boolean;
+			/** Id */
+			id: number;
+			/** Kind */
+			kind: string;
+			/** Lane */
+			lane: number | null;
+			/** Name */
+			name: string;
+			/** Params */
+			params: {
+				[key: string]: unknown;
+			};
 		};
 		/** SeriesOut */
 		SeriesOut: {
@@ -1861,6 +2094,11 @@ export interface components {
 			 * @default all
 			 */
 			target: number | 'all';
+		};
+		/** TestOut */
+		TestOut: {
+			/** Channels */
+			channels: ('email' | 'telegram')[];
 		};
 		/** Ticket */
 		Ticket: {
@@ -2056,6 +2294,79 @@ export interface operations {
 				};
 				content: {
 					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	get_my_channels_alerts_me_channels_get: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ChannelsOut'];
+				};
+			};
+		};
+	};
+	set_my_channels_alerts_me_channels_put: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['ChannelsIn'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ChannelsOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	link_telegram_alerts_me_telegram_link_post: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['LinkOut'];
 				};
 			};
 		};
@@ -2461,6 +2772,204 @@ export interface operations {
 				};
 				content: {
 					'application/json': components['schemas']['Ticket'];
+				};
+			};
+		};
+	};
+	list_events__service__alerts_events_get: {
+		parameters: {
+			query?: {
+				before?: number | null;
+				limit?: number;
+			};
+			header?: never;
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['EventPage'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	list_rules__service__alerts_rules_get: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['RuleOut'][];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	create_rule__service__alerts_rules_post: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['RuleIn'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			201: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['RuleOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	update_rule__service__alerts_rules__rule_id__put: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+				rule_id: number;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['RuleIn'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['RuleOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	delete_rule__service__alerts_rules__rule_id__delete: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+				rule_id: number;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			204: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content?: never;
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	test_rule__service__alerts_rules__rule_id__test_post: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+				rule_id: number;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['TestOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
 				};
 			};
 		};
