@@ -79,7 +79,8 @@ class Frame(BaseModel):
 
 
 class Chunk(BaseModel):
-    """One piece of a file (base64 of up to 64 KiB), sent before the final reply to file.read."""
+    """Base64 bytes sent before the final reply: up to 64 KiB of a file for file.read, or up
+    to 16 KiB of terminal output for pty.stream (seq is its last chunk; resume from seq + 1)."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 

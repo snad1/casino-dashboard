@@ -341,22 +341,25 @@ class JobManager:
                 del self.jobs[job.id]
 
     # ── audit ──
-    def _audit(self, event: str, job: Job) -> None:
+    def record(self, event: str, **fields: Any) -> None:
+        """Append one audit record (seq, event, `fields`, at_ms) for the api to pull."""
         self._audit_seq += 1
-        record: dict[str, Any] = {
-            "seq": self._audit_seq,
-            "event": event,
+        self.audit_log.append(
+            {"seq": self._audit_seq, "event": event, **fields, "at_ms": _now_ms()}
+        )
+
+    def _audit(self, event: str, job: Job) -> None:
+        fields: dict[str, Any] = {
             "job_id": job.id,
             "cmd": job.cmd,
             "args": job.args,
             "peer_uid": job.peer_uid,
-            "at_ms": _now_ms(),
         }
         if event == "finish":
-            record.update(
+            fields.update(
                 status=job.status, exit_code=job.exit_code, duration_ms=job.summary()["duration_ms"]
             )
-        self.audit_log.append(record)
+        self.record(event, **fields)
 
     def audit(self, after: int = 0, limit: int = 100) -> dict[str, Any]:
         records = [r for r in self.audit_log if r["seq"] > after][:limit]

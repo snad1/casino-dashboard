@@ -17,6 +17,7 @@ from agent.files import FileStore
 from agent.jobs import JobManager
 from agent.metrics import DEFAULT_PROJECT, Metrics
 from agent.protocol import PROTO_VERSION, signed_request
+from agent.pty import PtyManager
 from agent.server import DEFAULT_HANDLERS, AgentServer
 from agent.services.wolfbet import WolfBetPaths, WolfBetService
 
@@ -39,19 +40,22 @@ def call(
 
 
 async def _serve(config: AgentConfig) -> None:
-    """The agent with WolfBet's commands, jobs and the export store (swept now and every 10 min)."""
+    """The agent with WolfBet's commands, jobs, the export store (swept now and every 10 min)
+    and the owner's terminal."""
     paths = WolfBetPaths.from_env()
     files = FileStore(paths.export_dir)
     files.sweep()
     jobs = JobManager(files=files)
     service = WolfBetService(paths, busy=lambda: jobs.mutating_running("wolfbet"), files=files)
     jobs.register("wolfbet", service)
+    terminal = PtyManager.from_env(audit=jobs.record)
     metrics = Metrics(project=os.environ.get("CASINO_AGENT_COMPOSE_PROJECT", DEFAULT_PROJECT))
     handlers = {
         **DEFAULT_HANDLERS,
         **service.handlers(),
         **jobs.handlers(),
         **files.handlers(),
+        **terminal.handlers(),
         "metrics": metrics.handler,
     }
     sweeper = asyncio.create_task(files.sweep_forever())
@@ -59,6 +63,7 @@ async def _serve(config: AgentConfig) -> None:
         await AgentServer(config, handlers=handlers).serve_forever()
     finally:
         sweeper.cancel()
+        await terminal.shutdown()
 
 
 def main(argv: list[str] | None = None) -> int:
