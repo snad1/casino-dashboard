@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.wolfbet.control import LANES_MAX
 from app.alerts.channels import LINK_TTL, issue_link_code
+from app.alerts.digest import DIGEST_KIND
 from app.alerts.models import (
     AlertDelivery,
     AlertEvent,
@@ -107,6 +108,7 @@ class ChannelsIn(_Body):
     email_enabled: bool
     telegram_enabled: bool
     push_private: bool = True
+    digest_hour: Annotated[int, Field(ge=0, le=23)] | None = None
     quiet_start: time | None = None
     quiet_end: time | None = None
 
@@ -118,6 +120,7 @@ class ChannelsOut(BaseModel):
     telegram_available: bool
     push_private: bool
     push_key: str | None
+    digest_hour: int | None
     quiet_start: time | None
     quiet_end: time | None
 
@@ -296,7 +299,7 @@ async def list_events(
     _known(service)
     query = (
         select(AlertEvent)
-        .where(AlertEvent.service == service)
+        .where(AlertEvent.service == service, AlertEvent.kind != DIGEST_KIND)
         .order_by(AlertEvent.id.desc())
         .limit(limit + 1)
     )
@@ -329,6 +332,7 @@ def _channels_out(request: Request, prefs: UserChannels | None) -> ChannelsOut:
         telegram_available=request.app.state.telegram_bot_username is not None,
         push_private=prefs.push_private if prefs else True,
         push_key=request.app.state.vapid_public_key,
+        digest_hour=prefs.digest_hour if prefs else None,
         quiet_start=prefs.quiet_start if prefs else None,
         quiet_end=prefs.quiet_end if prefs else None,
     )
@@ -353,6 +357,7 @@ async def set_my_channels(request: Request, body: ChannelsIn, user: Me, db: Db) 
     prefs.telegram_enabled = body.telegram_enabled and prefs.telegram_chat_id is not None
     prefs.quiet_start, prefs.quiet_end = start, end
     prefs.push_private = body.push_private
+    prefs.digest_hour = body.digest_hour
     prefs.updated_at = datetime.now(UTC)
     await db.commit()
     return _channels_out(request, prefs)

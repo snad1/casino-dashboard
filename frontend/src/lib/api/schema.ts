@@ -1374,6 +1374,8 @@ export interface components {
 		};
 		/** ChannelsIn */
 		ChannelsIn: {
+			/** Digest Hour */
+			digest_hour?: number | null;
 			/** Email Enabled */
 			email_enabled: boolean;
 			/**
@@ -1390,6 +1392,8 @@ export interface components {
 		};
 		/** ChannelsOut */
 		ChannelsOut: {
+			/** Digest Hour */
+			digest_hour: number | null;
 			/** Email Enabled */
 			email_enabled: boolean;
 			/** Push Key */

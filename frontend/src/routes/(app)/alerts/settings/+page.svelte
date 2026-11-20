@@ -21,6 +21,8 @@
 	let linkError = $state<string | null>(null);
 	let saving = $state(false);
 	let pushPrivate = $state(true);
+	let digestHour = $state('off');
+	const HOURS = Array.from({ length: 24 }, (_, h) => h);
 	let pushOn = $state(false);
 	let pushBusy = $state(false);
 	let pushError = $state<string | null>(null);
@@ -44,6 +46,7 @@
 		email = out.email_enabled;
 		telegram = out.telegram_enabled;
 		pushPrivate = out.push_private;
+		digestHour = out.digest_hour === null ? 'off' : String(out.digest_hour);
 		quietOn = out.quiet_start !== null && out.quiet_end !== null;
 		if (out.quiet_start) quietStart = out.quiet_start.slice(0, 5);
 		if (out.quiet_end) quietEnd = out.quiet_end.slice(0, 5);
@@ -100,6 +103,7 @@
 							email_enabled: email,
 							telegram_enabled: telegram,
 							push_private: pushPrivate,
+							digest_hour: digestHour === 'off' ? null : Number(digestHour),
 							quiet_start: quietOn ? `${quietStart}:00` : null,
 							quiet_end: quietOn ? `${quietEnd}:00` : null
 						}
@@ -217,6 +221,18 @@
 			<label class={check}>
 				<input type="checkbox" class="size-5" bind:checked={pushPrivate} />
 				Private notifications (hide alert text)
+			</label>
+			<label class="flex flex-col gap-1 text-sm font-medium">
+				Daily summary
+				<select class="{input} w-40" bind:value={digestHour}>
+					<option value="off">Off</option>
+					{#each HOURS as hour (hour)}
+						<option value={String(hour)}>{String(hour).padStart(2, '0')}:00</option>
+					{/each}
+				</select>
+				<span class="font-normal text-muted"
+					>Sent at this hour, bot host time, for the day before.</span
+				>
 			</label>
 			<label class={check}>
 				<input type="checkbox" class="size-5" bind:checked={quietOn} />

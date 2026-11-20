@@ -31,6 +31,7 @@ const CHANNELS = {
 	telegram_available: true,
 	push_private: true,
 	push_key: null as string | null,
+	digest_hour: null as number | null,
 	quiet_start: null,
 	quiet_end: null
 };
@@ -157,6 +158,7 @@ test('a user turns email on, sets quiet hours and gets a Telegram link', async (
 	await expect(page.getByLabel(/Telegram alerts/)).toBeDisabled();
 
 	await page.getByLabel(/Email alerts to/).check();
+	await page.getByLabel('Daily summary').selectOption('8');
 	await page.getByLabel('Quiet hours').check();
 	await page.getByLabel('From').fill('22:30');
 	await page.getByRole('button', { name: 'Save' }).click();
@@ -165,6 +167,7 @@ test('a user turns email on, sets quiet hours and gets a Telegram link', async (
 		email_enabled: true,
 		telegram_enabled: false,
 		push_private: true,
+		digest_hour: 8,
 		quiet_start: '22:30:00',
 		quiet_end: '07:00:00'
 	});

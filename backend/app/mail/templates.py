@@ -87,3 +87,14 @@ def alert(message: str) -> Rendered:
         f"Alert: {message[:120]}",
         [message, "You get this because alerts by email are on in your dashboard settings."],
     )
+
+
+def digest(heading: str, lines: list[str]) -> Rendered:
+    return _render(
+        heading,
+        [
+            heading,
+            *lines,
+            "You get this because the daily summary is on in your alert settings.",
+        ],
+    )

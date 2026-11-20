@@ -203,6 +203,12 @@ def test_history_pages_newest_first(owner: TestClient, control_settings: Setting
         await session.commit()
 
     run_in_session(control_settings, seed)
+
+    async def summary(session: AsyncSession) -> None:
+        session.add(AlertEvent(service="wolfbet", kind="digest", message="Daily summary"))
+        await session.commit()
+
+    run_in_session(control_settings, summary)
     first = owner.get("/wolfbet/alerts/events?limit=3").json()
     assert [e["message"] for e in first["items"]] == ["event 4", "event 3", "event 2"]
     second = owner.get(f"/wolfbet/alerts/events?limit=3&before={first['next_before']}").json()
@@ -220,6 +226,7 @@ def test_users_set_their_own_channels_and_quiet_hours(signed_in_as: Any) -> None
         "telegram_available": False,
         "push_private": True,
         "push_key": None,
+        "digest_hour": None,
         "quiet_start": None,
         "quiet_end": None,
     }
@@ -233,6 +240,16 @@ def test_users_set_their_own_channels_and_quiet_hours(signed_in_as: Any) -> None
     assert saved["email_enabled"] is True
     assert saved["telegram_enabled"] is False, "telegram stays off until a chat is linked"
     assert (saved["quiet_start"], saved["quiet_end"]) == ("23:00:00", "07:00:00")
+    daily = viewer.put(
+        "/alerts/me/channels", json={**body, "digest_hour": 8}, headers=csrf(viewer)
+    ).json()
+    assert daily["digest_hour"] == 8
+    for hour in (-1, 24):
+        bad_hour = {**body, "digest_hour": hour}
+        assert (
+            viewer.put("/alerts/me/channels", json=bad_hour, headers=csrf(viewer)).status_code
+            == 422
+        )
     for quiet in (("23:00:00", None), ("07:00:00", "07:00:00")):
         bad = {**body, "quiet_start": quiet[0], "quiet_end": quiet[1]}
         response = viewer.put("/alerts/me/channels", json=bad, headers=csrf(viewer))

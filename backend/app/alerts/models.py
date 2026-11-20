@@ -6,13 +6,14 @@ no recipient; the mailer fans each out into one delivery per user who should get
 for push one per device.
 """
 
-from datetime import datetime, time
+from datetime import date, datetime, time
 from typing import Any
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Double,
     ForeignKey,
@@ -20,6 +21,7 @@ from sqlalchemy import (
     Index,
     Integer,
     LargeBinary,
+    SmallInteger,
     Text,
     Time,
     func,
@@ -119,6 +121,11 @@ class UserChannels(Base):
     that ends before it starts runs over midnight. A Telegram link code is stored hashed."""
 
     __tablename__ = "user_channels"
+    __table_args__ = (
+        CheckConstraint(
+            "digest_hour IS NULL OR (digest_hour >= 0 AND digest_hour <= 23)", name="digest_hour"
+        ),
+    )
 
     user_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
@@ -131,7 +138,24 @@ class UserChannels(Base):
     quiet_start: Mapped[time | None] = mapped_column(Time)
     quiet_end: Mapped[time | None] = mapped_column(Time)
     push_private: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    digest_hour: Mapped[int | None] = mapped_column(SmallInteger)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DigestSend(Base):
+    """That a user's daily summary for a service and day was handled, sent or skipped, so a
+    restart never sends it twice."""
+
+    __tablename__ = "digest_sends"
+    __table_args__ = (CheckConstraint("outcome IN ('sent', 'skipped')", name="outcome"),)
+
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    service: Mapped[str] = mapped_column(Text, primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    outcome: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class PushSubscription(Base):

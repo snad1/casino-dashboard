@@ -584,6 +584,19 @@
       "ChannelsIn": {
         "additionalProperties": false,
         "properties": {
+          "digest_hour": {
+            "anyOf": [
+              {
+                "maximum": 23.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Digest Hour"
+          },
           "email_enabled": {
             "title": "Email Enabled",
             "type": "boolean"
@@ -631,6 +644,17 @@
       },
       "ChannelsOut": {
         "properties": {
+          "digest_hour": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Digest Hour"
+          },
           "email_enabled": {
             "title": "Email Enabled",
             "type": "boolean"
@@ -694,6 +718,7 @@
           "telegram_available",
           "push_private",
           "push_key",
+          "digest_hour",
           "quiet_start",
           "quiet_end"
         ],

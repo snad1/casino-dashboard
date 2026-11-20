@@ -13,6 +13,7 @@ from redis.asyncio import Redis
 from app.adapters.base import ServiceAdapter
 from app.adapters.wolfbet import WolfBetAdapter
 from app.agent_client import AgentClient
+from app.alerts import digest
 from app.alerts.engine import Engine
 from app.api.alerts import router as alerts_router
 from app.api.analytics import router as analytics_router
@@ -92,6 +93,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 asyncio.create_task(consumer.run(stop)),
                 asyncio.create_task(run_ticker(aggregator, hub.publish, stop, settings.live_hz)),
                 asyncio.create_task(alerts.run(stop, aggregator)),
+                asyncio.create_task(
+                    digest.run(stop, sessionmaker, alerts.service, settings.host_tz)
+                ),
                 asyncio.create_task(hub.run_heartbeat(stop)),
                 asyncio.create_task(resync.run(stop)),
                 asyncio.create_task(system.run(stop)),
