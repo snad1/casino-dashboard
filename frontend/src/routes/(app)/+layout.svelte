@@ -26,6 +26,11 @@
 		},
 		{ href: resolve('/(app)/[service=service]/config', { service }), label: 'Config', show: true },
 		{
+			href: resolve('/(app)/[service=service]/lanes', { service }),
+			label: 'Lanes',
+			show: true
+		},
+		{
 			href: resolve('/(app)/[service=service]/tools', { service }),
 			label: 'Tools',
 			show: true

@@ -62,6 +62,7 @@ ALLOWED: dict[Role, set[str]] = {
         "benchmark",
         "backtest",
         "export",
+        "archives",
     },
     Role.ADMIN: set(ACTIONS),
     Role.OWNER: set(ACTIONS),
@@ -440,7 +441,16 @@ def test_reads_run_without_a_confirm_and_return_clean_output(
     client = signed_in_as(Role.OPERATOR)
     menu = {a["name"]: a for a in client.get("/wolfbet/control").json()["actions"]}
     reads = {name for name, action in menu.items() if not action["confirm_first"]}
-    assert reads == {"logs", "logs_follow", "diagnose", "doctor", "benchmark", "backtest", "export"}
+    assert reads == {
+        "logs",
+        "logs_follow",
+        "diagnose",
+        "doctor",
+        "benchmark",
+        "backtest",
+        "export",
+        "archives",
+    }
     fake_agent.reply = lambda request: [
         ok(request, {"exit_code": 0, "stderr": "", "stdout": "\x1b[32mINFO\x1b[0m  ok\r\nnext\x07"})
     ]

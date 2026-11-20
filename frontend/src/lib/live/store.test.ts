@@ -274,6 +274,17 @@ describe('live store', () => {
 		socket(0).drop();
 	});
 
+	it('resubscribes only to topics it follows', async () => {
+		const { store, socket, settle } = rig();
+		store.start('svc:wolfbet');
+		await settle();
+		socket(0).open();
+		const sent = socket(0).sent.length;
+		store.resubscribe('svc:wolfbet');
+		store.resubscribe('svc:other');
+		expect(socket(0).sent.slice(sent)).toEqual([{ op: 'subscribe', topic: 'svc:wolfbet' }]);
+	});
+
 	it('stop closes the socket and cancels any retry', async () => {
 		const { store, sockets, socket, advance, settle } = rig();
 		store.start('svc:wolfbet');

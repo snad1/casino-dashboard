@@ -31,6 +31,7 @@ CONTROL_COMMANDS = (
     "benchmark",
     "backtest",
     "export",
+    "archives",
 )
 
 

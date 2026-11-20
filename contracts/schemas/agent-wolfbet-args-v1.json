@@ -1,4 +1,10 @@
 {
+  "archives": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
   "backtest": {
     "additionalProperties": false,
     "properties": {

@@ -116,6 +116,9 @@ export const controlMenu = {
 			job: true
 		}),
 		action('export', 'export', 'Export', 'Export?', 'Export', { read: true, job: true }),
+		action('archives', 'control.basic', 'List archives', 'List archives?', 'List archives', {
+			read: true
+		}),
 		action('doctor_fix', 'control.destructive', 'Doctor fix', 'Run doctor fix?', 'Run doctor fix', {
 			job: true
 		})

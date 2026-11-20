@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import ActionButton from '#components/ActionButton';
 	import type { ActionBody } from '#lib/control';
@@ -13,23 +14,9 @@
 			.map(Number)
 			.sort((a, b) => a - b)
 	);
-	const SPLITS = ['none', 'budget', 'bet', 'both'] as const;
-
-	let laneCount = $state(1);
-	let split: (typeof SPLITS)[number] | '' = $state('');
 	let days = $state(7);
 	let branch = $state('');
-	let countTouched = false;
 
-	$effect(() => {
-		if (!countTouched && lanes.length) laneCount = lanes.length;
-	});
-
-	const lanesBody = $derived.by(() => {
-		const body: ActionBody = { count: laneCount };
-		if (split) body.split = split;
-		return body;
-	});
 	const updateBody = $derived.by(() => {
 		const body: ActionBody = {};
 		if (branch.trim()) body.branch = branch.trim();
@@ -85,30 +72,13 @@
 		</section>
 
 		<section class={section} aria-labelledby="count-title">
-			<h2 id="count-title" class="mb-3 font-semibold">Lanes count</h2>
-			<div class={row}>
-				<label class="flex flex-col gap-1 text-sm font-medium">
-					Lanes
-					<input
-						type="number"
-						min="1"
-						max="10"
-						class={input}
-						bind:value={laneCount}
-						oninput={() => (countTouched = true)}
-					/>
-				</label>
-				<label class="flex flex-col gap-1 text-sm font-medium">
-					Split
-					<select class={input} bind:value={split}>
-						<option value="">Keep current</option>
-						{#each SPLITS as option (option)}
-							<option value={option}>{option}</option>
-						{/each}
-					</select>
-				</label>
-				<div class="pt-6"><ActionButton name="lanes" body={lanesBody} /></div>
-			</div>
+			<h2 id="count-title" class="mb-2 font-semibold">Lanes count</h2>
+			<p class="text-sm">
+				<a class="underline" href={resolve('/(app)/[service=service]/lanes', { service })}
+					>Change lanes and split</a
+				>
+				<span class="text-muted">with a preview of each lane's share and what restarts.</span>
+			</p>
 		</section>
 
 		<section class={section} aria-labelledby="service-title">

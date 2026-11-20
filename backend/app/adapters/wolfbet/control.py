@@ -384,4 +384,15 @@ ACTIONS: dict[str, ControlAction] = {
         confirm_first=False,
         exclusive=False,
     ),
+    "archives": ControlAction(
+        _BASIC,
+        "archives",
+        NoArgs,
+        label="List archives",
+        title="List the {service} archives?",
+        effect="Lists the statistics databases earlier resets archived.",
+        confirm="List archives",
+        confirm_first=False,
+        exclusive=False,
+    ),
 }

@@ -459,6 +459,23 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/{service}/control/archives': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Archives */
+		post: operations['control_archives__service__control_archives_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/{service}/control/backtest': {
 		parameters: {
 			query?: never;
@@ -2434,6 +2451,52 @@ export interface operations {
 				};
 				content: {
 					'application/json': components['schemas']['ControlMenu'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_archives__service__control_archives_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['NoArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
 				};
 			};
 			/** @description Validation Error */

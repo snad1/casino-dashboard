@@ -112,3 +112,10 @@ export function appliedSince(
 		.filter(({ lane, reload }) => reload && reload.ts_ms !== (marks[lane] ?? null))
 		.map(({ lane, reload }) => ({ lane, keys: reload?.keys ?? [] }));
 }
+
+/** The badge look for a key that applies `live` or after a `restart`. */
+export function badgeClass(apply: string): string {
+	return apply === 'live'
+		? 'rounded border border-profit px-1.5 text-xs text-profit'
+		: 'rounded border border-warn px-1.5 text-xs text-warn';
+}

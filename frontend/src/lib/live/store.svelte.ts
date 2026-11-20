@@ -115,6 +115,11 @@ export class LiveStore {
 		};
 	}
 
+	/** Ask again for `topic`, so the server sends a fresh snapshot (after a lanes change, say). */
+	resubscribe(topic: string): void {
+		if (this.#topics.includes(topic)) this.#send({ op: 'subscribe', topic });
+	}
+
 	/** Stop following `topic` (a job's output, for example) on this connection. */
 	unfollow(topic: string): void {
 		this.#topics = this.#topics.filter((t) => t !== topic);
