@@ -349,6 +349,7 @@ export function changes(before: Rule | null, after: RuleBody): string[] {
 
 /** How a test-fire's channels read in a toast. */
 export function sentTo(channels: string[]): string {
-	const names = channels.map((c) => (c === 'email' ? 'email' : 'Telegram'));
+	const label: Record<string, string> = { email: 'email', telegram: 'Telegram', push: 'push' };
+	const names = channels.map((c) => label[c] ?? c);
 	return `Test sent to ${names.join(' and ')}.`;
 }

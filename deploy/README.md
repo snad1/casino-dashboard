@@ -48,6 +48,17 @@ Run from `casino-dashboard/` on the server, as the user that runs Docker.
    (umask 022; : > deploy/secrets/telegram_bot_token.txt)
    ```
 
+   Push notifications are signed with a key pair of the dashboard's own. Make it once; the private key stays in the secret file (only the mailer reads it), the public key goes in `deploy/.env` as `VAPID_PUBLIC_KEY`:
+
+   ```bash
+   (umask 022; openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -nocrypt > deploy/secrets/vapid_private_key.txt)
+   openssl ec -in deploy/secrets/vapid_private_key.txt -pubout -outform DER 2>/dev/null | tail -c 65 | base64 | tr '/+' '_-' | tr -d '=\n'; echo
+   # or, without push notifications:
+   (umask 022; : > deploy/secrets/vapid_private_key.txt)
+   ```
+
+   Changing the key pair later turns push off on every device until each user turns it on again.
+
    To send through an SMTP relay instead, set `MAIL_BACKEND: smtp` plus `SMTP_HOST`, `SMTP_PORT` and `SMTP_USER` on `mailer`, and give it an `smtp_password` secret in place of `brevo_api_key`. The relay must offer STARTTLS; the mailer refuses to send without it.
 
    The directory (mode 700, root only) is what keeps the files private on the host. The files themselves are world-readable because compose bind-mounts them unchanged and three different container users read them: Redis (uid 999), the api (uid 10001) and Postgres.

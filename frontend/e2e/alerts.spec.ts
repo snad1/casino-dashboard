@@ -29,6 +29,8 @@ const CHANNELS = {
 	telegram_enabled: false,
 	telegram_linked: false,
 	telegram_available: true,
+	push_private: true,
+	push_key: null as string | null,
 	quiet_start: null,
 	quiet_end: null
 };
@@ -162,6 +164,7 @@ test('a user turns email on, sets quiet hours and gets a Telegram link', async (
 	expect(sent.find((s) => s.path === '/alerts/me/channels')?.body).toEqual({
 		email_enabled: true,
 		telegram_enabled: false,
+		push_private: true,
 		quiet_start: '22:30:00',
 		quiet_end: '07:00:00'
 	});
@@ -177,6 +180,93 @@ test('without an alert bot the page says so', async ({ page }) => {
 	await page.goto('/alerts/settings');
 	await expect(page.getByText('Telegram alerts are not set up on this dashboard.')).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Link Telegram' })).toHaveCount(0);
+});
+
+const PUSH_KEY = 'B' + 'A'.repeat(86);
+
+/** A browser whose push service is stubbed: permission is granted and subscribing works. */
+async function fakePush(page: Page, permission: 'default' | 'denied' = 'default'): Promise<void> {
+	await page.addInitScript((perm) => {
+		let current: PushSubscription | null = null;
+		const created = {
+			endpoint: 'https://fcm.googleapis.com/fcm/send/device-1',
+			unsubscribe: async () => {
+				current = null;
+				return true;
+			},
+			toJSON: () => ({
+				endpoint: 'https://fcm.googleapis.com/fcm/send/device-1',
+				keys: { p256dh: 'p-key', auth: 'a-key' }
+			})
+		} as unknown as PushSubscription;
+		const pushManager = {
+			getSubscription: async () => current,
+			subscribe: async () => (current = created)
+		};
+		Object.defineProperty(navigator, 'serviceWorker', {
+			value: {
+				register: async () => ({}),
+				ready: Promise.resolve({ pushManager }),
+				addEventListener: () => undefined
+			}
+		});
+		Object.defineProperty(window, 'PushManager', { value: function PushManager() {} });
+		Object.defineProperty(window, 'Notification', {
+			value: { permission: perm, requestPermission: async () => 'granted' }
+		});
+	}, permission);
+}
+
+test('a user turns push on for this device and keeps it private', async ({ page }) => {
+	await fakePush(page);
+	const sent = await rig(page, viewerMe, {
+		'GET /alerts/me/channels': () => ({ status: 200, json: { ...CHANNELS, push_key: PUSH_KEY } }),
+		'POST /alerts/me/push-subscriptions': () => ({ status: 204 }),
+		'POST /alerts/me/push-subscriptions/remove': () => ({ status: 204 }),
+		'PUT /alerts/me/channels': (body) => ({
+			status: 200,
+			json: { ...CHANNELS, push_key: PUSH_KEY, ...(body as object) }
+		})
+	});
+	await page.goto('/alerts/settings');
+	await expect(page.getByText('Off for this device.')).toBeVisible();
+	await page.getByRole('button', { name: 'Turn on push here' }).click();
+	await expect(page.getByText('Push notifications are on for this device.')).toBeVisible();
+	expect(sent.find((s) => s.path === '/alerts/me/push-subscriptions')?.body).toEqual({
+		endpoint: 'https://fcm.googleapis.com/fcm/send/device-1',
+		keys: { p256dh: 'p-key', auth: 'a-key' }
+	});
+	await expect(page.getByLabel('Private notifications (hide alert text)')).toBeChecked();
+	await page.getByLabel('Private notifications (hide alert text)').uncheck();
+	await page.getByRole('button', { name: 'Save' }).click();
+	await expect(page.getByText('Alert settings saved.')).toBeVisible();
+	expect(sent.find((s) => s.path === '/alerts/me/channels')?.body).toMatchObject({
+		push_private: false
+	});
+	await page.getByRole('button', { name: 'Turn off push here' }).click();
+	await expect(page.getByText('Off for this device.')).toBeVisible();
+	expect(sent.find((s) => s.path === '/alerts/me/push-subscriptions/remove')?.body).toEqual({
+		endpoint: 'https://fcm.googleapis.com/fcm/send/device-1'
+	});
+});
+
+test('push explains when it cannot be used', async ({ page }) => {
+	await rig(page, viewerMe);
+	await page.goto('/alerts/settings');
+	await expect(
+		page.getByText('Push notifications are not set up on this dashboard.')
+	).toBeVisible();
+
+	await fakePush(page, 'denied');
+	await page.unrouteAll({ behavior: 'ignoreErrors' });
+	await rig(page, viewerMe, {
+		'GET /alerts/me/channels': () => ({ status: 200, json: { ...CHANNELS, push_key: PUSH_KEY } })
+	});
+	await page.goto('/alerts/settings');
+	await expect(
+		page.getByText('Notifications are blocked for this site. Allow them in the browser settings.')
+	).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Turn on push here' })).toHaveCount(0);
 });
 
 for (const path of ['/alerts', '/alerts/settings']) {

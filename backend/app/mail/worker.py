@@ -1,7 +1,8 @@
 """The mailer process: drains the outbox, one row per transaction, with backoff on failure.
 
 It also delivers alerts: email alerts become outbox rows here, Telegram alerts go straight
-to the Bot API, and a second task listens for Telegram link messages.
+to the Bot API, push alerts to each browser's push service, and a second task listens for
+Telegram link messages.
 
 It runs as its own container, the only one with a route to the internet, so the api never
 needs outbound access. Rows are claimed with `FOR UPDATE SKIP LOCKED`, so a second worker
@@ -19,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.alerts.channels import TelegramClient, deliver_once, fan_out, poll
+from app.alerts.push import PushSender
 from app.db.engine import create_engine, create_sessionmaker
 from app.mail.mailers import Mailer, MailError, Message, mailer_from
 from app.mail.models import DEAD, PENDING, SENT, OutboxMessage
@@ -68,13 +70,14 @@ async def alerts_once(
     sessionmaker: async_sessionmaker[AsyncSession],
     telegram: TelegramClient | None,
     zone: ZoneInfo,
+    push: PushSender | None = None,
 ) -> None:
     """Fan out new alert deliveries, then send every one that is due, one per transaction."""
     async with sessionmaker() as db, db.begin():
         await fan_out(db, datetime.now(UTC))
     while True:
         async with sessionmaker() as db, db.begin():
-            if not await deliver_once(db, telegram, zone, datetime.now(UTC)):
+            if not await deliver_once(db, telegram, zone, datetime.now(UTC), push):
                 return
 
 
@@ -88,12 +91,16 @@ async def run(stop: asyncio.Event, heartbeat: Path = HEARTBEAT) -> None:
     telegram = TelegramClient(token.get_secret_value()) if token is not None else None
     if telegram is None:
         logger.info("telegram is off: no notification bot token; telegram alerts wait")
+    vapid = settings.vapid_private_key
+    push = PushSender(vapid.get_secret_value(), settings.mail_from) if vapid is not None else None
+    if push is None:
+        logger.info("push is off: no VAPID private key; push alerts wait")
     poller = asyncio.create_task(poll(stop, telegram, sessionmaker)) if telegram else None
     try:
         while not stop.is_set():
             await asyncio.to_thread(heartbeat.touch)
             try:
-                await alerts_once(sessionmaker, telegram, zone)
+                await alerts_once(sessionmaker, telegram, zone, push)
             except Exception:
                 logger.exception("alert pass failed; retrying")
             try:

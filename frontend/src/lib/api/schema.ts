@@ -102,6 +102,46 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/alerts/me/push-subscriptions': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/**
+		 * Add Push Subscription
+		 * @description Turn on push for this browser; a browser already on file moves to the caller.
+		 */
+		post: operations['add_push_subscription_alerts_me_push_subscriptions_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/alerts/me/push-subscriptions/remove': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/**
+		 * Remove Push Subscription
+		 * @description Turn off push for this browser; only the caller's own subscription is touched.
+		 */
+		post: operations['remove_push_subscription_alerts_me_push_subscriptions_remove_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/alerts/me/telegram-link': {
 		parameters: {
 			query?: never;
@@ -1336,6 +1376,11 @@ export interface components {
 		ChannelsIn: {
 			/** Email Enabled */
 			email_enabled: boolean;
+			/**
+			 * Push Private
+			 * @default true
+			 */
+			push_private: boolean;
 			/** Quiet End */
 			quiet_end?: string | null;
 			/** Quiet Start */
@@ -1347,6 +1392,10 @@ export interface components {
 		ChannelsOut: {
 			/** Email Enabled */
 			email_enabled: boolean;
+			/** Push Key */
+			push_key: string | null;
+			/** Push Private */
+			push_private: boolean;
 			/** Quiet End */
 			quiet_end: string | null;
 			/** Quiet Start */
@@ -1851,6 +1900,24 @@ export interface components {
 			/** Sessions */
 			sessions: number;
 		};
+		/** PushKeys */
+		PushKeys: {
+			/** Auth */
+			auth: string;
+			/** P256Dh */
+			p256dh: string;
+		};
+		/** PushRemoveIn */
+		PushRemoveIn: {
+			/** Endpoint */
+			endpoint: string;
+		};
+		/** PushSubscriptionIn */
+		PushSubscriptionIn: {
+			/** Endpoint */
+			endpoint: string;
+			keys: components['schemas']['PushKeys'];
+		};
 		/** ReconcileOut */
 		ReconcileOut: {
 			/**
@@ -2098,7 +2165,7 @@ export interface components {
 		/** TestOut */
 		TestOut: {
 			/** Channels */
-			channels: ('email' | 'telegram')[];
+			channels: ('email' | 'telegram' | 'push')[];
 		};
 		/** Ticket */
 		Ticket: {
@@ -2339,6 +2406,68 @@ export interface operations {
 				content: {
 					'application/json': components['schemas']['ChannelsOut'];
 				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	add_push_subscription_alerts_me_push_subscriptions_post: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['PushSubscriptionIn'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			204: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content?: never;
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	remove_push_subscription_alerts_me_push_subscriptions_remove_post: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['PushRemoveIn'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			204: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content?: never;
 			};
 			/** @description Validation Error */
 			422: {

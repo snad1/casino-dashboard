@@ -1,7 +1,8 @@
-"""Deliver alerts by email and Telegram, from the mailer process.
+"""Deliver alerts by email, Telegram and Web Push, from the mailer process.
 
 The engine writes one delivery per channel; `fan_out` turns each into one delivery per user
-who has `view` on the service, is not disabled and has that channel on. `deliver_once` sends
+who has `view` on the service, is not disabled and has that channel on (for push, one per
+device the user turned it on for). `deliver_once` sends
 the oldest due one: inside the user's quiet hours it is held until they end, past the
 channel's hourly limit it waits for room, and a failure backs off until it is dead. Email
 goes into the mail outbox, so the mailer's own retries handle it from there.
@@ -24,19 +25,20 @@ from zoneinfo import ZoneInfo
 
 import httpx2
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import func, literal, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.alerts.models import AlertDelivery, AlertEvent, UserChannels
+from app.alerts.models import AlertDelivery, AlertEvent, PushSubscription, UserChannels
+from app.alerts.push import PushError, PushSender, Subscription, payload
 from app.auth.models import User
 from app.auth.permissions import ROLE_PERMS, Perm, roles_for
 from app.mail import templates
 from app.mail.models import DEAD, PENDING, SENT
 from app.mail.outbox import MAX_ATTEMPTS, enqueue, retry_delay
 
-SENT_CHANNELS = ("email", "telegram")
-HOURLY_LIMIT = {"email": 10, "telegram": 30}
+SENT_CHANNELS = ("email", "telegram", "push")
+HOURLY_LIMIT = {"email": 10, "telegram": 30, "push": 30}
 LIMIT_WINDOW = timedelta(hours=1)
 FAN_OUT_BATCH = 50
 LINK_TTL = timedelta(minutes=10)
@@ -138,19 +140,24 @@ async def _can_view(db: AsyncSession, user_id: int, service: str) -> bool:
     return any(Perm.VIEW in ROLE_PERMS[role] for role in roles)
 
 
-async def _recipients(db: AsyncSession, service: str, channel: str) -> list[int]:
+async def _recipients(db: AsyncSession, service: str, channel: str) -> list[tuple[int, int | None]]:
+    """(user, push subscription) pairs to deliver to: one per user, or one per device for push."""
     query = (
-        select(User.id)
+        select(User.id, PushSubscription.id if channel == "push" else literal(None))
         .join(UserChannels, UserChannels.user_id == User.id)
         .where(User.disabled.is_(False))
     )
     if channel == "email":
         query = query.where(UserChannels.email_enabled.is_(True))
-    else:
+    elif channel == "telegram":
         query = query.where(
             UserChannels.telegram_enabled.is_(True), UserChannels.telegram_chat_id.is_not(None)
         )
-    return [uid for uid in await db.scalars(query) if await _can_view(db, uid, service)]
+    else:
+        query = query.join(PushSubscription, PushSubscription.user_id == User.id)
+    pairs = [(uid, sub) for uid, sub in (await db.execute(query)).all()]
+    allowed = {uid for uid in {u for u, _ in pairs} if await _can_view(db, uid, service)}
+    return [(uid, sub) for uid, sub in pairs if uid in allowed]
 
 
 async def fan_out(db: AsyncSession, now: datetime) -> int:
@@ -170,18 +177,22 @@ async def fan_out(db: AsyncSession, now: datetime) -> int:
         )
     )
     for row, service in rows:
-        users = await _recipients(db, service, row.channel)
+        targets = await _recipients(db, service, row.channel)
         db.add_all(
             AlertDelivery(
-                event_id=row.event_id, user_id=uid, channel=row.channel, next_attempt_at=now
+                event_id=row.event_id,
+                user_id=uid,
+                subscription_id=sub,
+                channel=row.channel,
+                next_attempt_at=now,
             )
-            for uid in users
+            for uid, sub in targets
         )
         row.status, row.sent_at = SENT, now
     return len(rows)
 
 
-def _fail(row: AlertDelivery, error: TelegramError, now: datetime) -> None:
+def _fail(row: AlertDelivery, error: TelegramError | PushError, now: datetime) -> None:
     row.attempts += 1
     row.last_error = str(error)[:200]
     if error.permanent or row.attempts >= MAX_ATTEMPTS:
@@ -194,38 +205,43 @@ def _fail(row: AlertDelivery, error: TelegramError, now: datetime) -> None:
 
 
 async def _room_at(db: AsyncSession, row: AlertDelivery, now: datetime) -> datetime | None:
-    """When the user has room again on this channel, or None when they have room now."""
-    since = now - LIMIT_WINDOW
-    recent = await db.scalar(
-        select(func.count()).where(
-            AlertDelivery.user_id == row.user_id,
-            AlertDelivery.channel == row.channel,
-            AlertDelivery.status == SENT,
-            AlertDelivery.sent_at > since,
-        )
-    )
-    if (recent or 0) < HOURLY_LIMIT[row.channel]:
-        return None
-    oldest = await db.scalar(
-        select(AlertDelivery.sent_at)
+    """When the user has room again on this channel, or None when they have room now.
+
+    Alerts are counted, not deliveries, so one alert on three devices counts once.
+    """
+    limit = HOURLY_LIMIT[row.channel]
+    sent = (
+        select(func.min(AlertDelivery.sent_at).label("at"))
         .where(
             AlertDelivery.user_id == row.user_id,
             AlertDelivery.channel == row.channel,
             AlertDelivery.status == SENT,
-            AlertDelivery.sent_at > since,
+            AlertDelivery.sent_at > now - LIMIT_WINDOW,
+            AlertDelivery.event_id != row.event_id,
         )
-        .order_by(AlertDelivery.sent_at)
-        .offset((recent or 0) - HOURLY_LIMIT[row.channel])
-        .limit(1)
+        .group_by(AlertDelivery.event_id)
+        .subquery()
     )
+    recent = await db.scalar(select(func.count()).select_from(sent)) or 0
+    if recent < limit:
+        return None
+    oldest = await db.scalar(select(sent.c.at).order_by(sent.c.at).offset(recent - limit).limit(1))
     return (oldest or now) + LIMIT_WINDOW
 
 
 async def deliver_once(
-    db: AsyncSession, telegram: TelegramClient | None, zone: ZoneInfo, now: datetime
+    db: AsyncSession,
+    telegram: TelegramClient | None,
+    zone: ZoneInfo,
+    now: datetime,
+    push: PushSender | None = None,
 ) -> bool:
     """Handle the oldest due per-user delivery. Returns False when nothing was due."""
-    channels = ["email", "telegram"] if telegram is not None else ["email"]
+    channels = ["email"]
+    if telegram is not None:
+        channels.append("telegram")
+    if push is not None:
+        channels.append("push")
     found = (
         await db.execute(
             select(AlertDelivery, AlertEvent, User, UserChannels)
@@ -246,8 +262,12 @@ async def deliver_once(
     if found is None:
         return False
     row, event, user, prefs = found
-    on = prefs.email_enabled if row.channel == "email" else prefs.telegram_enabled
-    if user.disabled or not on or (row.channel == "telegram" and prefs.telegram_chat_id is None):
+    on = {
+        "email": prefs.email_enabled,
+        "telegram": prefs.telegram_enabled and prefs.telegram_chat_id is not None,
+        "push": row.subscription_id is not None,
+    }[row.channel]
+    if user.disabled or not on:
         row.status, row.last_error = DEAD, OPTED_OUT
         return True
     held = quiet_until(prefs, now, zone) or await _room_at(db, row, now)
@@ -257,7 +277,7 @@ async def deliver_once(
     text = plain(event.message, TELEGRAM_MAX)
     if row.channel == "email":
         enqueue(db, user.email, templates.alert(plain(event.message, 2000)))
-    else:
+    elif row.channel == "telegram":
         if telegram is None or prefs.telegram_chat_id is None:
             return True
         try:
@@ -265,6 +285,23 @@ async def deliver_once(
         except TelegramError as error:
             _fail(row, error, now)
             return True
+    else:
+        device = await db.get(PushSubscription, row.subscription_id)
+        if push is None or device is None:
+            return True
+        target = Subscription(device.endpoint, device.p256dh, device.auth)
+        try:
+            await push.send(target, payload(plain(event.message, 500), prefs.push_private))
+        except PushError as error:
+            if error.gone:
+                log.info(
+                    "push subscription removed: the push service no longer has it", device=device.id
+                )
+                await db.delete(device)
+                return True
+            _fail(row, error, now)
+            return True
+        device.last_used_at = now
     row.status, row.sent_at, row.last_error = SENT, now, None
     return True
 

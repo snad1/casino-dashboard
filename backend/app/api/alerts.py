@@ -13,12 +13,20 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.wolfbet.control import LANES_MAX
 from app.alerts.channels import LINK_TTL, issue_link_code
-from app.alerts.models import AlertDelivery, AlertEvent, AlertRule, UserChannels
+from app.alerts.models import (
+    AlertDelivery,
+    AlertEvent,
+    AlertRule,
+    PushSubscription,
+    UserChannels,
+)
+from app.alerts.push import ENDPOINT_MAX, endpoint_allowed, keys_valid
 from app.alerts.rules import Kind, Rule
 from app.api.control import CONTROLS, NOT_CONTROLLABLE, ServiceName
 from app.auth.models import User
@@ -33,6 +41,10 @@ INVALID_SETTINGS = "These rule settings are not valid for this kind of alert."
 NO_CHANNEL = "Turn on email or Telegram in your alert settings first."
 NO_TELEGRAM = "Telegram alerts are not set up on this dashboard."
 QUIET_BOTH = "Set both ends of quiet hours, or neither, and make them differ."
+NO_PUSH = "Push notifications are not set up on this dashboard."
+BAD_DEVICE = "This browser's push subscription is not supported."
+TOO_MANY_DEVICES = "Remove a device before adding another."
+MAX_DEVICES = 10
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 router = APIRouter(tags=["alerts"])
@@ -74,7 +86,7 @@ class RuleOut(BaseModel):
 
 
 class TestOut(BaseModel):
-    channels: list[Literal["email", "telegram"]]
+    channels: list[Literal["email", "telegram", "push"]]
 
 
 class EventOut(BaseModel):
@@ -94,6 +106,7 @@ class EventPage(BaseModel):
 class ChannelsIn(_Body):
     email_enabled: bool
     telegram_enabled: bool
+    push_private: bool = True
     quiet_start: time | None = None
     quiet_end: time | None = None
 
@@ -103,8 +116,24 @@ class ChannelsOut(BaseModel):
     telegram_enabled: bool
     telegram_linked: bool
     telegram_available: bool
+    push_private: bool
+    push_key: str | None
     quiet_start: time | None
     quiet_end: time | None
+
+
+class PushKeys(_Body):
+    p256dh: Annotated[str, Field(min_length=1, max_length=200)]
+    auth: Annotated[str, Field(min_length=1, max_length=200)]
+
+
+class PushSubscriptionIn(_Body):
+    endpoint: Annotated[str, Field(min_length=1, max_length=ENDPOINT_MAX)]
+    keys: PushKeys
+
+
+class PushRemoveIn(_Body):
+    endpoint: Annotated[str, Field(min_length=1, max_length=ENDPOINT_MAX)]
 
 
 class LinkOut(BaseModel):
@@ -221,11 +250,16 @@ async def test_rule(service: ServiceName, rule_id: RuleId, user: Manager, db: Db
     _known(service)
     row = await _rule(db, service, rule_id)
     prefs = await db.get(UserChannels, user.id)
-    channels: list[Literal["email", "telegram"]] = []
+    channels: list[Literal["email", "telegram", "push"]] = []
     if prefs is not None and prefs.email_enabled:
         channels.append("email")
     if prefs is not None and prefs.telegram_enabled and prefs.telegram_chat_id is not None:
         channels.append("telegram")
+    devices = list(
+        await db.scalars(select(PushSubscription.id).where(PushSubscription.user_id == user.id))
+    )
+    if devices:
+        channels.append("push")
     if not channels:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, NO_CHANNEL)
     event = AlertEvent(
@@ -237,7 +271,15 @@ async def test_rule(service: ServiceName, rule_id: RuleId, user: Manager, db: Db
     )
     db.add(event)
     await db.flush()
-    db.add_all(AlertDelivery(event_id=event.id, user_id=user.id, channel=c) for c in channels)
+    db.add_all(
+        AlertDelivery(event_id=event.id, user_id=user.id, channel=c)
+        for c in channels
+        if c != "push"
+    )
+    db.add_all(
+        AlertDelivery(event_id=event.id, user_id=user.id, channel="push", subscription_id=d)
+        for d in devices
+    )
     await db.commit()
     return TestOut(channels=channels)
 
@@ -285,6 +327,8 @@ def _channels_out(request: Request, prefs: UserChannels | None) -> ChannelsOut:
         telegram_enabled=bool(prefs and prefs.telegram_enabled),
         telegram_linked=bool(prefs and prefs.telegram_chat_id is not None),
         telegram_available=request.app.state.telegram_bot_username is not None,
+        push_private=prefs.push_private if prefs else True,
+        push_key=request.app.state.vapid_public_key,
         quiet_start=prefs.quiet_start if prefs else None,
         quiet_end=prefs.quiet_end if prefs else None,
     )
@@ -308,6 +352,7 @@ async def set_my_channels(request: Request, body: ChannelsIn, user: Me, db: Db) 
     prefs.email_enabled = body.email_enabled
     prefs.telegram_enabled = body.telegram_enabled and prefs.telegram_chat_id is not None
     prefs.quiet_start, prefs.quiet_end = start, end
+    prefs.push_private = body.push_private
     prefs.updated_at = datetime.now(UTC)
     await db.commit()
     return _channels_out(request, prefs)
@@ -323,3 +368,50 @@ async def link_telegram(request: Request, user: Me, db: Db) -> LinkOut:
     code = await issue_link_code(db, user.id, now)
     await db.commit()
     return LinkOut(url=f"https://t.me/{username}?start={code}", expires_at=now + LINK_TTL)
+
+
+async def _own_channels(db: AsyncSession, user_id: int) -> None:
+    """Make sure the user has a settings row, which delivery reads (private mode)."""
+    await db.execute(
+        insert(UserChannels)
+        .values(user_id=user_id)
+        .on_conflict_do_nothing(index_elements=[UserChannels.user_id])
+    )
+
+
+@router.post("/alerts/me/push-subscriptions", status_code=204, response_class=Response)
+async def add_push_subscription(
+    request: Request, body: PushSubscriptionIn, user: Me, db: Db
+) -> Response:
+    """Turn on push for this browser; a browser already on file moves to the caller."""
+    if request.app.state.vapid_public_key is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, NO_PUSH)
+    if not endpoint_allowed(body.endpoint) or not keys_valid(body.keys.p256dh, body.keys.auth):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, BAD_DEVICE)
+    others = await db.scalar(
+        select(func.count()).where(
+            PushSubscription.user_id == user.id, PushSubscription.endpoint != body.endpoint
+        )
+    )
+    if (others or 0) >= MAX_DEVICES:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, TOO_MANY_DEVICES)
+    await _own_channels(db, user.id)
+    values = {"user_id": user.id, "p256dh": body.keys.p256dh, "auth": body.keys.auth}
+    statement = insert(PushSubscription).values(endpoint=body.endpoint, **values)
+    await db.execute(
+        statement.on_conflict_do_update(index_elements=[PushSubscription.endpoint], set_=values)
+    )
+    await db.commit()
+    return Response(status_code=204)
+
+
+@router.post("/alerts/me/push-subscriptions/remove", status_code=204, response_class=Response)
+async def remove_push_subscription(body: PushRemoveIn, user: Me, db: Db) -> Response:
+    """Turn off push for this browser; only the caller's own subscription is touched."""
+    await db.execute(
+        delete(PushSubscription).where(
+            PushSubscription.user_id == user.id, PushSubscription.endpoint == body.endpoint
+        )
+    )
+    await db.commit()
+    return Response(status_code=204)

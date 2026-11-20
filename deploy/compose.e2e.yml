@@ -52,6 +52,8 @@ secrets:
     file: ./e2e-secrets/brevo_api_key.txt
   telegram_bot_token:
     file: ./e2e-secrets/telegram_bot_token.txt
+  vapid_private_key:
+    file: ./e2e-secrets/vapid_private_key.txt
   totp_key:
     file: ./e2e-secrets/totp_key.txt
   postgres_password:

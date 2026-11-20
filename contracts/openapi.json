@@ -588,6 +588,11 @@
             "title": "Email Enabled",
             "type": "boolean"
           },
+          "push_private": {
+            "default": true,
+            "title": "Push Private",
+            "type": "boolean"
+          },
           "quiet_end": {
             "anyOf": [
               {
@@ -628,6 +633,21 @@
         "properties": {
           "email_enabled": {
             "title": "Email Enabled",
+            "type": "boolean"
+          },
+          "push_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Push Key"
+          },
+          "push_private": {
+            "title": "Push Private",
             "type": "boolean"
           },
           "quiet_end": {
@@ -672,6 +692,8 @@
           "telegram_enabled",
           "telegram_linked",
           "telegram_available",
+          "push_private",
+          "push_key",
           "quiet_start",
           "quiet_end"
         ],
@@ -2214,6 +2236,65 @@
         "title": "ProfitBin",
         "type": "object"
       },
+      "PushKeys": {
+        "additionalProperties": false,
+        "properties": {
+          "auth": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Auth",
+            "type": "string"
+          },
+          "p256dh": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "P256Dh",
+            "type": "string"
+          }
+        },
+        "required": [
+          "p256dh",
+          "auth"
+        ],
+        "title": "PushKeys",
+        "type": "object"
+      },
+      "PushRemoveIn": {
+        "additionalProperties": false,
+        "properties": {
+          "endpoint": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Endpoint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint"
+        ],
+        "title": "PushRemoveIn",
+        "type": "object"
+      },
+      "PushSubscriptionIn": {
+        "additionalProperties": false,
+        "properties": {
+          "endpoint": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Endpoint",
+            "type": "string"
+          },
+          "keys": {
+            "$ref": "#/components/schemas/PushKeys"
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys"
+        ],
+        "title": "PushSubscriptionIn",
+        "type": "object"
+      },
       "ReconcileOut": {
         "properties": {
           "finished_at": {
@@ -3153,7 +3234,8 @@
             "items": {
               "enum": [
                 "email",
-                "telegram"
+                "telegram",
+                "push"
               ],
               "type": "string"
             },
@@ -3648,6 +3730,76 @@
           }
         },
         "summary": "Set My Channels",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/alerts/me/push-subscriptions": {
+      "post": {
+        "description": "Turn on push for this browser; a browser already on file moves to the caller.",
+        "operationId": "add_push_subscription_alerts_me_push_subscriptions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscriptionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Push Subscription",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/alerts/me/push-subscriptions/remove": {
+      "post": {
+        "description": "Turn off push for this browser; only the caller's own subscription is touched.",
+        "operationId": "remove_push_subscription_alerts_me_push_subscriptions_remove_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushRemoveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Push Subscription",
         "tags": [
           "alerts"
         ]

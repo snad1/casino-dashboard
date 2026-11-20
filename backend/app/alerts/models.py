@@ -2,7 +2,8 @@
 
 A rule with no lane applies to every lane on its own; state for a service-level rule (day
 profit, ingest health) is kept under lane 0. The engine writes one delivery per channel with
-no recipient; the mailer fans each out into one delivery per user who should get it.
+no recipient; the mailer fans each out into one delivery per user who should get it, and
+for push one per device.
 """
 
 from datetime import datetime, time
@@ -99,6 +100,9 @@ class AlertDelivery(Base):
     user_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("users.id", ondelete="CASCADE")
     )
+    subscription_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("push_subscriptions.id", ondelete="CASCADE"), index=True
+    )
     channel: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, server_default=text("'pending'"))
     attempts: Mapped[int] = mapped_column(Integer, server_default=text("0"))
@@ -126,4 +130,22 @@ class UserChannels(Base):
     telegram_link_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     quiet_start: Mapped[time | None] = mapped_column(Time)
     quiet_end: Mapped[time | None] = mapped_column(Time)
+    push_private: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PushSubscription(Base):
+    """One browser on one device that agreed to show this user's alerts. The endpoint is a
+    capability URL on the browser's push service; it is never logged."""
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    endpoint: Mapped[str] = mapped_column(Text, unique=True)
+    p256dh: Mapped[str] = mapped_column(Text)
+    auth: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

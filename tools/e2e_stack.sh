@@ -26,7 +26,8 @@ make_secrets() {
         chmod 644 "$SECRETS/$name.txt"
     done
     : > "$SECRETS/telegram_bot_token.txt"
-    chmod 644 "$SECRETS/telegram_bot_token.txt"
+    : > "$SECRETS/vapid_private_key.txt"
+    chmod 644 "$SECRETS/telegram_bot_token.txt" "$SECRETS/vapid_private_key.txt"
     E2E_PASSWORD="$(cat "$SECRETS/e2e_password.txt")"
     export E2E_PASSWORD
 }

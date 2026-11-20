@@ -108,10 +108,12 @@ def test_only_the_mailer_reaches_out_and_holds_the_mail_and_alert_bot_keys(
         "postgres_app_password": "postgres_password",
         "brevo_api_key": "brevo_api_key",
         "telegram_bot_token": "telegram_bot_token",
+        "vapid_private_key": "vapid_private_key",
     }
     for name in SERVICES:
         if name != "mailer":
             assert "telegram_bot_token" not in _secrets(_service(compose, name)), name
+            assert "vapid_private_key" not in _secrets(_service(compose, name)), name
 
 
 def test_only_migrate_holds_the_database_owner_password(compose: dict[str, Any]) -> None:
@@ -130,7 +132,7 @@ def test_only_migrate_holds_the_database_owner_password(compose: dict[str, Any])
 def test_no_secret_values_inline(compose: dict[str, Any], name: str) -> None:
     env = _service(compose, name).get("environment", {})
     for key, value in env.items():
-        if SECRET_WORDS.search(key):
+        if SECRET_WORDS.search(key) and not key.endswith("_PUBLIC_KEY"):
             assert key.endswith("_FILE") and str(value).startswith("/run/secrets/")
 
 

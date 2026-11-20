@@ -103,6 +103,7 @@ services:
       REDIS_USER: dashboard
       AGENT_SOCKET: /run/casino-agent/agent.sock
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
     secrets:
       - session_secret
       - totp_key
@@ -174,6 +175,7 @@ services:
         target: postgres_password
       - brevo_api_key
       - telegram_bot_token
+      - vapid_private_key
     networks:
       - internal
       - egress
@@ -262,6 +264,8 @@ secrets:
     file: ./secrets/brevo_api_key.txt
   telegram_bot_token:
     file: ./secrets/telegram_bot_token.txt
+  vapid_private_key:
+    file: ./secrets/vapid_private_key.txt
   totp_key:
     file: ./secrets/totp_key.txt
   postgres_password:

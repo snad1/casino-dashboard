@@ -11,11 +11,19 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.alerts.channels import handle_update
-from app.alerts.models import AlertDelivery, AlertEvent, AlertRule, UserChannels
-from app.api.alerts import INVALID_SETTINGS, NO_CHANNEL, NO_TELEGRAM, QUIET_BOTH
+from app.alerts.models import AlertDelivery, AlertEvent, AlertRule, PushSubscription, UserChannels
+from app.api.alerts import (
+    INVALID_SETTINGS,
+    NO_CHANNEL,
+    NO_PUSH,
+    NO_TELEGRAM,
+    QUIET_BOTH,
+    TOO_MANY_DEVICES,
+)
 from app.auth.models import Role, User, UserRole
 from app.settings import Settings
 from tests.conftest import NO_LOGIN, make_client, new_email, run_in_session
+from tests.test_alert_push import FCM, browser_keys
 
 RULES = "/wolfbet/alerts/rules"
 DOWN: dict[str, Any] = {
@@ -210,6 +218,8 @@ def test_users_set_their_own_channels_and_quiet_hours(signed_in_as: Any) -> None
         "telegram_enabled": False,
         "telegram_linked": False,
         "telegram_available": False,
+        "push_private": True,
+        "push_key": None,
         "quiet_start": None,
         "quiet_end": None,
     }
@@ -270,3 +280,83 @@ def test_a_link_opens_the_alert_bot_with_a_code_it_accepts(
         await session.commit()
 
     run_in_session(control_settings, unlink)
+
+
+PUSH_KEY = "B" + "A" * 86
+
+
+def _browser() -> dict[str, Any]:
+    p256dh, auth = browser_keys()
+    return {"endpoint": FCM + new_email(), "keys": {"p256dh": p256dh, "auth": auth}}
+
+
+def test_a_browser_turns_push_on_and_off_for_its_own_user(
+    signed_in_as: Any, control_settings: Settings
+) -> None:
+    viewer = signed_in_as(Role.VIEWER, two_factor=False)
+    device = _browser()
+    off = viewer.post("/alerts/me/push-subscriptions", json=device, headers=csrf(viewer))
+    assert (off.status_code, off.json()["detail"]) == (409, NO_PUSH)
+
+    viewer.app.state.vapid_public_key = PUSH_KEY
+    channels = viewer.get("/alerts/me/channels").json()
+    assert (channels["push_key"], channels["push_private"]) == (PUSH_KEY, True)
+    added = viewer.post("/alerts/me/push-subscriptions", json=device, headers=csrf(viewer))
+    assert added.status_code == 204
+    again = viewer.post("/alerts/me/push-subscriptions", json=device, headers=csrf(viewer))
+    assert again.status_code == 204
+
+    def count(endpoint: str) -> int:
+        async def run(session: AsyncSession) -> int:
+            rows = await session.scalars(
+                select(PushSubscription).where(PushSubscription.endpoint == endpoint)
+            )
+            return len(list(rows))
+
+        return run_in_session(control_settings, run)
+
+    assert count(device["endpoint"]) == 1
+    for bad in (
+        {**device, "endpoint": "http://fcm.googleapis.com/x"},
+        {**device, "endpoint": "https://internal.example/x"},
+        {**device, "keys": {"p256dh": "short", "auth": device["keys"]["auth"]}},
+        {**device, "extra": 1},
+    ):
+        response = viewer.post("/alerts/me/push-subscriptions", json=bad, headers=csrf(viewer))
+        assert response.status_code == 422
+    removed = viewer.post(
+        "/alerts/me/push-subscriptions/remove",
+        json={"endpoint": device["endpoint"]},
+        headers=csrf(viewer),
+    )
+    assert removed.status_code == 204
+    assert count(device["endpoint"]) == 0
+
+
+def test_ten_devices_is_the_limit(signed_in_as: Any) -> None:
+    viewer = signed_in_as(Role.VIEWER, two_factor=False)
+    viewer.app.state.vapid_public_key = PUSH_KEY
+    for _ in range(10):
+        ok = viewer.post("/alerts/me/push-subscriptions", json=_browser(), headers=csrf(viewer))
+        assert ok.status_code == 204
+    over = viewer.post("/alerts/me/push-subscriptions", json=_browser(), headers=csrf(viewer))
+    assert (over.status_code, over.json()["detail"]) == (422, TOO_MANY_DEVICES)
+
+
+def test_private_mode_is_saved_and_test_fire_reaches_each_device(
+    owner: TestClient, control_settings: Settings
+) -> None:
+    owner.app.state.vapid_public_key = PUSH_KEY  # type: ignore[attr-defined]
+    for _ in range(2):
+        owner.post("/alerts/me/push-subscriptions", json=_browser(), headers=csrf(owner))
+    body = {"email_enabled": False, "telegram_enabled": False, "push_private": False}
+    saved = owner.put("/alerts/me/channels", json=body, headers=csrf(owner)).json()
+    assert saved["push_private"] is False
+    rule_id = owner.post(RULES, json=DOWN, headers=csrf(owner)).json()["id"]
+    fired = owner.post(f"{RULES}/{rule_id}/test", headers=csrf(owner))
+    assert fired.json() == {"channels": ["push"]}
+    rows = _deliveries(control_settings)
+    assert [(channel, message) for _, channel, message in rows] == [
+        ("push", "Test alert: Bot down"),
+        ("push", "Test alert: Bot down"),
+    ]

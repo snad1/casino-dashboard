@@ -13,6 +13,8 @@ from typing import Annotated, Any, Literal, Self
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 from pydantic import AfterValidator, Field, SecretStr, field_validator, model_validator
 from pydantic.fields import FieldInfo
 from pydantic_settings import (
@@ -26,6 +28,17 @@ AppEnv = Literal["local", "development", "testing", "staging", "production"]
 
 
 _BOT_NAME = re.compile(r"[A-Za-z0-9_]{5,32}")
+
+
+_VAPID_PUBLIC = re.compile(r"B[A-Za-z0-9_-]{86}")
+
+
+def _vapid_key_loads(pem: str) -> bool:
+    try:
+        key = serialization.load_pem_private_key(pem.encode(), password=None)
+    except (ValueError, TypeError):
+        return False
+    return isinstance(key, ec.EllipticCurvePrivateKey) and isinstance(key.curve, ec.SECP256R1)
 
 
 def _known_zone(value: str) -> str:
@@ -178,7 +191,19 @@ class Settings(DatabaseSettings):
     totp_key: SecretStr
     redis_dashboard_password: SecretStr
     agent_token: SecretStr | None = None
-    vapid_private_key: SecretStr | None = None
+
+    @field_validator("vapid_public_key", mode="before")
+    @classmethod
+    def _vapid_public(cls, value: object) -> object:
+        """The push key browsers subscribe with: base64url of the 65-byte public point."""
+        if not isinstance(value, str):
+            return value
+        key = value.strip()
+        if not key:
+            return None
+        if not _VAPID_PUBLIC.fullmatch(key):
+            raise ValueError("must be the base64url P-256 public key (87 characters)")
+        return key
 
     @field_validator("telegram_bot_username", mode="before")
     @classmethod
@@ -238,13 +263,21 @@ class MailerSettings(DatabaseSettings):
     smtp_user: str | None = None
     smtp_password: SecretStr | None = None
     telegram_bot_token: SecretStr | None = None
+    vapid_private_key: SecretStr | None = None
     host_tz: TimeZoneName
 
-    @field_validator("telegram_bot_token", mode="before")
+    @field_validator("telegram_bot_token", "vapid_private_key", mode="before")
     @classmethod
-    def _empty_token_is_off(cls, value: object) -> object:
-        """An empty secret file keeps Telegram off without editing the compose file."""
+    def _empty_secret_is_off(cls, value: object) -> object:
+        """An empty secret file keeps Telegram or push off without editing the compose file."""
         return None if isinstance(value, str) and not value.strip() else value
+
+    @field_validator("vapid_private_key")
+    @classmethod
+    def _vapid_pem(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None and not _vapid_key_loads(value.get_secret_value()):
+            raise ValueError("must be a P-256 private key in PEM form")
+        return value
 
     @field_validator("mail_from")
     @classmethod

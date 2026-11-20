@@ -3,6 +3,7 @@
 	import type { Channels } from '#lib/alerts';
 	import { formatTime } from '#lib/analytics';
 	import { ApiError, unwrap } from '#lib/api/client';
+	import { deviceSubscribed, pushSupport, subscribe, unsubscribe, type PushApi } from '#lib/push';
 	import { api, session } from '#lib/session.svelte';
 	import { toast } from '#lib/toast.svelte';
 	import Button from '#ui/Button';
@@ -19,6 +20,20 @@
 	let link = $state<{ url: string; expires_at: string } | null>(null);
 	let linkError = $state<string | null>(null);
 	let saving = $state(false);
+	let pushPrivate = $state(true);
+	let pushOn = $state(false);
+	let pushBusy = $state(false);
+	let pushError = $state<string | null>(null);
+	const support = typeof window === 'undefined' ? 'unsupported' : pushSupport();
+
+	const pushApi: PushApi = {
+		add: async (body) => {
+			await unwrap(api.POST('/alerts/me/push-subscriptions', { body }));
+		},
+		remove: async (endpoint) => {
+			await unwrap(api.POST('/alerts/me/push-subscriptions/remove', { body: { endpoint } }));
+		}
+	};
 
 	function message(e: unknown): string {
 		return e instanceof ApiError ? e.detail : String(e);
@@ -28,6 +43,7 @@
 		channels = out;
 		email = out.email_enabled;
 		telegram = out.telegram_enabled;
+		pushPrivate = out.push_private;
 		quietOn = out.quiet_start !== null && out.quiet_end !== null;
 		if (out.quiet_start) quietStart = out.quiet_start.slice(0, 5);
 		if (out.quiet_end) quietEnd = out.quiet_end.slice(0, 5);
@@ -46,6 +62,32 @@
 		if (session.me) void load();
 	});
 
+	$effect(() => {
+		if (support === 'ready') void deviceSubscribed().then((on) => (pushOn = on));
+	});
+
+	async function togglePush() {
+		if (!channels?.push_key) return;
+		pushBusy = true;
+		pushError = null;
+		try {
+			if (pushOn) {
+				await unsubscribe(pushApi);
+				pushOn = false;
+				toast('success', 'Push notifications are off on this device.');
+			} else if (await subscribe(channels.push_key, pushApi)) {
+				pushOn = true;
+				toast('success', 'Push notifications are on for this device.');
+			} else {
+				pushError = 'Notifications were not allowed, so push stays off on this device.';
+			}
+		} catch (e) {
+			pushError = message(e);
+		} finally {
+			pushBusy = false;
+		}
+	}
+
 	async function save(event: SubmitEvent) {
 		event.preventDefault();
 		saving = true;
@@ -57,6 +99,7 @@
 						body: {
 							email_enabled: email,
 							telegram_enabled: telegram,
+							push_private: pushPrivate,
 							quiet_start: quietOn ? `${quietStart}:00` : null,
 							quiet_end: quietOn ? `${quietEnd}:00` : null
 						}
@@ -133,6 +176,29 @@
 			{/if}
 		</section>
 
+		<section class="rounded-lg border border-line bg-surface p-4" aria-labelledby="push-title">
+			<h2 id="push-title" class="font-semibold">Push notifications</h2>
+			{#if !channels.push_key}
+				<p class="mt-1 text-sm text-muted">Push notifications are not set up on this dashboard.</p>
+			{:else if support === 'unsupported'}
+				<p class="mt-1 text-sm text-muted">Push notifications are not available in this browser.</p>
+			{:else if support === 'blocked'}
+				<p class="mt-1 text-sm text-muted">
+					Notifications are blocked for this site. Allow them in the browser settings.
+				</p>
+			{:else}
+				<p class="mt-1 text-sm">{pushOn ? 'On for this device.' : 'Off for this device.'}</p>
+				<div class="mt-3">
+					<Button onclick={togglePush} disabled={pushBusy}>
+						{pushOn ? 'Turn off push here' : 'Turn on push here'}
+					</Button>
+				</div>
+				{#if pushError}
+					<div class="mt-3"><Notice tone="error">{pushError}</Notice></div>
+				{/if}
+			{/if}
+		</section>
+
 		<form onsubmit={save} class="flex flex-col gap-4 rounded-lg border border-line bg-surface p-4">
 			<h2 class="font-semibold">Channels and quiet hours</h2>
 			<label class={check}>
@@ -147,6 +213,10 @@
 					disabled={!channels.telegram_linked}
 				/>
 				Telegram alerts{channels.telegram_linked ? '' : ' (link Telegram first)'}
+			</label>
+			<label class={check}>
+				<input type="checkbox" class="size-5" bind:checked={pushPrivate} />
+				Private notifications (hide alert text)
 			</label>
 			<label class={check}>
 				<input type="checkbox" class="size-5" bind:checked={quietOn} />

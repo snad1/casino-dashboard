@@ -110,5 +110,6 @@ group('rule text', () => {
 
 	it('names the channels a test went to', () => {
 		expect(sentTo(['email', 'telegram'])).toBe('Test sent to email and Telegram.');
+		expect(sentTo(['push'])).toBe('Test sent to push.');
 	});
 });

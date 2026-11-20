@@ -122,6 +122,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.host_tz = settings.host_tz
     app.state.alerts = alerts
     app.state.telegram_bot_username = settings.telegram_bot_username
+    app.state.vapid_public_key = settings.vapid_public_key
     install_error_handlers(app, settings.exposes_error_detail)
     install_step_handler(app)
     # Added innermost first: headers wrap everything, including the generic 500.

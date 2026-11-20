@@ -61,8 +61,8 @@ def test_secret_in_environment_is_ignored(
 
 
 def test_optional_secret_is_checked_when_set(secrets_dir: Path) -> None:
-    (secrets_dir / "vapid_private_key").write_text("changeme")
-    _fails_naming("vapid_private_key", "changeme")
+    (secrets_dir / "agent_token").write_text("changeme")
+    _fails_naming("agent_token", "changeme")
 
 
 def _mailer_env(monkeypatch: pytest.MonkeyPatch, backend: str) -> None:
@@ -185,4 +185,44 @@ def test_the_alert_bot_username_is_checked_and_blank_means_none(
     assert load_settings().telegram_bot_username is None
     monkeypatch.setenv("TELEGRAM_BOT_USERNAME", "bad name/x")
     with pytest.raises(ValidationError, match="telegram_bot_username"):
+        load_settings()
+
+
+def _vapid_pem() -> str:
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    return (
+        ec.generate_private_key(ec.SECP256R1())
+        .private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+        .decode()
+    )
+
+
+def test_the_push_key_lives_in_the_mailer_and_must_be_a_p256_pem(
+    secrets_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (secrets_dir / "brevo_api_key").write_text("xkeysib-9f8e7d6c5b4a")
+    _mailer_env(monkeypatch, "brevo")
+    (secrets_dir / "vapid_private_key").write_text("")
+    assert load_mailer_settings().vapid_private_key is None
+    (secrets_dir / "vapid_private_key").write_text(_vapid_pem())
+    assert load_mailer_settings().vapid_private_key is not None
+    (secrets_dir / "vapid_private_key").write_text("-----BEGIN PRIVATE KEY-----\nnot a key x9\n")
+    with pytest.raises(ValidationError, match="vapid_private_key"):
+        load_mailer_settings()
+    assert not hasattr(load_settings(), "vapid_private_key")
+
+
+def test_the_api_takes_only_a_well_formed_public_push_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("VAPID_PUBLIC_KEY", "B" + "x" * 86)
+    assert load_settings().vapid_public_key == "B" + "x" * 86
+    monkeypatch.setenv("VAPID_PUBLIC_KEY", "")
+    assert load_settings().vapid_public_key is None
+    monkeypatch.setenv("VAPID_PUBLIC_KEY", "not-a-key")
+    with pytest.raises(ValidationError, match="vapid_public_key"):
         load_settings()

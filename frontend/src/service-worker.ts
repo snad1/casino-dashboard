@@ -6,6 +6,7 @@ import { version } from '$app/env';
 import { assets, immutable, prerendered } from '$app/manifest';
 import { self as sw } from '$app/service-worker';
 import { OFFLINE_PATH, route } from '#lib/offline';
+import { notificationFrom, samePath } from '#lib/push';
 
 const PREFIX = 'shell-';
 const CACHE = `${PREFIX}${version}`;
@@ -51,4 +52,41 @@ sw.addEventListener('fetch', (event) => {
 			})
 		);
 	}
+});
+
+function readPush(event: PushEvent): unknown {
+	try {
+		return event.data?.json() ?? null;
+	} catch {
+		return null;
+	}
+}
+
+sw.addEventListener('push', (event) => {
+	const note = notificationFrom(readPush(event), sw.location.origin);
+	event.waitUntil(
+		sw.registration.showNotification(note.title, {
+			body: note.body,
+			data: { url: note.url },
+			tag: 'alert'
+		})
+	);
+});
+
+sw.addEventListener('notificationclick', (event) => {
+	event.notification.close();
+	const url =
+		samePath((event.notification.data as { url?: unknown } | null)?.url, sw.location.origin) ??
+		'/alerts';
+	event.waitUntil(
+		sw.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (windows) => {
+			const open = windows.find((w) => new URL(w.url).origin === sw.location.origin);
+			if (open) {
+				await open.navigate(url);
+				await open.focus();
+			} else {
+				await sw.clients.openWindow(url);
+			}
+		})
+	);
 });

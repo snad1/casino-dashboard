@@ -150,7 +150,7 @@ async def test_each_alert_reaches_only_users_who_can_view_and_opted_in(
     per_user = {(r.user_id, r.channel): r.status for r in rows if r.user_id is not None}
     assert per_user == {(mailed, "email"): "sent", (chatty, "telegram"): "sent"}
     channel_rows = {r.channel: r.status for r in rows if r.user_id is None}
-    assert channel_rows == {"email": "sent", "telegram": "sent", "push": "pending"}
+    assert channel_rows == {"email": "sent", "telegram": "sent", "push": "sent"}
     [mail] = await mail_to(sessions, mailed)
     assert mail.subject == "Alert: Bot down: bot down for 60 s on lane 1"
     assert "Bot down: bot down for 60 s on lane 1" in (mail.text_body or "")
