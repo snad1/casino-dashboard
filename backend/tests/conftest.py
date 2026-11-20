@@ -16,7 +16,7 @@ from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import delete
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 from testcontainers.community.postgres import PostgresContainer
 from testcontainers.core.container import DockerContainer
@@ -223,6 +223,14 @@ PASSWORD = secrets.token_urlsafe(24)
 class Account:
     id: int
     email: str
+
+
+@pytest.fixture
+async def sessions(app_settings: Settings) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    """Sessions as the api's own role, so the grants on the tables a test writes are proven."""
+    engine = create_async_engine(app_settings.database_url, poolclass=NullPool)
+    yield async_sessionmaker(engine, expire_on_commit=False)
+    await engine.dispose()
 
 
 def make_client(settings: Settings) -> TestClient:

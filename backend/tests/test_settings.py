@@ -61,13 +61,39 @@ def test_secret_in_environment_is_ignored(
 
 
 def test_optional_secret_is_checked_when_set(secrets_dir: Path) -> None:
-    (secrets_dir / "telegram_bot_token").write_text("changeme")
-    _fails_naming("telegram_bot_token", "changeme")
+    (secrets_dir / "vapid_private_key").write_text("changeme")
+    _fails_naming("vapid_private_key", "changeme")
 
 
 def _mailer_env(monkeypatch: pytest.MonkeyPatch, backend: str) -> None:
     monkeypatch.setenv("MAIL_BACKEND", backend)
     monkeypatch.setenv("MAIL_FROM", "no-reply@example.test")
+    monkeypatch.setenv("HOST_TZ", "Europe/Paris")
+
+
+def test_the_mailer_holds_the_telegram_token_and_an_empty_file_keeps_it_off(
+    secrets_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (secrets_dir / "brevo_api_key").write_text("xkeysib-9f8e7d6c5b4a")
+    _mailer_env(monkeypatch, "brevo")
+    (secrets_dir / "telegram_bot_token").write_text("\n")
+    assert load_mailer_settings().telegram_bot_token is None
+    (secrets_dir / "telegram_bot_token").write_text("123456789:AAH-telegram-token-x9Yz")
+    assert load_mailer_settings().telegram_bot_token is not None
+    (secrets_dir / "telegram_bot_token").write_text("changeme")
+    with pytest.raises(ValidationError, match="telegram_bot_token"):
+        load_mailer_settings()
+    assert not hasattr(load_settings(), "telegram_bot_token")
+
+
+def test_the_mailer_needs_the_host_time_zone(
+    secrets_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (secrets_dir / "brevo_api_key").write_text("xkeysib-9f8e7d6c5b4a")
+    _mailer_env(monkeypatch, "brevo")
+    monkeypatch.delenv("HOST_TZ")
+    with pytest.raises(ValidationError, match="host_tz"):
+        load_mailer_settings()
 
 
 def test_third_party_mail_key_has_no_length_floor(

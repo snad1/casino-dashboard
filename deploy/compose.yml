@@ -167,10 +167,12 @@ services:
       POSTGRES_USER: dashboard_app
       MAIL_BACKEND: brevo
       MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM in deploy/.env}
+      HOST_TZ: ${HOST_TZ:?set HOST_TZ in deploy/.env}
     secrets:
       - source: postgres_app_password
         target: postgres_password
       - brevo_api_key
+      - telegram_bot_token
     networks:
       - internal
       - egress
@@ -257,6 +259,8 @@ secrets:
     file: ./secrets/session_secret.txt
   brevo_api_key:
     file: ./secrets/brevo_api_key.txt
+  telegram_bot_token:
+    file: ./secrets/telegram_bot_token.txt
   totp_key:
     file: ./secrets/totp_key.txt
   postgres_password:

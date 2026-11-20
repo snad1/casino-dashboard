@@ -25,6 +25,8 @@ make_secrets() {
         [ -s "$SECRETS/$name.txt" ] || openssl rand -hex 24 > "$SECRETS/$name.txt"
         chmod 644 "$SECRETS/$name.txt"
     done
+    : > "$SECRETS/telegram_bot_token.txt"
+    chmod 644 "$SECRETS/telegram_bot_token.txt"
     E2E_PASSWORD="$(cat "$SECRETS/e2e_password.txt")"
     export E2E_PASSWORD
 }

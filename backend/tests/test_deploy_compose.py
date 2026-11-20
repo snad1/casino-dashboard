@@ -95,7 +95,9 @@ def test_internal_network_has_no_route_out(compose: dict[str, Any]) -> None:
         assert "edge" not in _service(compose, name)["networks"]
 
 
-def test_only_the_mailer_reaches_out_and_holds_the_mail_key(compose: dict[str, Any]) -> None:
+def test_only_the_mailer_reaches_out_and_holds_the_mail_and_alert_bot_keys(
+    compose: dict[str, Any],
+) -> None:
     for name in SERVICES:
         service = _service(compose, name)
         has_egress = "egress" in service.get("networks", [])
@@ -105,7 +107,11 @@ def test_only_the_mailer_reaches_out_and_holds_the_mail_key(compose: dict[str, A
     assert _secrets(_service(compose, "mailer")) == {
         "postgres_app_password": "postgres_password",
         "brevo_api_key": "brevo_api_key",
+        "telegram_bot_token": "telegram_bot_token",
     }
+    for name in SERVICES:
+        if name != "mailer":
+            assert "telegram_bot_token" not in _secrets(_service(compose, name)), name
 
 
 def test_only_migrate_holds_the_database_owner_password(compose: dict[str, Any]) -> None:

@@ -8,11 +8,9 @@ from typing import Any
 
 import asyncpg  # type: ignore[import-untyped]  # ships no type hints
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.alerts.engine import Engine, after_reconcile
-from app.settings import Settings
 
 T0 = datetime(2026, 11, 20, 12, 0, tzinfo=UTC).timestamp()
 
@@ -31,14 +29,6 @@ class Model:
 
     def snapshot(self) -> tuple[dict[int, dict[str, Any]], list[Any]]:
         return dict(self.fields), []
-
-
-@pytest.fixture
-async def sessions(app_settings: Settings) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
-    """Sessions as the api's own role, so the grants on the new tables are proven too."""
-    engine = create_async_engine(app_settings.database_url, poolclass=NullPool)
-    yield async_sessionmaker(engine, expire_on_commit=False)
-    await engine.dispose()
 
 
 @pytest.fixture

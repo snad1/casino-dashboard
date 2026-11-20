@@ -174,7 +174,6 @@ class Settings(DatabaseSettings):
     totp_key: SecretStr
     redis_dashboard_password: SecretStr
     agent_token: SecretStr | None = None
-    telegram_bot_token: SecretStr | None = None
     vapid_private_key: SecretStr | None = None
 
     @field_validator("public_host")
@@ -210,7 +209,8 @@ class Settings(DatabaseSettings):
 
 
 class MailerSettings(DatabaseSettings):
-    """The mailer process: reads the outbox and sends through Brevo or SMTP."""
+    """The mailer process: sends the mail outbox through Brevo or SMTP, and alerts by email
+    and Telegram. `host_tz` places each user's quiet hours."""
 
     mail_backend: Literal["brevo", "smtp"]
     mail_from: str
@@ -220,6 +220,14 @@ class MailerSettings(DatabaseSettings):
     smtp_port: int = 587
     smtp_user: str | None = None
     smtp_password: SecretStr | None = None
+    telegram_bot_token: SecretStr | None = None
+    host_tz: TimeZoneName
+
+    @field_validator("telegram_bot_token", mode="before")
+    @classmethod
+    def _empty_token_is_off(cls, value: object) -> object:
+        """An empty secret file keeps Telegram off without editing the compose file."""
+        return None if isinstance(value, str) and not value.strip() else value
 
     @field_validator("mail_from")
     @classmethod

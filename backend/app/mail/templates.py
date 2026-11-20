@@ -80,3 +80,10 @@ def two_factor_changed(enabled: bool) -> Rendered:
             "If this was not you, reset your password now.",
         ],
     )
+
+
+def alert(message: str) -> Rendered:
+    return _render(
+        f"Alert: {message[:120]}",
+        [message, "You get this because alerts by email are on in your dashboard settings."],
+    )

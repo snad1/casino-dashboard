@@ -22,8 +22,8 @@ from app.auth.reset import RESET_INVALID, RESET_SENT
 from app.mail import templates
 from app.mail.mailers import BREVO_URL, BrevoApiMailer, MailError, Message, SmtpMailer
 from app.mail.models import DEAD, PENDING, SENT, OutboxMessage
-from app.mail.outbox import enqueue
-from app.mail.worker import MAX_ATTEMPTS, process_once
+from app.mail.outbox import MAX_ATTEMPTS, enqueue
+from app.mail.worker import process_once
 from app.settings import Settings
 from tests.conftest import PASSWORD, Account, make_client, make_user, new_email, run_in_session
 

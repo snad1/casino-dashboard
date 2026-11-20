@@ -40,6 +40,14 @@ Run from `casino-dashboard/` on the server, as the user that runs Docker.
    (umask 022; printf '%s' 'xkeysib-...' > deploy/secrets/brevo_api_key.txt)
    ```
 
+   Telegram alerts use a bot of their own, never the wolfbet TG bot. Create one with @BotFather and save its token; an empty file keeps Telegram alerts off:
+
+   ```bash
+   (umask 022; printf '%s' '123456789:AA...' > deploy/secrets/telegram_bot_token.txt)
+   # or, without Telegram alerts:
+   (umask 022; : > deploy/secrets/telegram_bot_token.txt)
+   ```
+
    To send through an SMTP relay instead, set `MAIL_BACKEND: smtp` plus `SMTP_HOST`, `SMTP_PORT` and `SMTP_USER` on `mailer`, and give it an `smtp_password` secret in place of `brevo_api_key`. The relay must offer STARTTLS; the mailer refuses to send without it.
 
    The directory (mode 700, root only) is what keeps the files private on the host. The files themselves are world-readable because compose bind-mounts them unchanged and three different container users read them: Redis (uid 999), the api (uid 10001) and Postgres.
