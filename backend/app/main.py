@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Literal
 
+import structlog
 from fastapi import FastAPI, status
 from pydantic import BaseModel
 from redis.asyncio import Redis
@@ -12,6 +13,7 @@ from redis.asyncio import Redis
 from app.adapters.base import ServiceAdapter
 from app.adapters.wolfbet import WolfBetAdapter
 from app.agent_client import AgentClient
+from app.alerts.engine import Engine
 from app.api.analytics import router as analytics_router
 from app.api.config import router as config_router
 from app.api.control import router as control_router
@@ -43,6 +45,8 @@ from app.ws.routes import router as ws_router
 
 ADAPTERS: dict[str, type[ServiceAdapter]] = {"wolfbet": WolfBetAdapter}
 
+log = structlog.get_logger("app.main")
+
 
 class Health(BaseModel):
     status: Literal["ok"]
@@ -70,6 +74,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             aggregator, sessionmaker, agent, reconnects=lambda: consumer.stats["reconnects"]
         )
         system = SystemPublisher(hub, aggregator, agent)
+        alerts = Engine(settings.live_service, sessionmaker, settings.host_tz)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -77,9 +82,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         stop = asyncio.Event()
         tasks = []
         if hub is not None:
+            try:
+                await alerts.start()
+            except Exception:
+                log.exception("alert rules could not be loaded; alerts are off until restart")
             tasks = [
                 asyncio.create_task(consumer.run(stop)),
                 asyncio.create_task(run_ticker(aggregator, hub.publish, stop, settings.live_hz)),
+                asyncio.create_task(alerts.run(stop, aggregator)),
                 asyncio.create_task(hub.run_heartbeat(stop)),
                 asyncio.create_task(resync.run(stop)),
                 asyncio.create_task(system.run(stop)),

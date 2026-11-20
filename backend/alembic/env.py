@@ -9,6 +9,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
+import app.alerts.models  # registers the alert tables on Base.metadata
 import app.api.control  # registers the control requests on Base.metadata
 import app.audit  # registers the audit log on Base.metadata
 import app.auth.models  # registers the auth tables on Base.metadata

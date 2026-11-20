@@ -12,6 +12,8 @@ from pathlib import Path
 
 import asyncpg  # type: ignore[import-untyped]  # ships no type hints
 
+from app.alerts.engine import after_reconcile
+from app.db.engine import create_engine, create_sessionmaker
 from app.ingest.reconcile import Reconciler
 from app.ingest.tailer import Tailer
 from app.settings import IngestSettings, load_ingest_settings
@@ -73,21 +75,33 @@ async def reconcile(
     first: float = RECONCILE_FIRST_SECONDS,
     interval: float = RECONCILE_SECONDS,
 ) -> None:
-    """Run one reconcile per interval until stop is set; a failed run waits for the next."""
+    """Run one reconcile per interval until stop is set; a failed run waits for the next.
+
+    Each finished run is also the signal for the ingest alert rules (lag, mismatches).
+    """
+    engine = create_engine(settings)
+    sessionmaker = create_sessionmaker(engine)
     await _sleep(stop, first)
     while not stop.is_set():
+        row = None
         try:
             db = await connect(settings)
             try:
                 reconciler = Reconciler(
                     db, settings.ingest_service, settings.bot_data_dir, settings.host_tz
                 )
-                await reconciler.run_once()
+                row = await reconciler.run_once()
             finally:
                 await db.close()
         except Exception:
             logger.exception("reconcile run failed; next one in %s s", interval)
+        if row is not None:
+            try:
+                await after_reconcile(sessionmaker, settings.ingest_service, row)
+            except Exception:
+                logger.exception("ingest alerts could not be checked")
         await _sleep(stop, interval)
+    await engine.dispose()
 
 
 async def run(stop: asyncio.Event, heartbeat: Path = HEARTBEAT) -> None:
