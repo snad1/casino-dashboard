@@ -765,6 +765,46 @@
         "title": "Charts",
         "type": "object"
       },
+      "CheckOut": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "name",
+          "ok",
+          "value",
+          "unit",
+          "detail"
+        ],
+        "title": "CheckOut",
+        "type": "object"
+      },
       "CleanupArgs": {
         "additionalProperties": false,
         "properties": {
@@ -3172,6 +3212,28 @@
         "title": "Span",
         "type": "object"
       },
+      "StatusOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/CheckOut"
+            },
+            "title": "Checks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "at",
+          "checks"
+        ],
+        "title": "StatusOut",
+        "type": "object"
+      },
       "StepUpIn": {
         "properties": {
           "code": {
@@ -4376,6 +4438,28 @@
           }
         },
         "summary": "Healthz"
+      }
+    },
+    "/status": {
+      "get": {
+        "description": "The dashboard's own health for owners and admins, refreshed by the status page.",
+        "operationId": "status_page_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Status Page",
+        "tags": [
+          "status"
+        ]
       }
     },
     "/terminal/recordings/{session_id}": {

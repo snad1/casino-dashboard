@@ -278,3 +278,8 @@ def test_caddy_serves_plain_http_behind_the_proxy_and_keeps_the_client_address()
     caddyfile = (DEPLOY / "Caddyfile").read_text()
     assert "{$CADDY_ADDRESS::80} {" in caddyfile
     assert "trusted_proxies static private_ranges" in caddyfile
+
+
+def test_metrics_are_not_served_through_caddy() -> None:
+    caddyfile = (DEPLOY / "Caddyfile").read_text()
+    assert caddyfile.index("respond /api/metrics 404") < caddyfile.index("handle_path /api/*")

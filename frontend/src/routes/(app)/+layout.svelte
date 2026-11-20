@@ -42,7 +42,8 @@
 		},
 		{ href: resolve('/(app)/alerts'), label: 'Alerts', show: true },
 		{ href: resolve('/(app)/admin/users'), label: 'Users', show: can(session.me, 'users.manage') },
-		{ href: resolve('/(app)/admin/audit'), label: 'Audit', show: can(session.me, 'audit.read') }
+		{ href: resolve('/(app)/admin/audit'), label: 'Audit', show: can(session.me, 'audit.read') },
+		{ href: resolve('/(app)/admin/status'), label: 'Status', show: can(session.me, 'audit.read') }
 	]);
 	const tabs = $derived([
 		{ href: resolve('/(app)/[service=service]', { service }), label: 'Live' },

@@ -22,6 +22,9 @@ services:
 
   replay:
     image: casino-dashboard-api:local
+    # The api image's health check probes an http server the replay does not run.
+    healthcheck:
+      disable: true
     restart: unless-stopped
     user: "10001:10001"
     read_only: true

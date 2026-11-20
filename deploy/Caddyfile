@@ -24,6 +24,9 @@ http://:2020 {
 		-Server
 	}
 
+	# Metrics are for inside the stack only.
+	respond /api/metrics 404
+
 	handle_path /api/* {
 		reverse_proxy api:8000
 	}

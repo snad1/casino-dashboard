@@ -1,0 +1,11 @@
+# Overlay for the load proof (tools/load_proof.sh) on top of compose.e2e.yml: the api on
+# loopback for the 100 test viewers, and ingest backfilling the bot's real database
+# (BOT_DATA_DIR, mounted read-only as in production).
+
+services:
+  api:
+    ports:
+      - "127.0.0.1:8010:8000"
+    networks:
+      - internal
+      - hostlink

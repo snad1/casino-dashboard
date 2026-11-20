@@ -31,17 +31,23 @@ class SystemPublisher:
         self.aggregator = aggregator
         self.agent = agent
         self._failing = False
+        self.agent_ok: bool | None = None
+        self.agent_ms: float | None = None
 
     async def publish_once(self) -> None:
         body: dict[str, Any] = {"ts_ms": int(time.time() * 1000), "agent": "unavailable"}
         if self.agent is not None:
+            started = time.monotonic()
             try:
                 data = await self.agent.call("metrics")
             except AgentError as error:
+                self.agent_ok = False
                 if not self._failing:
                     log.warning("system metrics unavailable", error=error.code)
                     self._failing = True
             else:
+                self.agent_ok = True
+                self.agent_ms = (time.monotonic() - started) * 1000
                 if self._failing:
                     log.info("system metrics back")
                     self._failing = False

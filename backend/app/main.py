@@ -34,11 +34,13 @@ from app.auth.totp import router as totp_router
 from app.comments import router as comments_router
 from app.db.engine import create_engine, create_sessionmaker
 from app.errors import UnhandledErrorMiddleware, install_error_handlers
-from app.live.aggregator import Aggregator, run_ticker
+from app.live.aggregator import Aggregator, TickTimer, run_ticker
 from app.live.consumer import ServiceConsumer
 from app.live.resync import Resync
 from app.live.system import SystemPublisher
 from app.logging import RequestContextMiddleware, configure_logging
+from app.metrics import DropWatch
+from app.metrics import router as metrics_router
 from app.middleware.security import SecurityHeadersMiddleware
 from app.settings import Settings, load_settings
 from app.ws.auth import RECHECK_SECONDS, ConnectionRegistry
@@ -68,6 +70,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         agent = AgentClient(settings.agent_socket, settings.agent_token.get_secret_value())
     hub: Hub | None = None
     alerts: Engine | None = None
+    consumer: ServiceConsumer | None = None
+    system: SystemPublisher | None = None
+    ticks = TickTimer()
     if settings.live_service is not None:
         if settings.live_service not in ADAPTERS:
             raise ValueError(f"no live adapter for service {settings.live_service!r}")
@@ -85,14 +90,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """Run the live pipeline (stream to model to sockets) for the app's whole life."""
         stop = asyncio.Event()
         tasks = []
-        if hub is not None and alerts is not None:
+        if hub is not None and alerts is not None and consumer is not None and system is not None:
             try:
                 await alerts.start()
             except Exception:
                 log.exception("alert rules could not be loaded; alerts are off until restart")
             tasks = [
                 asyncio.create_task(consumer.run(stop)),
-                asyncio.create_task(run_ticker(aggregator, hub.publish, stop, settings.live_hz)),
+                asyncio.create_task(
+                    run_ticker(aggregator, hub.publish, stop, settings.live_hz, ticks)
+                ),
                 asyncio.create_task(alerts.run(stop, aggregator)),
                 asyncio.create_task(
                     digest.run(stop, sessionmaker, alerts.service, settings.host_tz)
@@ -128,6 +135,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.alerts = alerts
     app.state.telegram_bot_username = settings.telegram_bot_username
     app.state.vapid_public_key = settings.vapid_public_key
+    app.state.live_service = settings.live_service
+    app.state.consumer = consumer
+    app.state.system = system
+    app.state.ticks = ticks
+    app.state.drops = DropWatch()
     app.state.terminal_ip_allowlist = settings.terminal_ip_allowlist
     install_error_handlers(app, settings.exposes_error_detail)
     install_step_handler(app)
@@ -160,5 +172,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(comments_router)
     app.include_router(ws_router)
     app.include_router(terminal_router)
+    app.include_router(metrics_router)
 
     return app

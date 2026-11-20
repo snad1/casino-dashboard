@@ -415,6 +415,26 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/status': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * Status Page
+		 * @description The dashboard's own health for owners and admins, refreshed by the status page.
+		 */
+		get: operations['status_page_status_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/terminal/recordings/{session_id}': {
 		parameters: {
 			query?: never;
@@ -1462,6 +1482,19 @@ export interface components {
 			/** Profit Bins */
 			profit_bins: components['schemas']['ProfitBin'][];
 		};
+		/** CheckOut */
+		CheckOut: {
+			/** Detail */
+			detail: string;
+			/** Name */
+			name: string;
+			/** Ok */
+			ok: boolean;
+			/** Unit */
+			unit: string;
+			/** Value */
+			value: number | null;
+		};
 		/** CleanupArgs */
 		CleanupArgs: {
 			/** Days */
@@ -2175,6 +2208,16 @@ export interface components {
 			last: string | null;
 			/** Span Sec */
 			span_sec: number;
+		};
+		/** StatusOut */
+		StatusOut: {
+			/**
+			 * At
+			 * Format: date-time
+			 */
+			at: string;
+			/** Checks */
+			checks: components['schemas']['CheckOut'][];
 		};
 		/** StepUpIn */
 		StepUpIn: {
@@ -2925,6 +2968,26 @@ export interface operations {
 				};
 				content: {
 					'application/json': components['schemas']['Health'];
+				};
+			};
+		};
+	};
+	status_page_status_get: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['StatusOut'];
 				};
 			};
 		};

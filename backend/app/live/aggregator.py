@@ -425,11 +425,37 @@ class Aggregator:
         return {lane: dict(fields) for lane, fields in self._sent.items()}, list(self._tape)
 
 
+class TickTimer:
+    """How long ticks take: the last one, and the longest in this window and the one before."""
+
+    def __init__(self, window_s: float = 60.0, clock: Callable[[], float] = time.monotonic) -> None:
+        self.window_s = window_s
+        self.clock = clock
+        self.last: float | None = None
+        self._max = 0.0
+        self._previous_max = 0.0
+        self._since = clock()
+
+    def record(self, seconds: float) -> None:
+        now = self.clock()
+        if now - self._since >= self.window_s:
+            self._previous_max = self._max if now - self._since < 2 * self.window_s else 0.0
+            self._max = 0.0
+            self._since = now
+        self.last = seconds
+        self._max = max(self._max, seconds)
+
+    @property
+    def max(self) -> float | None:
+        return None if self.last is None else max(self._max, self._previous_max)
+
+
 async def run_ticker(
     aggregator: Aggregator,
     emit: Callable[[Tick], Awaitable[None]],
     stop: asyncio.Event,
     hz: int = DEFAULT_HZ,
+    timer: TickTimer | None = None,
 ) -> None:
     """Tick at `hz` on a fixed schedule (no drift); empty ticks are not emitted."""
     if not MIN_HZ <= hz <= MAX_HZ:
@@ -445,6 +471,9 @@ async def run_ticker(
         if stop.is_set():
             return
         next_at += period
+        started = loop.time()
         tick = aggregator.tick()
         if not tick.empty:
             await emit(tick)
+        if timer is not None:
+            timer.record(loop.time() - started)

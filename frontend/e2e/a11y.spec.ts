@@ -70,6 +70,7 @@ async function rig(page: Page) {
 			json: { items: [], next_before: null }
 		}),
 		'GET /wolfbet/control': () => ({ status: 200, json: controlMenu }),
+		'GET /status': () => ({ status: 200, json: { at: '2026-11-20T10:00:00Z', checks: [] } }),
 		'GET /wolfbet/config': () => ({
 			status: 200,
 			json: {
@@ -118,7 +119,8 @@ const PAGES: Array<[string, (page: Page) => ReturnType<Page['getByRole']>]> = [
 	['/wolfbet/terminal', heading("You don't have access to this page.")],
 	['/alerts', heading('Alerts')],
 	['/admin/users', heading('Users')],
-	['/admin/audit', heading('Audit log')]
+	['/admin/audit', heading('Audit log')],
+	['/admin/status', heading('Status')]
 ];
 
 for (const scheme of ['dark', 'light'] as const) {

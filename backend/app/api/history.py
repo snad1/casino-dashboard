@@ -393,18 +393,24 @@ async def get_current(service: str, request: Request, _: Viewer, db: Db) -> Base
     return out
 
 
+async def latest_reconcile(db: AsyncSession, service: str) -> ReconcileRun | None:
+    """The service's newest reconcile run: how far ingest lags and whether history matches."""
+    run: ReconcileRun | None = await db.scalar(
+        select(ReconcileRun)
+        .where(ReconcileRun.service == service)
+        .order_by(ReconcileRun.id.desc())
+        .limit(1)
+    )
+    return run
+
+
 @router.get("/ingest", response_model=IngestOut)
 async def get_ingest(service: str, request: Request, _: Viewer, db: Db) -> BaseModel:
     """The latest reconcile run: how far ingest lags and whether the history copy matches."""
     cache, key = _cache(request)
     if (hit := cache.get(key)) is not None:
         return hit
-    run = await db.scalar(
-        select(ReconcileRun)
-        .where(ReconcileRun.service == service)
-        .order_by(ReconcileRun.id.desc())
-        .limit(1)
-    )
+    run = await latest_reconcile(db, service)
     out = IngestOut(
         last_run=None
         if run is None

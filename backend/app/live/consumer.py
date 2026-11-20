@@ -122,6 +122,8 @@ class ServiceConsumer:
         self.last_ids: dict[str, str] = {}
         self.gaps = GapTracker(adapter.name, grace_s)
         self.stats: Counter[str] = Counter()
+        self.last_event_ms: float | None = None
+        self.lag_ms: float | None = None
 
     async def _resolve_start(self) -> None:
         """Pin `$` to each stream's current last id, so no stream is ever read from `$` twice;
@@ -162,6 +164,8 @@ class ServiceConsumer:
             self.stats[f"dropped:{invalid.reason}"] += 1
             return
         self.stats["events"] += 1
+        self.last_event_ms = time.time() * 1000
+        self.lag_ms = max(0.0, self.last_event_ms - event.ts_ms)
         self.gaps.see(event, time.monotonic())
         self.stats["late"] = self.gaps.late
         await self.sink(event)

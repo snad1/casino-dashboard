@@ -34,6 +34,7 @@ coverage/
 
 # Throwaway e2e stack and perf output
 deploy/e2e-secrets/
+tools/load-results/
 deploy/e2e-agent/
 deploy/e2e-botdata/
 frontend/perf-results/

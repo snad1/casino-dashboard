@@ -43,7 +43,8 @@ lint:
 	$(PNPM) lint
 
 type:
-	cd backend && uv run mypy app tests ../tools/replay_publisher.py ../tools/e2e_seed.py
+	cd backend && uv run mypy app tests ../tools/replay_publisher.py ../tools/e2e_seed.py \
+		../tools/load_proof.py
 	cd agent && uv run mypy agent tests
 	$(PNPM) check
 

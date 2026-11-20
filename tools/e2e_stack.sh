@@ -3,6 +3,8 @@
 #   tools/e2e_stack.sh up               generate secrets, build, start, migrate and seed
 #   tools/e2e_stack.sh down             remove containers, volumes and generated secrets
 #   tools/e2e_stack.sh compose <args>   docker compose against the e2e project
+# E2E_OVERLAY adds one more compose file (the load proof publishes the api with it);
+# E2E_VIEWERS seeds that many extra viewers sharing the generated password.
 # The seeded viewer signs in with E2E_EMAIL and the generated e2e_password secret.
 set -euo pipefail
 
@@ -15,7 +17,8 @@ export E2E_EMAIL="${E2E_EMAIL:-viewer@e2e.test}"
 
 compose() {
     docker compose --project-directory "$DEPLOY" --env-file "$DEPLOY/e2e.env" \
-        -f "$DEPLOY/compose.yml" -f "$DEPLOY/compose.e2e.yml" "$@"
+        -f "$DEPLOY/compose.yml" -f "$DEPLOY/compose.e2e.yml" \
+        ${E2E_OVERLAY:+-f "$E2E_OVERLAY"} "$@"
 }
 
 make_secrets() {
@@ -38,7 +41,8 @@ up() {
     compose build api caddy
     compose up -d --wait timescale redis
     compose run --rm migrate
-    compose run --rm -e E2E_EMAIL -e E2E_PASSWORD -v "$ROOT/tools:/tools:ro" \
+    compose run --rm -e E2E_EMAIL -e E2E_PASSWORD -e E2E_VIEWERS="${E2E_VIEWERS:-0}" \
+        -e PYTHONPATH=/app -v "$ROOT/tools:/tools:ro" \
         --entrypoint python api /tools/e2e_seed.py
     compose up -d --wait api caddy replay
     echo "e2e stack on https://localhost:8443 (viewer $E2E_EMAIL)"

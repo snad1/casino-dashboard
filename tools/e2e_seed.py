@@ -1,7 +1,8 @@
 """Seed a throwaway e2e stack: one viewer, the wolfbet service and some past sessions.
 
 Runs inside the api image with the stack's secrets (`python /tools/e2e_seed.py`). The viewer
-signs in with `E2E_EMAIL` / `E2E_PASSWORD`. Past sessions and bets go straight into the
+signs in with `E2E_EMAIL` / `E2E_PASSWORD`; `E2E_VIEWERS=N` adds viewer1..N@e2e.test with the
+same password, for load runs that need many accounts. Past sessions and bets go straight into the
 history tables, so the sessions list, chart history and session page have data without a bot
 database. It refuses to run unless APP_ENV is `testing` or `staging`, and it is idempotent.
 """
@@ -19,7 +20,7 @@ from app.auth.passwords import hash_password
 from app.db.engine import create_engine, create_sessionmaker
 from app.db.models import Service
 from app.history.models import Bet, DbEpoch, HistorySession
-from app.settings import DatabaseSettings
+from app.settings import DEFAULT_SECRETS_DIR, DatabaseSettings
 
 SERVICE = "wolfbet"
 SESSIONS = 6
@@ -27,8 +28,8 @@ BETS_PER_SESSION = 240
 ALLOWED_ENVS = ("testing", "staging")
 
 
-async def seed(email: str, password: str) -> None:
-    settings = DatabaseSettings()
+async def seed(email: str, password: str, extra_viewers: int = 0) -> None:
+    settings = DatabaseSettings(_secrets_dir=os.environ.get("SECRETS_DIR", DEFAULT_SECRETS_DIR))
     if settings.app_env not in ALLOWED_ENVS:
         raise SystemExit(f"refusing to seed: APP_ENV is {settings.app_env}")
     engine = create_engine(settings)
@@ -36,11 +37,14 @@ async def seed(email: str, password: str) -> None:
     now = datetime.now(UTC).replace(microsecond=0)
     try:
         async with create_sessionmaker(engine)() as db:
-            if await db.scalar(select(User.id).where(User.email == email)) is None:
-                user = User(email=email, password_hash=hash_password(password))
-                db.add(user)
-                await db.flush()
-                db.add(UserRole(user_id=user.id, service_id=None, role=Role.VIEWER))
+            emails = [email, *(f"viewer{n}@e2e.test" for n in range(1, extra_viewers + 1))]
+            password_hash = hash_password(password)
+            for address in emails:
+                if await db.scalar(select(User.id).where(User.email == address)) is None:
+                    user = User(email=address, password_hash=password_hash)
+                    db.add(user)
+                    await db.flush()
+                    db.add(UserRole(user_id=user.id, service_id=None, role=Role.VIEWER))
             if await db.scalar(select(Service.id).where(Service.name == SERVICE)) is None:
                 db.add(Service(name=SERVICE, adapter=SERVICE, host="localhost"))
             if await db.scalar(select(DbEpoch.epoch_id).where(DbEpoch.service == SERVICE)):
@@ -108,7 +112,11 @@ def main() -> int:
     if not email or not password:
         print("set E2E_EMAIL and E2E_PASSWORD", file=sys.stderr)
         return 2
-    asyncio.run(seed(email, password))
+    extra = os.environ.get("E2E_VIEWERS", "0")
+    if not extra.isdigit():
+        print("E2E_VIEWERS must be a number", file=sys.stderr)
+        return 2
+    asyncio.run(seed(email, password, int(extra)))
     print(f"seeded {SERVICE} for {email}")
     return 0
 

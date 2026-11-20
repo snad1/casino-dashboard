@@ -8,7 +8,9 @@ api process's CPU and memory every few seconds. Run it against a running api, fo
         --origin https://localhost --accounts accounts.txt --clients 100 \\
         --publisher redis://publisher:<pw>@127.0.0.1:6379/0 --api-pid <pid> --seconds 300
 
-`accounts.txt` holds one `email password` pair per line. It is not part of the test suite.
+`accounts.txt` holds one `email password` pair per line. With `--bet-rate 0` it publishes
+nothing (something else feeds the stream) and needs no `--publisher`; without `--api-pid` it
+skips the CPU and memory sampling. It is not part of the test suite.
 """
 
 import argparse
@@ -127,11 +129,13 @@ def parse_args() -> tuple[argparse.Namespace, list[list[str]]]:
     parser.add_argument("--origin", required=True)
     parser.add_argument("--accounts", required=True, type=Path)
     parser.add_argument("--clients", type=int, default=100)
-    parser.add_argument("--publisher", required=True)
-    parser.add_argument("--api-pid", type=int, required=True)
+    parser.add_argument("--publisher")
+    parser.add_argument("--api-pid", type=int)
     parser.add_argument("--seconds", type=float, default=300)
     parser.add_argument("--bet-rate", type=float, default=90.0)
     args = parser.parse_args()
+    if args.bet_rate > 0 and not args.publisher:
+        parser.error("--publisher is needed unless --bet-rate is 0")
     lines = args.accounts.read_text().splitlines()
     return args, [line.split() for line in lines if line.strip()]
 
@@ -149,12 +153,16 @@ async def main(args: argparse.Namespace, accounts: list[list[str]]) -> None:
         )
         for i in range(args.clients)
     ]
-    sampler = asyncio.create_task(sample(args.api_pid, stats, stop))
-    publisher = asyncio.create_task(publish(args.publisher, args.bet_rate, stop))
+    sampler = asyncio.create_task(sample(args.api_pid, stats, stop)) if args.api_pid else None
+    publisher = (
+        asyncio.create_task(publish(args.publisher, args.bet_rate, stop))
+        if args.bet_rate > 0
+        else None
+    )
     await asyncio.sleep(args.seconds)
     stop.set()
-    sent = await publisher
-    await asyncio.gather(*viewers, sampler, return_exceptions=True)
+    sent = await publisher if publisher is not None else 0
+    await asyncio.gather(*viewers, *([sampler] if sampler else []), return_exceptions=True)
 
     cpu = [c for c, _ in stats.samples]
     rss = [r for _, r in stats.samples]
@@ -168,10 +176,10 @@ async def main(args: argparse.Namespace, accounts: list[list[str]]) -> None:
                 "ticks_per_client_per_s": round(stats.ticks / args.clients / args.seconds, 2),
                 "snapshots": stats.snapshots,
                 "errors": stats.errors,
-                "api_cpu_pct_mean": round(statistics.mean(cpu), 1),
-                "api_cpu_pct_max": max(cpu),
-                "api_rss_mib_mean": round(statistics.mean(rss), 1),
-                "api_rss_mib_max": round(max(rss), 1),
+                "api_cpu_pct_mean": round(statistics.mean(cpu), 1) if cpu else None,
+                "api_cpu_pct_max": max(cpu, default=None),
+                "api_rss_mib_mean": round(statistics.mean(rss), 1) if rss else None,
+                "api_rss_mib_max": round(max(rss), 1) if rss else None,
             }
         )
     )
