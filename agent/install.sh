@@ -59,7 +59,7 @@ set -a
 set +a
 export CASINO_AGENT_SOCKET="\${CASINO_AGENT_SOCKET:-\${XDG_RUNTIME_DIR:-/run/user/\$(id -u)}/casino-agent/agent.sock}"
 # The venv does not install the project (uv package=false), so run from AGENT_DIR
-# where the `agent` package lives; the caller's working directory must not matter.
+# where the agent package lives; the caller's working directory must not matter.
 cd "$AGENT_DIR" || exit 1
 exec "$AGENT_DIR/.venv/bin/python" -m agent "\$@"
 BINEOF
