@@ -2,6 +2,7 @@
 #   make install    install backend, agent and frontend dependencies
 #   make check      lint + type + test + security (what CI runs)
 #   make security   scanners only; see docs/security/scans.md
+#   make semgrep-rules  pin today's semgrep registry rules (rewrites deploy/semgrep/rules.lock.json)
 #   make e2e        Playwright against a production build (downloads browsers once)
 #   make budget     fail when a page's first load is over 250 KB gzip
 #   make e2e-stack  Playwright against the real stack with replayed bot events (needs Docker)
@@ -29,7 +30,7 @@ SEMGREP_VERSION   := 1.185.0
 SCAN_IMAGE        := casino-dashboard-api:scan
 ZAP_IMAGE         := zaproxy/zap-stable:2.17.0
 
-.PHONY: install lint type test check security openapi bandit pip-audit pnpm-audit semgrep gitleaks hadolint image-scan e2e budget e2e-stack perf soak zap dev-secrets dev-api
+.PHONY: install lint type test check security openapi bandit pip-audit pnpm-audit semgrep semgrep-rules gitleaks hadolint image-scan e2e budget e2e-stack perf soak zap dev-secrets dev-api
 
 install:
 	uv sync --project backend
@@ -72,8 +73,12 @@ pnpm-audit:
 	$(PNPM) audit --prod --audit-level high
 
 semgrep:
-	uvx semgrep==$(SEMGREP_VERSION) scan --config p/python --config p/owasp-top-ten \
-		--error --metrics off --quiet --no-git-ignore backend/app agent/agent frontend/src
+	rules="$$(python3 tools/semgrep_rules.py config)"; \
+	uvx semgrep==$(SEMGREP_VERSION) scan $$rules --error --metrics off --disable-version-check \
+		--quiet --no-git-ignore backend/app agent/agent frontend/src
+
+semgrep-rules:
+	python3 tools/semgrep_rules.py refresh
 
 gitleaks:
 	gitleaks git --redact --no-banner --config .gitleaks.toml .
