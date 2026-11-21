@@ -70,6 +70,8 @@ class FileStore:
         self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
         if self.root.is_symlink() or not self.root.is_dir():
             raise RuntimeError(f"export root {self.root} is not a directory")
+        # Owner-only, tighter than the rule's 0o644
+        # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions
         os.chmod(self.root, 0o700)
 
     def allocate(self) -> tuple[str, Path]:

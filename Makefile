@@ -7,6 +7,7 @@
 #   make e2e-stack  Playwright against the real stack with replayed bot events (needs Docker)
 #   make perf       frame times at 10 Hz, 1x and 4x CPU throttle (prints, writes perf-results/)
 #   make soak       one hour on a fast feed; fails if the JS heap grows over 20%
+#   make zap        OWASP ZAP baseline scan of the e2e stack (needs Docker; writes zap-results/)
 #   make dev-api    API on http://localhost:8010 with reload (creates local dev secrets once)
 #   make openapi    rewrite contracts/openapi.json and the frontend's generated api types
 
@@ -26,8 +27,9 @@ BANDIT_VERSION    := 1.9.4
 PIP_AUDIT_VERSION := 2.10.1
 SEMGREP_VERSION   := 1.185.0
 SCAN_IMAGE        := casino-dashboard-api:scan
+ZAP_IMAGE         := zaproxy/zap-stable:2.17.0
 
-.PHONY: install lint type test check security openapi bandit pip-audit pnpm-audit semgrep gitleaks hadolint image-scan e2e budget e2e-stack perf soak dev-secrets dev-api
+.PHONY: install lint type test check security openapi bandit pip-audit pnpm-audit semgrep gitleaks hadolint image-scan e2e budget e2e-stack perf soak zap dev-secrets dev-api
 
 install:
 	uv sync --project backend
@@ -97,6 +99,19 @@ e2e-stack:
 	$(PW_INSTALL)
 	tools/e2e_stack.sh up || { tools/e2e_stack.sh down; exit 1; }
 	status=0; (cd frontend && pnpm e2e:stack) || status=$$?; \
+		[ -n "$(KEEP_STACK)" ] || tools/e2e_stack.sh down; exit $$status
+
+# ZAP's Java client sends no SNI for a bare "localhost", so the scan reaches Caddy by a dotted
+# alias. WARN or FAIL alerts not accepted in deploy/zap/rules.tsv fail the target.
+zap:
+	@docker info >/dev/null 2>&1 || { echo "zap needs Docker running (start Docker Desktop)" >&2; exit 1; }
+	mkdir -p zap-results && chmod 777 zap-results && cp deploy/zap/rules.tsv zap-results/
+	CADDY_ADDRESS="localhost, zap.localhost" tools/e2e_stack.sh up || { tools/e2e_stack.sh down; exit 1; }
+	status=0; caddy=$$(tools/e2e_stack.sh compose ps -q caddy); \
+		ip=$$(docker inspect -f '{{(index .NetworkSettings.Networks "wolfbet-e2e_edge").IPAddress}}' $$caddy); \
+		docker run --rm --network wolfbet-e2e_edge --add-host zap.localhost:$$ip \
+			-v "$(CURDIR)/zap-results:/zap/wrk:rw" $(ZAP_IMAGE) zap-baseline.py \
+			-t https://zap.localhost -c rules.tsv -r report.html -J report.json || status=$$?; \
 		[ -n "$(KEEP_STACK)" ] || tools/e2e_stack.sh down; exit $$status
 
 perf:

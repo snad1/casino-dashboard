@@ -12,6 +12,9 @@ paths = [
   '''(^|/)\.svelte-kit/''',
   '''(^|/)frontend/build/''',
   '''(^|/)\.(mypy|ruff|pytest)_cache/''',
+  # Playwright and ZAP output: page snapshots hold the throwaway e2e stack's password.
+  '''(^|/)frontend/(test-results|playwright-report)/''',
+  '''(^|/)zap-results/''',
   # Lockfiles carry integrity hashes that look like keys.
   '''(^|/)uv\.lock$''',
   '''(^|/)pnpm-lock\.yaml$''',

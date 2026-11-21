@@ -90,6 +90,8 @@ class AgentServer:
         self._server = await asyncio.start_unix_server(
             self._handle, path=str(path), limit=self.config.max_request_bytes + 1
         )
+        # The casino-agent group must connect; others get nothing
+        # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions
         os.chmod(path, 0o660)  # nosec B103: the casino-agent group is who may connect
         if self.config.group:
             gid = grp.getgrnam(self.config.group).gr_gid
@@ -118,6 +120,8 @@ class AgentServer:
         try:
             uid, gid = peer_credentials(writer.get_extra_info("socket"))
         except OSError as e:
+            # "Credentials" is the peer uid/gid check; e is an OSError
+            # nosemgrep: python.lang.security.audit.logging.logger-credential-leak.python-logger-credential-disclosure  # noqa: E501
             log.warning("refused a connection: peer credentials unavailable (%s)", e)
             await self._reply(writer, _error(None, "unauthorized"))
             await self._close(writer)

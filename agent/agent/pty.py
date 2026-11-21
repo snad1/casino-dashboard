@@ -289,6 +289,8 @@ class PtyManager:
         self.recordings_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         if self.recordings_dir.is_symlink() or not self.recordings_dir.is_dir():
             raise RuntimeError(f"recordings dir {self.recordings_dir} is not a directory")
+        # Owner-only, tighter than the rule's 0o644
+        # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions
         os.chmod(self.recordings_dir, 0o700)
 
     # ── lifecycle ──

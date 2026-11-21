@@ -1,0 +1,5 @@
+10055	INFO	(CSP) style-src keeps 'unsafe-inline' because Svelte sets inline styles; scripts are locked by the hashed meta policy. ZAP reads connect-src as undefined because the meta policy omits it; the header policy sets connect-src 'self' and both are enforced
+90004	INFO	(COEP) no cross-origin isolation features are used; every response sends CORP same-origin
+10109	IGNORE	(Modern Web Application) informational: the app is a single-page app
+10015	INFO	(Cache-control) the HTML shell is revalidated by its ETag; hashed assets are immutable
+10049	INFO	(Content Cacheability) informational: hashed assets are immutable for a year, the shell and the worker are revalidated

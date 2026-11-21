@@ -16,11 +16,12 @@ http://:2020 {
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' wss:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "no-referrer"
 		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
 		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "same-origin"
 		-Server
 	}
 
@@ -38,6 +39,8 @@ http://:2020 {
 	# The worker must be checked on every visit so a deploy reaches installed apps.
 	header /service-worker.js Cache-Control "no-cache"
 	header /manifest.webmanifest Content-Type "application/manifest+json"
+	# Build output under /_app/immutable/ has a content hash in its name.
+	header /_app/immutable/* Cache-Control "public, max-age=31536000, immutable"
 
 	handle {
 		root * /srv
