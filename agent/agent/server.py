@@ -93,7 +93,9 @@ class AgentServer:
         # The casino-agent group must connect; others get nothing
         # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions
         os.chmod(path, 0o660)  # nosec B103: the casino-agent group is who may connect
-        if self.config.group:
+        # Under systemd the unit hands over a setgid directory of the group: the socket inherits
+        # it, and chown could not work there, as the group is not mapped in the user namespace.
+        if self.config.group and not path.parent.stat().st_mode & stat.S_ISGID:
             gid = grp.getgrnam(self.config.group).gr_gid
             os.chown(path, -1, gid)
             os.chown(path.parent, -1, gid)

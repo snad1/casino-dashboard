@@ -6,6 +6,10 @@ After=default.target
 [Service]
 Type=simple
 WorkingDirectory=@AGENT_DIR@
+# "+" runs this step outside the sandbox: in a user unit the sandbox maps only the user's own
+# ids, so the agent itself cannot give its socket to the casino-agent group. The setgid
+# directory does it instead: the socket created in it gets the directory's group.
+ExecStartPre=+/bin/sh -c 'chgrp casino-agent "%t/casino-agent" && chmod 2750 "%t/casino-agent"'
 ExecStart=@AGENT_DIR@/.venv/bin/python -m agent serve
 EnvironmentFile=%h/.config/casino-agent/agent.env
 Restart=on-failure

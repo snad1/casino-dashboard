@@ -5,6 +5,7 @@ check uses the kernel's credentials for this test process.
 """
 
 import asyncio
+import grp
 import json
 import logging
 import os
@@ -109,6 +110,54 @@ async def test_peer_allowed_by_gid_only(sock_dir: Path) -> None:
 
 async def test_socket_is_0660(agent: AgentServer) -> None:
     assert stat.S_IMODE(agent.config.socket_path.stat().st_mode) == 0o660
+
+
+def _own_group() -> str:
+    return grp.getgrgid(os.getgid()).gr_name
+
+
+@pytest.fixture
+def setgid_dir(sock_dir: Path) -> Path:
+    os.chown(sock_dir, -1, os.getgid())
+    sock_dir.chmod(0o2750)
+    assert sock_dir.stat().st_mode & stat.S_ISGID
+    return sock_dir
+
+
+async def test_a_setgid_directory_gives_the_socket_its_group_without_chown(
+    setgid_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refused(*_: Any) -> None:
+        raise OSError(22, "Invalid argument")
+
+    monkeypatch.setattr(os, "chown", refused)
+    server = await _running(_config(setgid_dir, group=_own_group()))
+    try:
+        assert stat.S_IMODE(server.config.socket_path.stat().st_mode) == 0o660
+        assert (await _talk(server, _req()))[0]["ok"] is True
+    finally:
+        await server.close()
+
+
+async def test_without_setgid_the_socket_and_its_directory_are_given_the_group(
+    sock_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[str, int, int]] = []
+    monkeypatch.setattr(os, "chown", lambda p, u, g: calls.append((str(p), u, g)))
+    server = await _running(_config(sock_dir, group=_own_group()))
+    await server.close()
+    gid = os.getgid()
+    assert calls == [(str(sock_dir / "agent.sock"), -1, gid), (str(sock_dir), -1, gid)]
+
+
+def test_the_unit_gives_the_runtime_directory_to_the_group_outside_the_sandbox() -> None:
+    unit = (Path(__file__).resolve().parents[1] / "systemd" / "casino-agent.service").read_text()
+    assert (
+        'ExecStartPre=+/bin/sh -c \'chgrp casino-agent "%t/casino-agent" '
+        '&& chmod 2750 "%t/casino-agent"\''
+    ) in unit
+    for line in ("ProtectSystem=strict", "PrivateTmp=yes", "NoNewPrivileges=yes"):
+        assert line in unit.splitlines()
 
 
 # ── refused traffic ──
