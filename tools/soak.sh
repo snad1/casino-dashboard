@@ -18,11 +18,12 @@ usage() { sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 
 run() {
     [ -f "$DASH_ENV" ] || die "Dashboard not installed: run deploy/install.sh" 2
-    DASH_PROJECT=""
+    DASH_COMPOSE_PROJECT=""
     # shellcheck disable=SC1090
     . "$DASH_ENV"
-    [ -n "$DASH_PROJECT" ] || die "no Coolify app in dash.env: re-run install.sh with --coolify-app" 2
-    python3 "$ROOT/tools/soak_day.py" run --db "$BOT_DB" --results "$RESULTS" --project "$DASH_PROJECT"
+    # The compose file names its project; the Coolify app id in dash.env is not it.
+    python3 "$ROOT/tools/soak_day.py" run --db "$BOT_DB" --results "$RESULTS" \
+        --project "${DASH_COMPOSE_PROJECT:-wolfbet-dashboard}"
 }
 
 install_units() {

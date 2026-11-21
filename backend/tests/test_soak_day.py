@@ -218,3 +218,17 @@ def test_install_writes_a_quiet_nightly_timer(tmp_path: Path) -> None:
     assert "enable --now casino-soak.timer" in (tmp_path / "calls").read_text()
     unconfigured = _soak_sh(env, "run")
     assert unconfigured.returncode == 2 and "Dashboard not installed" in unconfigured.stderr
+
+
+def test_run_reads_the_stack_by_its_compose_project(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "python3").write_text('#!/bin/sh\necho "$*" >> "$HOME/calls"\n')
+    (bin_dir / "python3").chmod(0o755)
+    conf = tmp_path / ".config/casino-dashboard"
+    conf.mkdir(parents=True)
+    (conf / "dash.env").write_text("DASH_PROJECT=hrrxmud5u4rwmjyilbqwryib\n")
+    env = {"HOME": str(tmp_path), "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
+    done = _soak_sh(env, "run")
+    assert done.returncode == 0, done.stderr
+    assert (tmp_path / "calls").read_text().split()[-2:] == ["--project", "wolfbet-dashboard"]

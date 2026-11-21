@@ -59,9 +59,9 @@ create_owner() {
     [ -f "$CONF_DIR/dash.env" ] || die "run the install first (no $CONF_DIR/dash.env)" 2
     # shellcheck disable=SC1091
     . "$CONF_DIR/dash.env"
-    [ -n "${DASH_PROJECT:-}" ] || die "no Coolify app set: re-run the install with --coolify-app UUID" 2
     local id log status
-    id="$(docker ps -q --filter "label=com.docker.compose.project=$DASH_PROJECT" \
+    # The compose file names its project; DASH_PROJECT is the Coolify app, used only to deploy.
+    id="$(docker ps -q --filter "label=com.docker.compose.project=${DASH_COMPOSE_PROJECT:-wolfbet-dashboard}" \
         --filter "label=com.docker.compose.service=api" | head -n 1)"
     [ -n "$id" ] || die "the api container is not running: deploy the resource in Coolify first"
     log="$(mktemp)"

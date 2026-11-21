@@ -298,6 +298,16 @@ def test_owner_step(rig: dict[str, Any]) -> None:
     assert down.returncode == 1 and "deploy the resource in Coolify first" in down.stderr
 
 
+def test_owner_step_finds_the_api_by_its_compose_project(rig: dict[str, Any]) -> None:
+    assert _install(rig).returncode == 0
+    made = _run(rig, "--owner-email", "me@example.com", STUB_API_ID="c0ffee")
+    assert made.returncode == 0, made.stderr
+    assert (
+        "docker ps -q --filter label=com.docker.compose.project=wolfbet-dashboard "
+        "--filter label=com.docker.compose.service=api"
+    ) in _calls(rig)
+
+
 def test_owner_step_needs_the_install_first(rig: dict[str, Any]) -> None:
     result = _run(rig, "--owner-email", "me@example.com")
     assert result.returncode == 2 and "run the install first" in result.stderr
