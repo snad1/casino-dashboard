@@ -55,6 +55,17 @@ def bet_gaps(db: Path, start: datetime, end: datetime) -> list[float]:
     return gaps
 
 
+def last_bet(db: Path) -> str | None:
+    """The newest bet's timestamp, or None when the table is empty or missing."""
+    try:
+        with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as conn:
+            row = conn.execute("SELECT max(timestamp) FROM bets").fetchone()
+    except sqlite3.OperationalError:
+        return None
+    stamp: str | None = row[0]
+    return stamp
+
+
 def wal_size(db: Path) -> int:
     wal = Path(f"{db}-wal")
     return wal.stat().st_size if wal.exists() else 0
@@ -68,8 +79,6 @@ def _percentile(values: Sequence[float], fraction: float) -> float:
 def summarize(
     label: str, gaps: list[float], wal: list[int], start: datetime, end: datetime
 ) -> dict[str, Any]:
-    if not gaps:
-        raise SystemExit(f"{label}: no bets in the window; is the bot betting?")
     mean = statistics.fmean(gaps)
     return {
         "label": label,
@@ -90,6 +99,20 @@ def _mib(size: int) -> str:
     return f"{size / 1048576:.1f}"
 
 
+def _last_seen(db: Path, at: datetime) -> str:
+    stamp = last_bet(db)
+    if stamp is None:
+        return f"no bets in {db} yet"
+    age = (at - datetime.fromisoformat(stamp)).total_seconds()
+    if age < 90:
+        ago = f"{age:.0f} s"
+    elif age < 5400:
+        ago = f"{age / 60:.0f} min"
+    else:
+        ago = f"{age / 3600:.0f} h"
+    return f"last bet {stamp[:19].replace('T', ' ')} ({ago} ago)"
+
+
 def _stderr(line: str) -> None:
     print(line, file=sys.stderr, flush=True)
 
@@ -105,8 +128,11 @@ def sample(
     """Watch for `minutes`, saying how far it got each minute; Ctrl-C ends the window early."""
     sleep = sleep or time.sleep
     now = now or datetime.now
-    say(f"{label}: sampling for {minutes:g} min; Ctrl-C stops early and keeps what was measured")
     start = now()
+    say(
+        f"{label}: sampling {db} for {minutes:g} min; {_last_seen(db, start)}; "
+        "Ctrl-C stops early and keeps what was measured"
+    )
     wal = [wal_size(db)]
     left = minutes * 60
     done = 0.0
@@ -122,18 +148,41 @@ def sample(
     except KeyboardInterrupt:
         say(f"{label}: stopped after {done / 60:.1f} of {minutes:g} min")
     end = now()
-    return summarize(label, bet_gaps(db, start, end), wal, start, end)
+    gaps = bet_gaps(db, start, end)
+    if not gaps:
+        raise SystemExit(
+            f"{label}: no bets in the window in {db}; {_last_seen(db, end)}. "
+            "Is the bot betting, and is WOLFBET_DB_PATH this file?"
+        )
+    return summarize(label, gaps, wal, start, end)
+
+
+def _resampled_median(ordered: Sequence[float], rng: random.Random) -> float:
+    """The median of one bootstrap resample, drawn without building the resample.
+
+    Resampling n values picks indices floor(n * u) for n uniform u, so the resample's k-th
+    smallest value sits at floor(n * U(k)), where U(k), the k-th smallest of n uniforms, is
+    Beta(k, n - k + 1). The next one up is the least of the n - k uniforms above U(k). Same
+    distribution as statistics.median(rng.choices(...)), in constant time: an hour's samples
+    hold about 100 000 gaps, and resampling them 2000 times took minutes.
+    """
+    n = len(ordered)
+    k = (n + 1) // 2
+    u = rng.betavariate(k, n - k + 1)
+    low = ordered[min(n - 1, int(u * n))]
+    if n % 2:
+        return low
+    v = u + (1 - u) * rng.betavariate(1, n - k)
+    return (low + ordered[min(n - 1, int(v * n))]) / 2
 
 
 def compare(off: dict[str, Any], on: dict[str, Any], seed: int = 7) -> dict[str, Any]:
     """Median-gap change from off to on, with a bootstrap 95 % interval, and the gate."""
     rng = random.Random(seed)  # noqa: S311  # resampling, not a secret
-    a, b = off["gaps"], on["gaps"]
+    a, b = sorted(off["gaps"]), sorted(on["gaps"])
     change = statistics.median(b) / statistics.median(a) - 1
     draws = sorted(
-        statistics.median(rng.choices(b, k=len(b))) / statistics.median(rng.choices(a, k=len(a)))
-        - 1
-        for _ in range(RESAMPLES)
+        _resampled_median(b, rng) / _resampled_median(a, rng) - 1 for _ in range(RESAMPLES)
     )
     low, high = draws[int(0.025 * RESAMPLES)], draws[int(0.975 * RESAMPLES) - 1]
     return {"change": change, "low": low, "high": high, "passed": change <= GATE}
