@@ -79,7 +79,7 @@ services:
       - ./redis/users.acl.tmpl:/etc/redis/users.acl.tmpl:ro
       - ./redis/entrypoint.sh:/etc/redis/entrypoint.sh:ro
     ports:
-      - "127.0.0.1:6379:6379"
+      - "${REDIS_PUBLISH:-127.0.0.1:9479:6379}"
     networks:
       - internal
       - hostlink
@@ -236,6 +236,8 @@ services:
       - NET_BIND_SERVICE
     environment:
       CADDY_ADDRESS: ${CADDY_ADDRESS:-:80}
+    ports:
+      - "${CADDY_PUBLISH:-127.0.0.1:9441:8080}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
