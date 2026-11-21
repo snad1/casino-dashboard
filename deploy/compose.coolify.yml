@@ -1,4 +1,4 @@
-# GENERATED for Coolify from compose.yml — regenerate rather than hand-edit.
+# GENERATED for Coolify from compose.yml: regenerate rather than hand-edit.
 # Coolify runs with --project-directory <repo root> and rejects '${...}' in volume sources,
 # so relative paths are rooted at the repo and the two host binds plus ports are literal.
 name: ${COMPOSE_PROJECT_NAME:-wolfbet-dashboard}
@@ -108,6 +108,7 @@ services:
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       TERMINAL_IP_ALLOWLIST: ${TERMINAL_IP_ALLOWLIST:-}
+      LIVE_USER_SERVICE: ${LIVE_USER_SERVICE:-}
     secrets:
       - session_secret
       - totp_key
@@ -115,6 +116,7 @@ services:
         target: postgres_password
       - redis_dashboard_password
       - agent_token
+      - tg_login_secret
     # The agent's socket is 0660 in the casino-agent group; joining it is the only access.
     group_add:
       - ${AGENT_GID:?set AGENT_GID in deploy/.env}
@@ -291,3 +293,5 @@ secrets:
     file: /opt/wolfbet/secrets/redis_dashboard_password.txt
   agent_token:
     file: /opt/wolfbet/secrets/agent_token.txt
+  tg_login_secret:
+    file: /opt/wolfbet/secrets/tg_login_secret.txt
