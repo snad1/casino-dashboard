@@ -234,7 +234,11 @@ class TestRedisAcl:
         assert "-@all" in rule
         commands = {t for t in rule.split() if t.startswith("+")}
         assert commands == {"+xadd", "+ping"}
-        assert "~wolfbet:*" in rule
+        assert {t for t in rule.split() if t.startswith("~")} == {"~wolfbet:*", "~wolfbet-tg:*"}
+
+    def test_dashboard_reads_the_cli_and_telegram_streams(self, acl: dict[str, str]) -> None:
+        root = acl["dashboard"].partition("(")[0]
+        assert {t for t in root.split() if t.startswith("~")} == {"~wolfbet:*", "~wolfbet-tg:*"}
 
     def test_dashboard_cannot_write_streams(self, acl: dict[str, str]) -> None:
         root, _, selector = acl["dashboard"].partition("(")

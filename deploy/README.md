@@ -63,7 +63,7 @@ Changing the push key pair later turns push off on every device until each user 
 | User | May do | Used by |
 |---|---|---|
 | `default` | nothing (off) | |
-| `publisher` | `XADD`, `PING` on `wolfbet:*` | the bot daemon's event publisher |
-| `dashboard` | read and consume streams on `wolfbet:*` | `api` |
+| `publisher` | `XADD`, `PING` on `wolfbet:*` and `wolfbet-tg:*` | the event publishers of the bot daemon and the Telegram bot |
+| `dashboard` | read and consume streams on `wolfbet:*` and `wolfbet-tg:*` | `api` |
 
 The ACL file is rendered at start from `redis/users.acl.tmpl` with the SHA-256 of each password, so no password text is stored in the repo, the environment or the process list. Redis keeps no data on disk: live events are disposable, and history comes from the bot's SQLite through `ingest`.

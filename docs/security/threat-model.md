@@ -45,7 +45,7 @@ Assets: the casino `api_key` and bot config on the host, control over the bots (
 | STRIDE | Threat | Control | Status |
 |---|---|---|---|
 | Spoofing | Unauthenticated client | Default user off; `publisher` and `dashboard` users with passwords from secret files | Done |
-| Tampering | Publisher rewrites or deletes data | `publisher` may only `XADD` and `PING` on `wolfbet:*`; `dashboard` cannot write streams, only sign-in rate-limit sets on `auth:*` | Done |
+| Tampering | Publisher rewrites or deletes data | `publisher` may only `XADD` and `PING` on `wolfbet:*` and `wolfbet-tg:*`; `dashboard` cannot write streams, only sign-in rate-limit sets on `auth:*` | Done |
 | Information disclosure | Redis reachable from outside | Bound to 127.0.0.1 and the docker bridge only | Done |
 | Denial of service | Memory exhaustion | `maxmemory 256mb`, container cap; live events are lossy by design | Done |
 
