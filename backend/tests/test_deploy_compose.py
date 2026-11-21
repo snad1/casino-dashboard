@@ -208,6 +208,15 @@ def test_ingest_reads_the_bot_directory_read_only(compose: dict[str, Any]) -> No
     assert not bot[0].split(":")[0].endswith(".db")
 
 
+def test_ingest_takes_the_telegram_data_dir_from_env_and_defaults_to_none(
+    compose: dict[str, Any],
+) -> None:
+    environment = _service(compose, "ingest")["environment"]
+    assert environment["INGEST_TG_DATA_DIR"] == "${INGEST_TG_DATA_DIR:-}"
+    example = (DEPLOY / "env.example").read_text()
+    assert "\nINGEST_TG_DATA_DIR=\n" in example
+
+
 def test_secrets_directory_is_ignored_by_git() -> None:
     ignored = (DEPLOY.parent / ".gitignore").read_text().splitlines()
     assert "deploy/secrets/" in ignored

@@ -22,6 +22,7 @@ from app.api.history import latest_reconcile
 from app.auth.models import User
 from app.auth.permissions import Perm, require
 from app.db.engine import get_session
+from app.live.aggregator import Aggregator
 
 STALE_EVENT_S = 60.0
 LAG_WARN_S = 5.0
@@ -98,9 +99,10 @@ async def read(app: Any, db: AsyncSession, now_ms: float | None = None) -> Readi
     if hub is not None:
         r.ws_clients = len(hub.clients)
         r.ws_closed_slow = hub.closed_slow
+        lanes = hub.aggregator.lanes if isinstance(hub.aggregator, Aggregator) else {}
         r.publisher_dropped = {
             number: int(lane.publisher.get("dropped", 0))
-            for number, lane in sorted(hub.aggregator.lanes.items())
+            for number, lane in sorted(lanes.items())
             if lane.publisher is not None
         }
     ticks = app.state.ticks

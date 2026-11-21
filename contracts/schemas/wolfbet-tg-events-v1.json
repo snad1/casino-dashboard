@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "wolfbet-tg-events-v1.json",
+  "title": "WolfBet Telegram bot event, version 1",
+  "description": "The JSON held in the `data` field of each entry in the wolfbet-tg:<uid>:bets, wolfbet-tg:<uid>:state and wolfbet-tg:<uid>:lifecycle Redis streams, one set per Telegram user. The envelope is the daemon's (wolfbet-events-v1.json); payload.uid names the user. All users share the bot's pid and lane 1, and seq rises by one per event for each uid, so a missing seq for a (pid, uid) pair means that user's events were dropped.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "v",
+    "svc",
+    "lane",
+    "pid",
+    "seq",
+    "ts_ms",
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "svc": {
+      "const": "wolfbet-tg"
+    },
+    "lane": {
+      "const": 1
+    },
+    "pid": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ts_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "type": {
+      "enum": [
+        "bet",
+        "state",
+        "lifecycle"
+      ]
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "bet"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/bet"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "lifecycle"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/lifecycle"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "state"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/state"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "bet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "amount",
+        "multiplier",
+        "rule",
+        "bet_value",
+        "result_value",
+        "state",
+        "profit",
+        "balance_after",
+        "session_profit",
+        "total_bets",
+        "current_streak",
+        "api_ms",
+        "uid"
+      ],
+      "properties": {
+        "session_id": {
+          "type": "integer"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "multiplier": {
+          "type": "number"
+        },
+        "rule": {
+          "type": "string"
+        },
+        "bet_value": {
+          "type": "number"
+        },
+        "result_value": {
+          "type": "number"
+        },
+        "state": {
+          "enum": [
+            "win",
+            "loss"
+          ]
+        },
+        "profit": {
+          "type": "number"
+        },
+        "balance_after": {
+          "type": "number"
+        },
+        "session_profit": {
+          "type": "number"
+        },
+        "total_bets": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "current_streak": {
+          "type": "integer"
+        },
+        "api_ms": {
+          "type": "number"
+        },
+        "uid": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "data",
+        "uid"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "start",
+            "stop",
+            "pause",
+            "resume",
+            "reload",
+            "cycle",
+            "session_open",
+            "session_close",
+            "error"
+          ]
+        },
+        "data": {
+          "type": "object"
+        },
+        "uid": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "state": {
+      "type": "object",
+      "required": [
+        "uid"
+      ],
+      "properties": {
+        "uid": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

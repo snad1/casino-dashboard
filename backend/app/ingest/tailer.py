@@ -11,11 +11,18 @@ so purged bet rows below it change nothing. Rows are inserted with `ON CONFLICT 
 so a re-read after a crash or restart never duplicates anything.
 
 The bot writes naive local times; they are read in the host's zone (`HOST_TZ`).
+
+The Telegram bot keeps one database per user, `<data dir>/<uid>/wolfbet.db`, never archived.
+`UserTailers` finds them (and new ones every `DISCOVER_SECONDS`) and runs one `Tailer` each,
+recording the uid on the epoch. Most of those files sit closed while their user is idle, on a
+read-only mount, so a closed one is read as immutable, and the read is thrown away if the file
+or its `-wal` changed meanwhile.
 """
 
 import asyncio
 import logging
 import os
+import re
 import sqlite3
 import time
 from collections.abc import Callable, Sequence
@@ -33,6 +40,9 @@ BATCH_SIZE = 5000
 SESSION_SYNC_SECONDS = 5.0
 LAG_LOG_SECONDS = 30.0
 BUSY_TIMEOUT_MS = 2000
+USER_DB = "wolfbet.db"
+USER_DIR = re.compile(r"[1-9][0-9]{0,18}")
+DISCOVER_SECONDS = 60.0
 
 BET_COLUMNS = (
     "service",
@@ -99,6 +109,7 @@ class Source:
 
     path: Path
     archived: bool
+    closed_ok: bool = False
     epoch: Epoch | None = None
     epoch_id: int = 0
     watermark: int = 0
@@ -118,10 +129,25 @@ def _int(value: Any) -> int | None:
 class Tailer:
     """Copies the live database and every archive of one service, one batch per call."""
 
-    def __init__(self, db: asyncpg.Connection, service: str, data_dir: Path, host_tz: str) -> None:
+    def __init__(
+        self,
+        db: asyncpg.Connection,
+        service: str,
+        data_dir: Path,
+        host_tz: str,
+        *,
+        live_name: str = LIVE_DB,
+        archive_glob: str | None = ARCHIVE_GLOB,
+        tg_uid: int | None = None,
+        closed_ok: bool = False,
+    ) -> None:
         self.db = db
         self.service = service
         self.data_dir = data_dir
+        self.live_name = live_name
+        self.archive_glob = archive_glob
+        self.tg_uid = tg_uid
+        self.closed_ok = closed_ok
         self.zone = ZoneInfo(host_tz)
         self.live: Source | None = None
         self.archives: list[Source] = []
@@ -159,21 +185,12 @@ class Tailer:
 
     async def run(self, stop: asyncio.Event, idle_seconds: float = 0.25) -> None:
         """Step until stop is set, sleeping briefly whenever everything is caught up."""
-        logged = time.monotonic()
-        while not stop.is_set():
-            if time.monotonic() - logged >= LAG_LOG_SECONDS:
-                logger.info("lag: %s rows, %.1f s", self.lag.rows, self.lag.seconds)
-                logged = time.monotonic()
-            if not await self.step():
-                try:
-                    await asyncio.wait_for(stop.wait(), timeout=idle_seconds)
-                except TimeoutError:
-                    pass
+        await _run(self, stop, idle_seconds)
 
     async def _live_source(self) -> Source | None:
-        path = self.data_dir / LIVE_DB
+        path = self.data_dir / self.live_name
         try:
-            epoch = await self._probe(Source(path, archived=False))
+            epoch = await self._probe(Source(path, archived=False, closed_ok=self.closed_ok))
         except SourceUnavailable as error:
             if not self._unavailable_logged:
                 logger.info("live database not readable yet: %s", error)
@@ -183,13 +200,16 @@ class Tailer:
         if epoch is None:
             return None
         if self.live is None or self.live.epoch != epoch:
-            self.live = await self._start(Source(path, archived=False), epoch)
+            source = Source(path, archived=False, closed_ok=self.closed_ok)
+            self.live = await self._start(source, epoch)
             await self._rescan_archives()
         return self.live
 
     async def _rescan_archives(self) -> None:
+        if self.archive_glob is None:
+            return
         pending = {a.path for a in self.archives}
-        for path in sorted(self.data_dir.glob(ARCHIVE_GLOB)):
+        for path in sorted(self.data_dir.glob(self.archive_glob)):
             if path in pending:
                 continue
             source = Source(path, archived=True)
@@ -211,14 +231,16 @@ class Tailer:
     async def _start(self, source: Source, epoch: Epoch) -> Source:
         source.epoch = epoch
         source.epoch_id = await self.db.fetchval(
-            "INSERT INTO db_epochs (service, source_path, inode, first_started_at)"
-            " VALUES ($1, $2, $3, $4)"
+            "INSERT INTO db_epochs (service, source_path, inode, first_started_at, tg_uid)"
+            " VALUES ($1, $2, $3, $4, $5)"
             " ON CONFLICT (service, inode, first_started_at)"
-            " DO UPDATE SET source_path = EXCLUDED.source_path RETURNING epoch_id",
+            " DO UPDATE SET source_path = EXCLUDED.source_path, tg_uid = EXCLUDED.tg_uid"
+            " RETURNING epoch_id",
             self.service,
             str(source.path),
             epoch.inode,
             epoch.first_started_at,
+            self.tg_uid,
         )
         source.watermark = await self.db.fetchval(
             "SELECT coalesce(max(src_id), 0) FROM bets WHERE service = $1 AND epoch_id = $2",
@@ -326,25 +348,134 @@ class Tailer:
         return result
 
 
+class UserTailers:
+    """Copies every Telegram user's database, one batch per user per step."""
+
+    def __init__(
+        self,
+        db: asyncpg.Connection,
+        service: str,
+        data_dir: Path,
+        host_tz: str,
+        discover_seconds: float = DISCOVER_SECONDS,
+    ) -> None:
+        self.db = db
+        self.service = service
+        self.data_dir = data_dir
+        self.host_tz = host_tz
+        self.discover_seconds = discover_seconds
+        self.tailers: dict[int, Tailer] = {}
+        self._discovered_at: float | None = None
+
+    @property
+    def lag(self) -> Lag:
+        lags = [t.lag for t in self.tailers.values()]
+        rows = max((lag.rows for lag in lags), default=0)
+        return Lag(rows, max((lag.seconds for lag in lags), default=0.0))
+
+    async def discover(self) -> None:
+        """Start a tailer for each user directory not followed yet."""
+        self._discovered_at = time.monotonic()
+        for uid, path in await asyncio.to_thread(user_dirs, self.data_dir):
+            if uid in self.tailers:
+                continue
+            tailer = Tailer(
+                self.db,
+                self.service,
+                path,
+                self.host_tz,
+                live_name=USER_DB,
+                archive_glob=None,
+                tg_uid=uid,
+                closed_ok=True,
+            )
+            await tailer.prepare()
+            self.tailers[uid] = tailer
+
+    async def step(self) -> bool:
+        """One batch per user; True while any user has more to copy. A user whose file
+        cannot be read right now is skipped until the next step."""
+        if self._discovered_at is None or (
+            time.monotonic() - self._discovered_at >= self.discover_seconds
+        ):
+            await self.discover()
+        busy = False
+        for uid in sorted(self.tailers):
+            try:
+                busy = await self.tailers[uid].step() or busy
+            except SourceUnavailable as error:
+                logger.info("user %s database not readable: %s", uid, error)
+        return busy
+
+    async def run(self, stop: asyncio.Event, idle_seconds: float = 0.25) -> None:
+        """Step until stop is set, sleeping briefly whenever everything is caught up."""
+        await _run(self, stop, idle_seconds)
+
+
+def user_dirs(data_dir: Path) -> list[tuple[int, Path]]:
+    """Each `<uid>/wolfbet.db` under `data_dir`. Only numeric directories count, and neither
+    the directory nor the file may be a symlink, so nothing outside the bot's data is read."""
+    if not data_dir.is_dir():
+        return []
+    found = []
+    for path in data_dir.iterdir():
+        if not USER_DIR.fullmatch(path.name) or path.is_symlink() or not path.is_dir():
+            continue
+        db = path / USER_DB
+        if db.is_symlink() or not db.is_file():
+            continue
+        found.append((int(path.name), path))
+    return sorted(found)
+
+
+async def _run(tailer: Tailer | UserTailers, stop: asyncio.Event, idle_seconds: float) -> None:
+    logged = time.monotonic()
+    while not stop.is_set():
+        if time.monotonic() - logged >= LAG_LOG_SECONDS:
+            logger.info("lag: %s rows, %.1f s", tailer.lag.rows, tailer.lag.seconds)
+            logged = time.monotonic()
+        if not await tailer.step():
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=idle_seconds)
+            except TimeoutError:
+                pass
+
+
 def aware(value: str, zone: ZoneInfo) -> datetime:
     """A time the bot wrote: naive values are local time in `zone`."""
     parsed = datetime.fromisoformat(value)
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=zone)
 
 
-def _connect(source: Source) -> sqlite3.Connection:
+Stamp = tuple[int, int, bool]
+
+
+def _stamp(path: Path) -> Stamp:
+    """Size, modification time and whether a `-wal` exists: any write changes one of them."""
+    info = path.stat()
+    return info.st_size, info.st_mtime_ns, path.with_name(path.name + "-wal").exists()
+
+
+def _connect(source: Source) -> tuple[sqlite3.Connection, Stamp | None]:
     """Open read-only. A closed archive on a read-only mount has no `-shm` and cannot get
     one, so it is opened as immutable; it never changes again. The live file without a
-    `-wal` means the bot is stopped: there is nothing new to read, so wait for it."""
+    `-wal` means the bot is stopped: there is nothing new to read, so wait for it, unless
+    the source allows reading a closed file (`closed_ok`). That read is immutable too, and
+    the stamp taken first lets the caller throw it away if the bot opened the file meanwhile.
+    """
     path = source.path
     if not path.exists():
         raise SourceUnavailable(f"{path.name} does not exist")
-    wal_present = path.with_name(path.name + "-wal").exists()
+    stamp = _stamp(path)
     dir_writable = os.access(path.parent, os.W_OK)
-    if wal_present or dir_writable:
+    guard = None
+    if stamp[2] or dir_writable:
         uri = f"{path.as_uri()}?mode=ro"
     elif source.archived:
         uri = f"{path.as_uri()}?mode=ro&immutable=1"
+    elif source.closed_ok:
+        uri = f"{path.as_uri()}?mode=ro&immutable=1"
+        guard = stamp
     else:
         raise SourceUnavailable(f"{path.name} is closed and its directory is read-only")
     try:
@@ -354,12 +485,12 @@ def _connect(source: Source) -> sqlite3.Connection:
     except sqlite3.Error as error:
         raise SourceUnavailable(str(error)) from None
     connection.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
-    return connection
+    return connection, guard
 
 
 def read_once[T](source: Source, query: Callable[[sqlite3.Connection], T]) -> tuple[T, float]:
     """Run one query in one short read transaction; returns its result and duration."""
-    connection = _connect(source)
+    connection, guard = _connect(source)
     try:
         started = time.perf_counter()
         connection.execute("BEGIN")
@@ -367,11 +498,14 @@ def read_once[T](source: Source, query: Callable[[sqlite3.Connection], T]) -> tu
             result = query(connection)
         finally:
             connection.execute("COMMIT")
-        return result, time.perf_counter() - started
+        seconds = time.perf_counter() - started
     except sqlite3.Error as error:
         raise SourceUnavailable(str(error)) from None
     finally:
         connection.close()
+    if guard is not None and _stamp(source.path) != guard:
+        raise SourceUnavailable(f"{source.path.name} changed while it was read")
+    return result, seconds
 
 
 def _probe_epoch(connection: sqlite3.Connection, path: Path) -> tuple[int, str] | None:

@@ -12,6 +12,7 @@ from redis.asyncio import Redis
 
 from app.adapters.base import ServiceAdapter
 from app.adapters.wolfbet import WolfBetAdapter
+from app.adapters.wolfbet_tg import WolfBetTgAdapter
 from app.agent_client import AgentClient
 from app.alerts import digest
 from app.alerts.engine import Engine
@@ -38,6 +39,7 @@ from app.live.aggregator import Aggregator, TickTimer, run_ticker
 from app.live.consumer import ServiceConsumer
 from app.live.resync import Resync
 from app.live.system import SystemPublisher
+from app.live.users import UserAggregators, known_uids
 from app.logging import RequestContextMiddleware, configure_logging
 from app.metrics import DropWatch
 from app.metrics import router as metrics_router
@@ -49,6 +51,7 @@ from app.ws.routes import router as ws_router
 from app.ws.terminal import router as terminal_router
 
 ADAPTERS: dict[str, type[ServiceAdapter]] = {"wolfbet": WolfBetAdapter}
+PER_USER_ADAPTERS = {"wolfbet-tg": WolfBetTgAdapter}
 
 log = structlog.get_logger("app.main")
 
@@ -72,8 +75,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     alerts: Engine | None = None
     consumer: ServiceConsumer | None = None
     system: SystemPublisher | None = None
+    users: UserAggregators | None = None
     ticks = TickTimer()
-    if settings.live_service is not None:
+    if settings.live_service in PER_USER_ADAPTERS:
+        svc = settings.live_service
+        users = UserAggregators(svc)
+        hub = Hub(svc, users)
+        tg = PER_USER_ADAPTERS[svc]()
+
+        async def discover() -> tuple[str, ...]:
+            return tg.streams_for(await known_uids(sessionmaker, svc))
+
+        consumer = ServiceConsumer(redis, tg, users.accept, discover=discover)
+    elif settings.live_service is not None:
         if settings.live_service not in ADAPTERS:
             raise ValueError(f"no live adapter for service {settings.live_service!r}")
         aggregator = Aggregator(settings.live_service)
@@ -87,9 +101,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        """Run the live pipeline (stream to model to sockets) for the app's whole life."""
+        """Run the live pipeline (stream to model to sockets) for the app's whole life.
+
+        A per-user bot gets the stream, the per-user model and the sockets only: resync,
+        system metrics, alerts and the digest read the daemon through the host agent.
+        """
         stop = asyncio.Event()
         tasks = []
+        if users is not None and hub is not None and consumer is not None:
+            tasks = [
+                asyncio.create_task(consumer.run(stop)),
+                asyncio.create_task(run_ticker(users, hub.publish, stop, settings.live_hz, ticks)),
+                asyncio.create_task(hub.run_heartbeat(stop)),
+            ]
         if hub is not None and alerts is not None and consumer is not None and system is not None:
             try:
                 await alerts.start()

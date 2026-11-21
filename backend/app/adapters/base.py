@@ -25,6 +25,12 @@ class Event(BaseModel):
     seq: int
     ts_ms: int
 
+    @property
+    def scope(self) -> int | None:
+        """Whose numbering `seq` follows inside one process: None when the process has one
+        counter, a user id when a bot counts per user."""
+        return None
+
 
 class ServiceAdapter(Protocol):
     name: str

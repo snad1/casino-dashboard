@@ -311,6 +311,9 @@ class MailerSettings(DatabaseSettings):
 class IngestSettings(DatabaseSettings):
     """The ingest process: reads the bot's SQLite read-only and writes history to Postgres.
 
+    With `ingest_tg_data_dir` set it also copies each Telegram user's database, as service
+    `wolfbet-tg`.
+
     `host_tz` has no default: the bot writes naive local times, and a wrong zone would shift
     every copied bet silently.
     """
@@ -318,6 +321,22 @@ class IngestSettings(DatabaseSettings):
     host_tz: TimeZoneName
     ingest_service: str = "wolfbet"
     bot_data_dir: Path = Path("/botdata")
+    ingest_tg_data_dir: Path | None = None
+
+    @field_validator("ingest_tg_data_dir", mode="before")
+    @classmethod
+    def _tg_data_dir(cls, value: object) -> object:
+        """The Telegram bot's data dir (one `<uid>/wolfbet.db` per user); blank means none."""
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("ingest_tg_data_dir")
+    @classmethod
+    def _tg_data_dir_absolute(cls, value: Path | None) -> Path | None:
+        if value is not None and not value.is_absolute():
+            raise ValueError("must be an absolute path")
+        return value
 
 
 def load_settings() -> Settings:

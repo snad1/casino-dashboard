@@ -12,21 +12,26 @@ SCHEMA_VERSION = 1
 _EVENT: TypeAdapter[BetEvent | StateEvent | LifecycleEvent] = TypeAdapter(WolfBetEvent)
 
 
+def parse_v1[T](raw: bytes, events: TypeAdapter[T]) -> T:
+    """Validate one `data` field against `events`; reasons are `json`, `version` and `shape`."""
+    try:
+        document = json.loads(raw)
+    except ValueError:
+        raise InvalidEvent("json") from None
+    if not isinstance(document, dict):
+        raise InvalidEvent("shape")
+    if document.get("v") != SCHEMA_VERSION:
+        raise InvalidEvent("version")
+    try:
+        return events.validate_python(document)
+    except ValidationError:
+        raise InvalidEvent("shape") from None
+
+
 class WolfBetAdapter:
     name: str = "wolfbet"
     streams: tuple[str, ...] = ("wolfbet:bets", "wolfbet:state", "wolfbet:lifecycle")
 
     def parse(self, raw: bytes) -> BetEvent | StateEvent | LifecycleEvent:
         """Validate one `data` field; reasons are `json`, `version` and `shape`."""
-        try:
-            document = json.loads(raw)
-        except ValueError:
-            raise InvalidEvent("json") from None
-        if not isinstance(document, dict):
-            raise InvalidEvent("shape")
-        if document.get("v") != SCHEMA_VERSION:
-            raise InvalidEvent("version")
-        try:
-            return _EVENT.validate_python(document)
-        except ValidationError:
-            raise InvalidEvent("shape") from None
+        return parse_v1(raw, _EVENT)

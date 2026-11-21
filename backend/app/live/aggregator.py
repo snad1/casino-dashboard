@@ -21,7 +21,7 @@ import time
 from collections import deque
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 
 import structlog
 
@@ -450,9 +450,18 @@ class TickTimer:
         return None if self.last is None else max(self._max, self._previous_max)
 
 
-async def run_ticker(
-    aggregator: Aggregator,
-    emit: Callable[[Tick], Awaitable[None]],
+class _Ticks(Protocol):
+    @property
+    def empty(self) -> bool: ...
+
+
+class _Ticking[T: _Ticks](Protocol):
+    def tick(self) -> T: ...
+
+
+async def run_ticker[T: _Ticks](
+    aggregator: _Ticking[T],
+    emit: Callable[[T], Awaitable[None]],
     stop: asyncio.Event,
     hz: int = DEFAULT_HZ,
     timer: TickTimer | None = None,

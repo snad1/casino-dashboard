@@ -28,16 +28,23 @@ from app.db.models import Base
 
 
 class DbEpoch(Base):
-    """One SQLite database file lifetime, told apart by inode and first session start."""
+    """One SQLite database file lifetime, told apart by inode and first session start.
+
+    `tg_uid` is the Telegram user whose file it is, for a bot that keeps one file per user.
+    """
 
     __tablename__ = "db_epochs"
-    __table_args__ = (UniqueConstraint("service", "inode", "first_started_at"),)
+    __table_args__ = (
+        UniqueConstraint("service", "inode", "first_started_at"),
+        Index("ix_db_epochs_service_tg_uid", "service", "tg_uid"),
+    )
 
     epoch_id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
     service: Mapped[str] = mapped_column(Text)
     source_path: Mapped[str] = mapped_column(Text)
     inode: Mapped[int] = mapped_column(BigInteger)
     first_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    tg_uid: Mapped[int | None] = mapped_column(BigInteger)
     detected_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

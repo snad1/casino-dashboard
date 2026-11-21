@@ -2,7 +2,8 @@
 
 The heartbeat runs on its own, so a database outage shows up in the logs and lag, not as a
 container restart loop. Any failure closes the connection and starts over after a pause.
-Reconciliation runs beside the tailer on its own connection, every 15 minutes.
+Reconciliation runs beside the tailer on its own connection, every 15 minutes. With a
+Telegram bot data dir configured, its users' databases are copied on a connection of their own.
 """
 
 import asyncio
@@ -15,7 +16,7 @@ import asyncpg  # type: ignore[import-untyped]  # ships no type hints
 from app.alerts.engine import after_reconcile
 from app.db.engine import create_engine, create_sessionmaker
 from app.ingest.reconcile import Reconciler
-from app.ingest.tailer import Tailer
+from app.ingest.tailer import Tailer, UserTailers
 from app.settings import IngestSettings, load_ingest_settings
 
 HEARTBEAT = Path("/tmp/ingest.alive")  # noqa: S108  # nosec B108: private tmpfs in the container
@@ -23,6 +24,7 @@ BEAT_SECONDS = 30.0
 RETRY_SECONDS = 5.0
 RECONCILE_SECONDS = 15 * 60.0
 RECONCILE_FIRST_SECONDS = 60.0
+TG_SERVICE = "wolfbet-tg"
 
 logger = logging.getLogger("ingest")
 
@@ -69,6 +71,23 @@ async def tail(stop: asyncio.Event, settings: IngestSettings, retry: float = RET
             await _sleep(stop, retry)
 
 
+async def tail_users(
+    stop: asyncio.Event, settings: IngestSettings, data_dir: Path, retry: float = RETRY_SECONDS
+) -> None:
+    """Copy every Telegram user's database until stop is set, reconnecting after any failure."""
+    while not stop.is_set():
+        try:
+            db = await connect(settings)
+            try:
+                tailers = UserTailers(db, TG_SERVICE, data_dir, settings.host_tz)
+                await tailers.run(stop)
+            finally:
+                await db.close()
+        except Exception:
+            logger.exception("telegram user ingest pass failed; retrying in %s s", retry)
+            await _sleep(stop, retry)
+
+
 async def reconcile(
     stop: asyncio.Event,
     settings: IngestSettings,
@@ -106,7 +125,10 @@ async def reconcile(
 
 async def run(stop: asyncio.Event, heartbeat: Path = HEARTBEAT) -> None:
     settings = load_ingest_settings()
-    await asyncio.gather(beat(stop, heartbeat), tail(stop, settings), reconcile(stop, settings))
+    loops = [beat(stop, heartbeat), tail(stop, settings), reconcile(stop, settings)]
+    if settings.ingest_tg_data_dir is not None:
+        loops.append(tail_users(stop, settings, settings.ingest_tg_data_dir))
+    await asyncio.gather(*loops)
 
 
 def main() -> None:

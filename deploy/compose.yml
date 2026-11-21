@@ -145,6 +145,7 @@ services:
       POSTGRES_DB: dashboard
       POSTGRES_USER: dashboard_app
       HOST_TZ: ${HOST_TZ:?set HOST_TZ in deploy/.env}
+      INGEST_TG_DATA_DIR: ${INGEST_TG_DATA_DIR:-}
     secrets:
       - source: postgres_app_password
         target: postgres_password
