@@ -272,22 +272,22 @@ volumes:
 
 secrets:
   session_secret:
-    file: /root/casino-dashboard/deploy/secrets/session_secret.txt
+    file: /opt/wolfbet/secrets/session_secret.txt
   brevo_api_key:
-    file: /root/casino-dashboard/deploy/secrets/brevo_api_key.txt
+    file: /opt/wolfbet/secrets/brevo_api_key.txt
   telegram_bot_token:
-    file: /root/casino-dashboard/deploy/secrets/telegram_bot_token.txt
+    file: /opt/wolfbet/secrets/telegram_bot_token.txt
   vapid_private_key:
-    file: /root/casino-dashboard/deploy/secrets/vapid_private_key.txt
+    file: /opt/wolfbet/secrets/vapid_private_key.txt
   totp_key:
-    file: /root/casino-dashboard/deploy/secrets/totp_key.txt
+    file: /opt/wolfbet/secrets/totp_key.txt
   postgres_password:
-    file: /root/casino-dashboard/deploy/secrets/postgres_password.txt
+    file: /opt/wolfbet/secrets/postgres_password.txt
   postgres_app_password:
-    file: /root/casino-dashboard/deploy/secrets/postgres_app_password.txt
+    file: /opt/wolfbet/secrets/postgres_app_password.txt
   redis_publisher_password:
-    file: /root/casino-dashboard/deploy/secrets/redis_publisher_password.txt
+    file: /opt/wolfbet/secrets/redis_publisher_password.txt
   redis_dashboard_password:
-    file: /root/casino-dashboard/deploy/secrets/redis_dashboard_password.txt
+    file: /opt/wolfbet/secrets/redis_dashboard_password.txt
   agent_token:
-    file: /root/casino-dashboard/deploy/secrets/agent_token.txt
+    file: /opt/wolfbet/secrets/agent_token.txt
