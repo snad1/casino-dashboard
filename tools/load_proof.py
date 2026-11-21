@@ -86,21 +86,41 @@ def summarize(
     }
 
 
+def _mib(size: int) -> str:
+    return f"{size / 1048576:.1f}"
+
+
+def _stderr(line: str) -> None:
+    print(line, file=sys.stderr, flush=True)
+
+
 def sample(
     db: Path,
     label: str,
     minutes: float,
-    sleep: Callable[[float], None] = time.sleep,
-    now: Callable[[], datetime] = datetime.now,
+    sleep: Callable[[float], None] | None = None,
+    now: Callable[[], datetime] | None = None,
+    say: Callable[[str], None] = _stderr,
 ) -> dict[str, Any]:
+    """Watch for `minutes`, saying how far it got each minute; Ctrl-C ends the window early."""
+    sleep = sleep or time.sleep
+    now = now or datetime.now
+    say(f"{label}: sampling for {minutes:g} min; Ctrl-C stops early and keeps what was measured")
     start = now()
     wal = [wal_size(db)]
     left = minutes * 60
-    while left > 0:
-        step = min(WAL_EVERY_S, left)
-        sleep(step)
-        left -= step
-        wal.append(wal_size(db))
+    done = 0.0
+    try:
+        while left > 0:
+            step = min(WAL_EVERY_S, left)
+            sleep(step)
+            left -= step
+            done += step
+            wal.append(wal_size(db))
+            if done % 60 == 0 and left > 0:
+                say(f"{label}: {done / 60:g} of {minutes:g} min, WAL {_mib(wal[-1])} MiB")
+    except KeyboardInterrupt:
+        say(f"{label}: stopped after {done / 60:.1f} of {minutes:g} min")
     end = now()
     return summarize(label, bet_gaps(db, start, end), wal, start, end)
 
@@ -117,10 +137,6 @@ def compare(off: dict[str, Any], on: dict[str, Any], seed: int = 7) -> dict[str,
     )
     low, high = draws[int(0.025 * RESAMPLES)], draws[int(0.975 * RESAMPLES) - 1]
     return {"change": change, "low": low, "high": high, "passed": change <= GATE}
-
-
-def _mib(size: int) -> str:
-    return f"{size / 1048576:.1f}"
 
 
 def render(off: dict[str, Any], on: dict[str, Any], result: dict[str, Any]) -> str:

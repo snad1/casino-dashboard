@@ -91,6 +91,46 @@ def test_sample_watches_the_wal_then_reads_the_window(tmp_path: Path) -> None:
     assert result["bps"] == round(1000 / 50, 2)
 
 
+def test_sample_says_it_started_and_reports_each_minute(tmp_path: Path) -> None:
+    db = _bot_db(tmp_path / "bot.db", [(1, 1.0), (1, 1.04)])
+    lines: list[str] = []
+    clock = iter([START, START + timedelta(minutes=3)])
+    proof.sample(db, "off", 3, sleep=lambda _: None, now=lambda: next(clock), say=lines.append)
+    assert lines[0] == ("off: sampling for 3 min; Ctrl-C stops early and keeps what was measured")
+    assert [line.split(",")[0] for line in lines[1:]] == ["off: 1 of 3 min", "off: 2 of 3 min"]
+    assert lines[1].endswith(" MiB")
+
+
+def test_ctrl_c_ends_the_window_and_keeps_what_was_measured(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db = _bot_db(tmp_path / "bot.db", [(1, 1.0), (1, 1.04), (1, 1.10)])
+    steps = iter([None, None, KeyboardInterrupt()])
+
+    def sleep(_: float) -> None:
+        step = next(steps)
+        if step is not None:
+            raise step
+
+    clock = iter([START, START + timedelta(seconds=20)])
+    real = proof.sample
+    monkeypatch.setattr(
+        proof,
+        "sample",
+        lambda db, label, minutes: real(db, label, minutes, sleep=sleep, now=lambda: next(clock)),
+    )
+    out = tmp_path / "results"
+    code = proof.main(
+        ["sample", "--db", str(db), "--label", "off", "--minutes", "60", "--out", str(out)]
+    )
+    assert code == 0
+    saved = json.loads((out / "off.json").read_text())
+    assert saved["n"] == 2 and saved["end"] == (START + timedelta(seconds=20)).isoformat()
+    streams = capsys.readouterr()
+    assert "off: stopped after 0.3 of 60 min" in streams.err
+    assert "off: 2 gaps" in streams.out
+
+
 def test_an_empty_window_stops_with_a_reason(tmp_path: Path) -> None:
     db = _bot_db(tmp_path / "bot.db", [])
     with pytest.raises(SystemExit, match="no bets in the window"):
