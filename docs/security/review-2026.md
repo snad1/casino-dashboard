@@ -2,7 +2,7 @@
 
 This is the review that comes before the old web retires. It ran on 2026-11-21, on the throwaway e2e stack from `tools/e2e_stack.sh up`, at `feat/casino-dashboard` `3b8ecf8` plus the changes listed under "Fixed in this review". All tests ran with `APP_ENV=testing`. The backend tests use their own testcontainers database.
 
-On the VPS, two checks are still to run: the header re-check at the end of this page, and the real-data restore drill in `docs/ops/restore.md`.
+On the VPS, the header re-check at the end of this page passed on 2026-11-21. The real-data restore drill in `docs/ops/restore.md` is still to run.
 
 ## Result
 
@@ -94,3 +94,11 @@ curl -s -o /dev/null -w '%{http_code}\n' https://wolfbet.<domain>/api/metrics   
 ```
 
 The headers must match the list above. Traefik may add headers of its own, but it must not remove any of these.
+
+**Result, 2026-11-21:** PASS. Checked from outside the server against `https://wolfbet.snadstudio.com/`:
+- the response is `HTTP/1.1 200`, and all seven headers match the list above;
+- `/api/metrics` answers 404.
+
+The site sits behind an nginx proxy that sends `Server: nginx/1.24.0 (Ubuntu)`. Caddy removes its own `Server` header, but nginx adds this one. `server_tokens off;` in nginx's `http {}` block hides the version.
+
+The same `curl` run on the VPS itself returned `000`: the server could not reach its own public name. A check from the VPS needs `--resolve wolfbet.snadstudio.com:443:127.0.0.1`.
