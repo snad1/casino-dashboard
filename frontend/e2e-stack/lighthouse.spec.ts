@@ -1,7 +1,7 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { chromium, expect, test } from '@playwright/test';
 import lighthouse from 'lighthouse';
-import { signIn } from './stack';
+import { STATE } from './stack';
 
 const PORT = 9333;
 const PAGES = ['/login', '/wolfbet', '/wolfbet/sessions/1/6'];
@@ -13,11 +13,14 @@ test('Lighthouse accessibility and best practices on the signed-in pages', async
 }) => {
 	test.skip(isMobile, 'Lighthouse runs once, with its own mobile emulation off');
 	test.setTimeout(180_000);
-	const browser = await chromium.launch({ args: [`--remote-debugging-port=${PORT}`] });
+	// Lighthouse opens its tab in the browser's default context, so that context must accept
+	// the stack's self-signed certificate and hold the viewer's session.
+	const context = await chromium.launchPersistentContext('', {
+		args: [`--remote-debugging-port=${PORT}`, '--ignore-certificate-errors'],
+		ignoreHTTPSErrors: true
+	});
 	try {
-		const context = await browser.newContext({ ignoreHTTPSErrors: true, baseURL });
-		const page = await context.newPage();
-		await signIn(page);
+		await context.addCookies(JSON.parse(readFileSync(STATE.viewer, 'utf8')).cookies);
 		mkdirSync('test-results/lighthouse', { recursive: true });
 		const scores: Record<string, Record<string, number>> = {};
 		for (const path of PAGES) {
@@ -32,6 +35,8 @@ test('Lighthouse accessibility and best practices on the signed-in pages', async
 			if (!result) throw new Error(`Lighthouse returned nothing for ${path}`);
 			const name = path.replaceAll('/', '_') || 'root';
 			writeFileSync(`test-results/lighthouse/${name}.json`, String(result.report));
+			expect(result.lhr.runtimeError, `Lighthouse error on ${path}`).toBeUndefined();
+			expect(new URL(result.lhr.finalDisplayedUrl).pathname, `page audited for ${path}`).toBe(path);
 			scores[path] = Object.fromEntries(
 				Object.keys(MIN).map((key) => [key, result.lhr.categories[key]?.score ?? 0])
 			);
@@ -43,6 +48,6 @@ test('Lighthouse accessibility and best practices on the signed-in pages', async
 			}
 		}
 	} finally {
-		await browser.close();
+		await context.close();
 	}
 });

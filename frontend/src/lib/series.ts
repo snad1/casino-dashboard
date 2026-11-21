@@ -89,6 +89,25 @@ export function needsReload(loaded: Range | null, visible: Range): boolean {
 }
 
 /**
+ * The time span the chart shows. The chart's own visible time range stops at the first point,
+ * so zooming out past it would never ask for older history; a logical range that starts before
+ * the first bar is turned back into time from that bar and the resolution step.
+ */
+export function zoomedRange(
+	logicalFrom: number,
+	firstTime: number | null,
+	step: number,
+	visible: Range,
+	now: number
+): Range {
+	const from =
+		firstTime !== null && logicalFrom < 0
+			? firstTime + Math.floor(logicalFrom) * step
+			: visible.from;
+	return { from, to: Math.max(visible.to, now) };
+}
+
+/**
  * Folds the live 1 s candles into points at the chart's resolution, continuing from the last
  * history value. Candles carry the lane's session profit, so profit grows by the change in the
  * close; a new session starts from zero, so its first close is all new profit.

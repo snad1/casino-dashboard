@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { STATE } from './e2e-stack/stack';
 
 /** The real stack from `tools/e2e_stack.sh up`: Caddy, api, Timescale, Redis, replayed bot events. */
 export default defineConfig({
@@ -14,7 +15,16 @@ export default defineConfig({
 		trace: 'retain-on-failure'
 	},
 	projects: [
-		{ name: 'desktop', use: { ...devices['Desktop Chrome'] } },
-		{ name: 'mobile', use: { ...devices['Pixel 7'] } }
+		{ name: 'setup', testMatch: /auth\.setup\.ts/ },
+		{
+			name: 'desktop',
+			dependencies: ['setup'],
+			use: { ...devices['Desktop Chrome'], storageState: STATE.viewer }
+		},
+		{
+			name: 'mobile',
+			dependencies: ['setup'],
+			use: { ...devices['Pixel 7'], storageState: STATE.viewer }
+		}
 	]
 });

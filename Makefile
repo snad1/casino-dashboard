@@ -102,7 +102,7 @@ budget:
 # The stack is removed afterwards, pass or fail; KEEP_STACK=1 leaves it up to debug.
 e2e-stack:
 	$(PW_INSTALL)
-	tools/e2e_stack.sh up || { tools/e2e_stack.sh down; exit 1; }
+	E2E_VIEWERS=1 tools/e2e_stack.sh up || { tools/e2e_stack.sh down; exit 1; }
 	status=0; (cd frontend && pnpm e2e:stack) || status=$$?; \
 		[ -n "$(KEEP_STACK)" ] || tools/e2e_stack.sh down; exit $$status
 

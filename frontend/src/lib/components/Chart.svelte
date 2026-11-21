@@ -20,6 +20,7 @@
 		needsReload,
 		rangeFor,
 		toPoints,
+		zoomedRange,
 		type LaneSel,
 		type Metric,
 		type Point,
@@ -201,8 +202,15 @@
 		clearTimeout(debounce);
 		debounce = setTimeout(() => {
 			const visible = chart?.timeScale().getVisibleRange();
-			if (!visible) return;
-			const view = { from: Number(visible.from), to: Math.max(Number(visible.to), nowSeconds()) };
+			const logical = chart?.timeScale().getVisibleLogicalRange();
+			if (!visible || !logical) return;
+			const view = zoomedRange(
+				logical.from,
+				points[0]?.time ?? null,
+				step,
+				{ from: Number(visible.from), to: Number(visible.to) },
+				nowSeconds()
+			);
 			if (needsReload(loaded, view)) void load(view, false);
 		}, RELOAD_DEBOUNCE_MS);
 	}

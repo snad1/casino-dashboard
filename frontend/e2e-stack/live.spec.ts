@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
-import { signIn } from './stack';
+import { openDashboard } from './stack';
 
 test('replayed bets move the ticker and the lane cards', async ({ page }) => {
-	await signIn(page);
+	await openDashboard(page);
 	const lane = page.getByRole('article', { name: 'Lane 1' });
 	await expect(lane).toContainText('Running');
 	const bets = async () => Number((await lane.innerText()).match(/Bets\s*(\d+)/)?.[1] ?? 0);

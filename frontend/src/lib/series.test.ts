@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Candle } from '#lib/live/protocol';
-import { LiveFolder, capPoints, mergePoints, needsReload, toPoints } from './series';
+import { LiveFolder, capPoints, mergePoints, needsReload, toPoints, zoomedRange } from './series';
 
 const T0 = Date.UTC(2026, 0, 5, 10) / 1000;
 const iso = (s: number) => new Date(s * 1000).toISOString();
@@ -106,5 +106,20 @@ describe('needsReload', () => {
 		expect(needsReload(loaded, { from: 500, to: 4600 })).toBe(true);
 		expect(needsReload(loaded, { from: 3000, to: 4600 })).toBe(true);
 		expect(needsReload(loaded, { from: 1200, to: 4700 })).toBe(false);
+	});
+});
+
+describe('zoomedRange', () => {
+	const visible = { from: 1000, to: 4600 };
+	it('reaches before the first point when zoomed out past it', () => {
+		const range = zoomedRange(-30.5, 1000, 60, visible, 4000);
+		expect(range).toEqual({ from: 1000 - 31 * 60, to: 4600 });
+		expect(needsReload({ from: 1000, to: 4600 }, range)).toBe(true);
+	});
+	it('keeps the visible range inside the data and runs to now', () => {
+		expect(zoomedRange(5, 1000, 60, visible, 5000)).toEqual({ from: 1000, to: 5000 });
+	});
+	it('keeps the visible range when there is no data', () => {
+		expect(zoomedRange(-10, null, 60, visible, 4000)).toEqual(visible);
 	});
 });
