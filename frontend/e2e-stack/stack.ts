@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { createHmac, randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { expect, type Page } from '@playwright/test';
 
@@ -12,6 +13,32 @@ export const STATE = {
 	viewer: 'test-results/.auth/viewer.json',
 	other: 'test-results/.auth/viewer1.json'
 };
+
+/** Telegram users `tools/e2e_seed.py` seeds, with how many sessions each has. */
+export const TG_USERS = { first: 7001, second: 7002 } as const;
+export const TG_SESSIONS = { [TG_USERS.first]: 2, [TG_USERS.second]: 3 } as const;
+
+function secret(name: string): string {
+	return execFileSync('cat', [resolve(ROOT, `deploy/e2e-secrets/${name}.txt`)], {
+		encoding: 'utf8'
+	}).trim();
+}
+
+/**
+ * A `/web` link as the bot signs it (`contracts/fixtures/tg_login_v1/`): compact JSON with
+ * sorted keys, HMAC-SHA256 with the stack's `tg_login_secret`, valid for five minutes.
+ */
+export function signedLink(uid: number): string {
+	const payload = JSON.stringify({
+		exp: Math.floor(Date.now() / 1000) + 300,
+		id: randomBytes(16).toString('base64url'),
+		uid,
+		v: 1
+	});
+	const body = Buffer.from(payload).toString('base64url');
+	const mac = createHmac('sha256', secret('tg_login_secret')).update(body).digest('base64url');
+	return `/tg/login#token=${body}.${mac}`;
+}
 
 function password(): string {
 	if (process.env.E2E_PASSWORD) return process.env.E2E_PASSWORD;

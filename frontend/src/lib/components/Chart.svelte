@@ -9,8 +9,8 @@
 		Time,
 		UTCTimestamp
 	} from 'lightweight-charts';
-	import { unwrap } from '#lib/api/client';
 	import { formatProfit } from '#lib/format';
+	import { serviceSource, type HistorySource } from '#lib/history-source';
 	import type { LiveStore } from '#lib/live/store.svelte';
 	import {
 		LiveFolder,
@@ -28,17 +28,24 @@
 		type Range,
 		type Resolution
 	} from '#lib/series';
-	import { api } from '#lib/session.svelte';
 
 	type Props = {
 		live: LiveStore;
 		service: string;
+		source?: HistorySource;
 		notes?: Array<{ at: string | null }>;
 		onrange?: (range: { from: string; to: string }) => void;
 		onpick?: (at: string) => void;
 	};
 
-	let { live, service, notes = [], onrange, onpick }: Props = $props();
+	let {
+		live,
+		service,
+		source = serviceSource(service),
+		notes = [],
+		onrange,
+		onpick
+	}: Props = $props();
 
 	const LOAD_FAILED = "Couldn't load the chart history. Retrying when you change the range.";
 	const PRESETS: Preset[] = ['1h', '24h', '7d', '30d'];
@@ -154,22 +161,8 @@
 		error = null;
 		try {
 			const [data, sessions] = await Promise.all([
-				unwrap(
-					api.GET('/{service}/series', {
-						params: {
-							path: { service },
-							query: { metric, from: iso(range.from), to: iso(range.to), ...laneQuery() }
-						}
-					})
-				),
-				unwrap(
-					api.GET('/{service}/sessions', {
-						params: {
-							path: { service },
-							query: { since: iso(range.from), limit: 100, ...laneQuery() }
-						}
-					})
-				).catch(() => null)
+				source.series({ metric, from: iso(range.from), to: iso(range.to), ...laneQuery() }),
+				source.sessions({ since: iso(range.from), limit: 100, ...laneQuery() }).catch(() => null)
 			]);
 			if (id !== request) return;
 			res = data.res;

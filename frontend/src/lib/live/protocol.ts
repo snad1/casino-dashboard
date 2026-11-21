@@ -131,6 +131,11 @@ export function topicFor(service: string): string {
 	return `svc:${service}`;
 }
 
+/** One Telegram user's live topic on a bot that runs an engine per user. */
+export function userTopicFor(service: string, uid: number): string {
+	return `svc:${service}:user:${uid}`;
+}
+
 export function systemTopicFor(service: string): string {
 	return `svc:${service}:system`;
 }

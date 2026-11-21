@@ -6,7 +6,7 @@ export const NETWORK_ERROR =
 const GENERIC = 'Something went wrong. Please try again.';
 const INVALID = 'Some of the values are not valid. Check them and try again.';
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-const NO_REDIRECT = ['/auth/login', '/auth/me'];
+const NO_REDIRECT = ['/auth/login', '/auth/telegram', '/auth/me'];
 
 /** An api failure with the user-safe message to show and any next-step flags it carried. */
 export class ApiError extends Error {

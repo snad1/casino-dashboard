@@ -5,6 +5,7 @@ export type Handler = (body: unknown, url: URL) => Reply;
 
 export const viewerMe = {
 	email: 'viewer@example.test',
+	tg_uid: null,
 	csrf_token: 'csrf-viewer',
 	totp_enabled: false,
 	roles: [{ service: null, role: 'viewer' }]
@@ -12,10 +13,20 @@ export const viewerMe = {
 
 export const adminMe = {
 	email: 'admin@example.test',
+	tg_uid: null,
 	csrf_token: 'csrf-admin',
 	totp_enabled: true,
 	roles: [{ service: null, role: 'admin' }]
 };
+
+/** A Telegram account signed in through the bot's link: no email, no role on any service. */
+export const tgMe = (uid: number) => ({
+	email: null,
+	tg_uid: uid,
+	csrf_token: `csrf-tg-${uid}`,
+	totp_enabled: false,
+	roles: [{ service: null, role: 'tg_user' }]
+});
 
 /**
  * Answer `/api/*` like the real api, keyed by "METHOD /path" without the `/api` prefix.
@@ -42,6 +53,7 @@ export async function stubApi(page: Page, handlers: Record<string, Handler>): Pr
 
 export const operatorMe = {
 	email: 'operator@example.test',
+	tg_uid: null,
 	csrf_token: 'csrf-operator',
 	totp_enabled: false,
 	roles: [{ service: null, role: 'operator' }]

@@ -8,6 +8,7 @@ services:
       APP_ENV: staging
       ALLOWED_ORIGINS: '["https://localhost:8443"]'
       LIVE_HZ: "10"
+      LIVE_USER_SERVICE: wolfbet-tg
 
   migrate:
     environment:
@@ -69,3 +70,5 @@ secrets:
     file: ./e2e-secrets/redis_dashboard_password.txt
   agent_token:
     file: ./e2e-secrets/agent_token.txt
+  tg_login_secret:
+    file: ./e2e-secrets/tg_login_secret.txt

@@ -1,6 +1,8 @@
 import { redirect } from '@sveltejs/kit';
 import { DEFAULT_SERVICE } from '#lib/session.svelte';
+import { tgHome } from '#lib/tg';
 
-export function load() {
-	redirect(307, `/${DEFAULT_SERVICE}`);
+export async function load({ parent }) {
+	const { me } = await parent();
+	redirect(307, tgHome(me) ?? `/${DEFAULT_SERVICE}`);
 }

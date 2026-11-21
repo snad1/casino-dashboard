@@ -12,7 +12,23 @@
 	let { children }: { children: Snippet } = $props();
 
 	const service = $derived(page.params.service ?? DEFAULT_SERVICE);
-	const links = $derived([
+	const tgUid = $derived(session.me?.tg_uid ?? null);
+	const tgLinks = $derived(
+		tgUid === null
+			? []
+			: [
+					{ href: resolve('/(app)/tg/[uid=uid]', { uid: String(tgUid) }), label: 'My bot' },
+					{
+						href: resolve('/(app)/tg/[uid=uid]/sessions', { uid: String(tgUid) }),
+						label: 'Sessions'
+					},
+					{
+						href: resolve('/(app)/tg/[uid=uid]/settings', { uid: String(tgUid) }),
+						label: 'Settings'
+					}
+				]
+	);
+	const serviceLinks = $derived([
 		{ href: resolve('/(app)/[service=service]', { service }), label: 'Live', show: true },
 		{
 			href: resolve('/(app)/[service=service]/analytics', { service }),
@@ -43,14 +59,21 @@
 		{ href: resolve('/(app)/alerts'), label: 'Alerts', show: true },
 		{ href: resolve('/(app)/admin/users'), label: 'Users', show: can(session.me, 'users.manage') },
 		{ href: resolve('/(app)/admin/audit'), label: 'Audit', show: can(session.me, 'audit.read') },
-		{ href: resolve('/(app)/admin/status'), label: 'Status', show: can(session.me, 'audit.read') }
+		{ href: resolve('/(app)/admin/status'), label: 'Status', show: can(session.me, 'audit.read') },
+		{
+			href: resolve('/(app)/tg/users'),
+			label: 'Telegram users',
+			show: can(session.me, 'users.manage')
+		}
 	]);
-	const tabs = $derived([
+	const links = $derived(tgUid === null ? serviceLinks.filter((l) => l.show) : tgLinks);
+	const serviceTabs = $derived([
 		{ href: resolve('/(app)/[service=service]', { service }), label: 'Live' },
 		{ href: resolve('/(app)/[service=service]', { service }) + '#sessions', label: 'Sessions' },
 		{ href: resolve('/(app)/[service=service]/control', { service }), label: 'Control' },
 		{ href: resolve('/(app)/alerts'), label: 'Alerts' }
 	]);
+	const tabs = $derived(tgUid === null ? serviceTabs : tgLinks);
 
 	function current(href: string): 'page' | undefined {
 		return page.url.pathname === href ? 'page' : undefined;
@@ -76,7 +99,7 @@
 				<KillSwitch />
 			{/if}
 			<a href={resolve('/(app)/totp')} class="hidden text-muted underline sm:inline"
-				>{session.me?.email}</a
+				>{session.me?.email ?? 'Telegram user'}</a
 			>
 			<button
 				type="button"
@@ -89,7 +112,7 @@
 	<div class="flex">
 		<nav aria-label="Main" class="hidden w-40 shrink-0 border-r border-line md:block">
 			<ul class="flex flex-col gap-1 p-2">
-				{#each links.filter((l) => l.show) as link (link.href)}
+				{#each links as link (link.href)}
 					<li>
 						<a
 							href={link.href}
@@ -109,7 +132,7 @@
 		aria-label="Tabs"
 		class="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-surface md:hidden"
 	>
-		<ul class="grid grid-cols-4">
+		<ul class="grid {tabs.length === 3 ? 'grid-cols-3' : 'grid-cols-4'}">
 			<!-- eslint-disable svelte/no-navigation-without-resolve -- tab hrefs are built with resolve() above -->
 			{#each tabs as tab (tab.href)}
 				<li>

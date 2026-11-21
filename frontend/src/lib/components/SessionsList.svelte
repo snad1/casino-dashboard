@@ -1,11 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { resolve } from '$app/paths';
 	import type { components } from '#lib/api/schema';
-	import { unwrap } from '#lib/api/client';
 	import { decimalsFor, formatProfit } from '#lib/format';
+	import { serviceSource, type HistorySource } from '#lib/history-source';
 	import type { LiveStore } from '#lib/live/store.svelte';
-	import { api } from '#lib/session.svelte';
 	import Button from '#ui/Button';
 	import Notice from '#ui/Notice';
 	import VirtualList from '#ui/VirtualList';
@@ -23,7 +21,11 @@
 		started: string | null;
 	};
 
-	let { live, service }: { live: LiveStore; service: string } = $props();
+	let {
+		live,
+		service,
+		source = serviceSource(service)
+	}: { live: LiveStore; service: string; source?: HistorySource } = $props();
 
 	const ROW = 44;
 	const MAX_ROWS = 2000;
@@ -76,11 +78,7 @@
 		busy = true;
 		error = null;
 		try {
-			const page = await unwrap(
-				api.GET('/{service}/sessions', {
-					params: { path: { service }, query: { limit: 50, ...(cursor ? { cursor } : {}) } }
-				})
-			);
+			const page = await source.sessions({ limit: 50, ...(cursor ? { cursor } : {}) });
 			history = [...history, ...page.items].slice(0, MAX_ROWS);
 			cursor = page.next_cursor ?? null;
 			done = cursor === null || history.length >= MAX_ROWS;
@@ -104,20 +102,14 @@
 	<div class="min-h-0 flex-1">
 		<VirtualList items={rows} key={(r) => r.key} rowHeight={ROW} label="Sessions" onend={more}>
 			{#snippet row(s: Row)}
-				{@const href =
-					s.epoch === null
-						? null
-						: resolve('/(app)/[service=service]/sessions/[epoch]/[id]', {
-								service,
-								epoch: String(s.epoch),
-								id: String(s.id)
-							})}
+				{@const href = s.epoch === null ? null : source.sessionHref(s.epoch, s.id)}
 				<div
 					role="row"
 					class="flex h-full items-center justify-between gap-2 border-b border-line text-sm"
 				>
 					<span role="cell" class="flex flex-col">
 						{#if href}
+							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the source builds it with resolve() -->
 							<a {href} class="text-ink underline-offset-2 hover:underline"
 								>#{s.id} · Lane {s.lane}</a
 							>

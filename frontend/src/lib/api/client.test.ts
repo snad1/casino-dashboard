@@ -38,9 +38,10 @@ describe('api client', () => {
 		expect(onUnauthorized).toHaveBeenCalledOnce();
 	});
 
-	it('leaves a 401 from sign-in or the session check to the page', async () => {
+	it('leaves a 401 from either sign-in or the session check to the page', async () => {
 		const { api, onUnauthorized } = harness(401, { detail: 'nope' });
 		await api.POST('/auth/login', { body: { email: 'a@b.test', password: 'x', code: null } });
+		await api.POST('/auth/telegram', { body: { token: 'x' } });
 		await api.GET('/auth/me');
 		expect(onUnauthorized).not.toHaveBeenCalled();
 	});
