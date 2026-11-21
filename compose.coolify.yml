@@ -1,0 +1,293 @@
+# GENERATED for Coolify from compose.yml — regenerate rather than hand-edit.
+# Coolify runs with --project-directory <repo root> and rejects '${...}' in volume sources,
+# so relative paths are rooted at the repo and the two host binds plus ports are literal.
+name: ${COMPOSE_PROJECT_NAME:-wolfbet-dashboard}
+
+x-hardening: &hardening
+  restart: unless-stopped
+  cpu_shares: 256
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+x-app: &app
+  <<: *hardening
+  build:
+    context: ./backend
+  image: casino-dashboard-api:local
+  user: "10001:10001"
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  cap_drop:
+    - ALL
+  networks:
+    - internal
+  environment:
+    APP_ENV: production
+
+services:
+  timescale:
+    <<: *hardening
+    image: timescale/timescaledb:2.32.0-pg16
+    cpus: 1.0
+    mem_limit: 1g
+    shm_size: 256m
+    environment:
+      POSTGRES_DB: dashboard
+      POSTGRES_USER: dashboard
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      TIMESCALEDB_TELEMETRY: "off"
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=512MB
+      - -c
+      - max_connections=50
+    secrets:
+      - postgres_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dashboard -d dashboard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    <<: *hardening
+    image: redis:7.4.12-alpine
+    cpus: 0.25
+    mem_limit: 320m
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    user: "999:1000"
+    entrypoint: ["/bin/sh", "/etc/redis/entrypoint.sh"]
+    secrets:
+      - redis_publisher_password
+      - redis_dashboard_password
+    volumes:
+      - ./deploy/redis/users.acl.tmpl:/etc/redis/users.acl.tmpl:ro
+      - ./deploy/redis/entrypoint.sh:/etc/redis/entrypoint.sh:ro
+    ports:
+      - "127.0.0.1:9479:6379"
+    networks:
+      - internal
+      - hostlink
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --user dashboard --pass \"$$(cat /run/secrets/redis_dashboard_password)\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  api:
+    <<: *app
+    cpus: 1.0
+    mem_limit: 512m
+    environment:
+      APP_ENV: production
+      PUBLIC_HOST: ${WOLFBET_HOST:?set WOLFBET_HOST in deploy/.env}
+      POSTGRES_HOST: timescale
+      POSTGRES_DB: dashboard
+      POSTGRES_USER: dashboard_app
+      REDIS_HOST: redis
+      REDIS_USER: dashboard
+      AGENT_SOCKET: /run/casino-agent/agent.sock
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      TERMINAL_IP_ALLOWLIST: ${TERMINAL_IP_ALLOWLIST:-}
+    secrets:
+      - session_secret
+      - totp_key
+      - source: postgres_app_password
+        target: postgres_password
+      - redis_dashboard_password
+      - agent_token
+    # The agent's socket is 0660 in the casino-agent group; joining it is the only access.
+    group_add:
+      - ${AGENT_GID:?set AGENT_GID in deploy/.env}
+    volumes:
+      - /run/casino-agent:/run/casino-agent:ro
+    depends_on:
+      timescale:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2).status == 200 else 1)"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  ingest:
+    <<: *app
+    # The bot runs as root and its database in /root is root-only. Ingest reads it as the
+    # owner: no capabilities, read-only root filesystem, read-only mount, so it can write nothing.
+    user: "0:0"
+    cpus: 0.5
+    mem_limit: 256m
+    command: ["python", "-m", "app.ingest.main"]
+    environment:
+      APP_ENV: production
+      POSTGRES_HOST: timescale
+      POSTGRES_DB: dashboard
+      POSTGRES_USER: dashboard_app
+      HOST_TZ: ${HOST_TZ:?set HOST_TZ in deploy/.env}
+      INGEST_TG_DATA_DIR: ${INGEST_TG_DATA_DIR:-}
+    secrets:
+      - source: postgres_app_password
+        target: postgres_password
+    volumes:
+      - /root:/botdata:ro
+    depends_on:
+      timescale:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if time.time() - os.path.getmtime('/tmp/ingest.alive') < 90 else 1)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+
+  mailer:
+    <<: *app
+    cpus: 0.25
+    mem_limit: 128m
+    command: ["python", "-m", "app.mail.worker"]
+    environment:
+      APP_ENV: production
+      POSTGRES_HOST: timescale
+      POSTGRES_DB: dashboard
+      POSTGRES_USER: dashboard_app
+      MAIL_BACKEND: brevo
+      MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM in deploy/.env}
+      HOST_TZ: ${HOST_TZ:?set HOST_TZ in deploy/.env}
+    secrets:
+      - source: postgres_app_password
+        target: postgres_password
+      - brevo_api_key
+      - telegram_bot_token
+      - vapid_private_key
+    networks:
+      - internal
+      - egress
+    depends_on:
+      timescale:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if time.time() - os.path.getmtime('/tmp/mailer.alive') < 60 else 1)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+
+  # One-shot before api, ingest and mailer on every deploy. The only container with the
+  # owner password; a failed migration keeps them from starting instead of crash-looping.
+  migrate:
+    <<: *app
+    restart: "no"
+    cpus: 0.5
+    mem_limit: 256m
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      APP_ENV: production
+      POSTGRES_HOST: timescale
+      POSTGRES_DB: dashboard
+      POSTGRES_USER: dashboard
+    secrets:
+      - postgres_password
+      - postgres_app_password
+    depends_on:
+      timescale:
+        condition: service_healthy
+
+  # Serves the SPA and proxies /api and /ws. Coolify's proxy routes the domain set on this
+  # service to port 80 and terminates TLS; nothing is published on the host.
+  caddy:
+    <<: *hardening
+    build:
+      context: ./frontend
+      dockerfile: ../deploy/caddy/Dockerfile
+    image: casino-dashboard-caddy:local
+    cpus: 0.25
+    mem_limit: 128m
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    environment:
+      CADDY_ADDRESS: ${CADDY_ADDRESS:-:80}
+    ports:
+      - "127.0.0.1:9441:8080"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - internal
+      - edge
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2020/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+networks:
+  internal:
+    internal: true
+  edge: {}
+  hostlink: {}
+  egress: {}
+
+volumes:
+  pgdata: {}
+  caddy_data: {}
+  caddy_config: {}
+
+secrets:
+  session_secret:
+    file: /opt/wolfbet/secrets/session_secret.txt
+  brevo_api_key:
+    file: /opt/wolfbet/secrets/brevo_api_key.txt
+  telegram_bot_token:
+    file: /opt/wolfbet/secrets/telegram_bot_token.txt
+  vapid_private_key:
+    file: /opt/wolfbet/secrets/vapid_private_key.txt
+  totp_key:
+    file: /opt/wolfbet/secrets/totp_key.txt
+  postgres_password:
+    file: /opt/wolfbet/secrets/postgres_password.txt
+  postgres_app_password:
+    file: /opt/wolfbet/secrets/postgres_app_password.txt
+  redis_publisher_password:
+    file: /opt/wolfbet/secrets/redis_publisher_password.txt
+  redis_dashboard_password:
+    file: /opt/wolfbet/secrets/redis_dashboard_password.txt
+  agent_token:
+    file: /opt/wolfbet/secrets/agent_token.txt
