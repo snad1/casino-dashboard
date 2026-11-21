@@ -25,8 +25,16 @@ class RunResult:
 
 
 def scrubbed_env(env: Mapping[str, str]) -> dict[str, str]:
-    """Only what the bots' tools need to find binaries, HOME and the user's systemd."""
-    return {k: env[k] for k in ENV_KEYS if k in env}
+    """Only what the bots' tools need to find binaries, HOME and the user's systemd.
+
+    HOME and XDG_RUNTIME_DIR are filled in when the agent's own environment lacks them (a
+    system unit gets neither): wolfctl stops on an unset HOME, and `systemctl --user` cannot
+    reach the user's manager without XDG_RUNTIME_DIR.
+    """
+    out = {k: env[k] for k in ENV_KEYS if k in env}
+    out.setdefault("HOME", str(Path.home()))
+    out.setdefault("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+    return out
 
 
 def tail(text: str, limit: int) -> str:

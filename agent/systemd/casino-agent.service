@@ -22,6 +22,9 @@ CPUWeight=20
 
 RuntimeDirectory=casino-agent
 RuntimeDirectoryMode=0750
+# Kept across restarts: the api bind-mounts this directory, and a recreated one leaves that
+# mount pointing at the deleted directory until the api restarts too.
+RuntimeDirectoryPreserve=yes
 StateDirectory=casino-agent
 UMask=0007
 ProtectSystem=strict

@@ -298,3 +298,13 @@ def test_caddy_serves_plain_http_behind_the_proxy_and_keeps_the_client_address()
 def test_metrics_are_not_served_through_caddy() -> None:
     caddyfile = (DEPLOY / "Caddyfile").read_text()
     assert caddyfile.index("respond /api/metrics 404") < caddyfile.index("handle_path /api/*")
+
+
+def test_the_coolify_variant_mounts_the_agent_directory_the_user_unit_creates(
+    compose: dict[str, Any],
+) -> None:
+    coolify: dict[str, Any] = yaml.safe_load((DEPLOY / "compose.coolify.yml").read_text())
+    [default] = _service(compose, "api")["volumes"]
+    literal = default.replace("${AGENT_RUNTIME_DIR:-", "").replace("}", "", 1)
+    assert _service(coolify, "api")["volumes"] == [literal]
+    assert literal == "/run/user/0/casino-agent:/run/casino-agent:ro"

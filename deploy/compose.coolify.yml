@@ -1,4 +1,4 @@
-# GENERATED for Coolify from compose.yml — do not hand-edit.
+# GENERATED for Coolify from compose.yml: do not hand-edit.
 # Coolify copies only this directory and never clones the repo, so the images are built on
 # the host (docker compose build) and referenced by tag, and every host path is literal.
 name: ${COMPOSE_PROJECT_NAME:-wolfbet-dashboard}
@@ -119,7 +119,7 @@ services:
     group_add:
       - ${AGENT_GID:?set AGENT_GID in deploy/.env}
     volumes:
-      - /run/casino-agent:/run/casino-agent:ro
+      - /run/user/0/casino-agent:/run/casino-agent:ro
     depends_on:
       timescale:
         condition: service_healthy
