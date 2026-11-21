@@ -1426,74 +1426,6 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
-	'/{service}/control/web_restart': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		get?: never;
-		put?: never;
-		/** Control Web Restart */
-		post: operations['control_web_restart__service__control_web_restart_post'];
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/{service}/control/web_start': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		get?: never;
-		put?: never;
-		/** Control Web Start */
-		post: operations['control_web_start__service__control_web_start_post'];
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/{service}/control/web_status': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		get?: never;
-		put?: never;
-		/** Control Web Status */
-		post: operations['control_web_status__service__control_web_status_post'];
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
-	'/{service}/control/web_stop': {
-		parameters: {
-			query?: never;
-			header?: never;
-			path?: never;
-			cookie?: never;
-		};
-		get?: never;
-		put?: never;
-		/** Control Web Stop */
-		post: operations['control_web_stop__service__control_web_stop_post'];
-		delete?: never;
-		options?: never;
-		head?: never;
-		patch?: never;
-		trace?: never;
-	};
 	'/{service}/current': {
 		parameters: {
 			query?: never;
@@ -2158,7 +2090,7 @@ export interface components {
 			 * @default cli
 			 * @enum {string}
 			 */
-			service: 'cli' | 'tg' | 'web';
+			service: 'cli' | 'tg';
 		};
 		/** GameRow */
 		GameRow: {
@@ -2346,7 +2278,7 @@ export interface components {
 			 * @default cli
 			 * @enum {string}
 			 */
-			service: 'cli' | 'tg' | 'web';
+			service: 'cli' | 'tg';
 		};
 		/** Me */
 		Me: {
@@ -5661,190 +5593,6 @@ export interface operations {
 		};
 	};
 	control_version__service__control_version_post: {
-		parameters: {
-			query?: never;
-			header: {
-				'Idempotency-Key': string;
-			};
-			path: {
-				service: string;
-			};
-			cookie?: never;
-		};
-		requestBody: {
-			content: {
-				'application/json': components['schemas']['NoArgs'];
-			};
-		};
-		responses: {
-			/** @description Successful Response */
-			200: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['ControlOut'];
-				};
-			};
-			/** @description Accepted */
-			202: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['ControlOut'];
-				};
-			};
-			/** @description Validation Error */
-			422: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['HTTPValidationError'];
-				};
-			};
-		};
-	};
-	control_web_restart__service__control_web_restart_post: {
-		parameters: {
-			query?: never;
-			header: {
-				'Idempotency-Key': string;
-			};
-			path: {
-				service: string;
-			};
-			cookie?: never;
-		};
-		requestBody: {
-			content: {
-				'application/json': components['schemas']['NoArgs'];
-			};
-		};
-		responses: {
-			/** @description Successful Response */
-			200: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['ControlOut'];
-				};
-			};
-			/** @description Accepted */
-			202: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['ControlOut'];
-				};
-			};
-			/** @description Validation Error */
-			422: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['HTTPValidationError'];
-				};
-			};
-		};
-	};
-	control_web_start__service__control_web_start_post: {
-		parameters: {
-			query?: never;
-			header: {
-				'Idempotency-Key': string;
-			};
-			path: {
-				service: string;
-			};
-			cookie?: never;
-		};
-		requestBody: {
-			content: {
-				'application/json': components['schemas']['NoArgs'];
-			};
-		};
-		responses: {
-			/** @description Successful Response */
-			200: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['ControlOut'];
-				};
-			};
-			/** @description Accepted */
-			202: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['ControlOut'];
-				};
-			};
-			/** @description Validation Error */
-			422: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['HTTPValidationError'];
-				};
-			};
-		};
-	};
-	control_web_status__service__control_web_status_post: {
-		parameters: {
-			query?: never;
-			header: {
-				'Idempotency-Key': string;
-			};
-			path: {
-				service: string;
-			};
-			cookie?: never;
-		};
-		requestBody: {
-			content: {
-				'application/json': components['schemas']['NoArgs'];
-			};
-		};
-		responses: {
-			/** @description Successful Response */
-			200: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['ControlOut'];
-				};
-			};
-			/** @description Accepted */
-			202: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['ControlOut'];
-				};
-			};
-			/** @description Validation Error */
-			422: {
-				headers: {
-					[name: string]: unknown;
-				};
-				content: {
-					'application/json': components['schemas']['HTTPValidationError'];
-				};
-			};
-		};
-	};
-	control_web_stop__service__control_web_stop_post: {
 		parameters: {
 			query?: never;
 			header: {

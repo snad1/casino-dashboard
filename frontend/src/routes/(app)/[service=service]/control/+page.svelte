@@ -18,10 +18,7 @@
 	let report: { title: string; text: string } | null = $state(null);
 	let checking = $state(false);
 
-	const units = [
-		{ group: 'tg', name: 'Telegram bot' },
-		{ group: 'web', name: 'Old web admin' }
-	] as const;
+	const units = [{ group: 'tg', name: 'Telegram bot' }] as const;
 
 	async function check(name: ActionName, title: string) {
 		checking = true;
@@ -106,9 +103,7 @@
 
 		<section class={section} aria-labelledby="services-title">
 			<h2 id="services-title" class="font-semibold">Services</h2>
-			<p class="mb-3 text-sm text-muted">
-				The Telegram bot and the old web admin. Betting is not touched.
-			</p>
+			<p class="mb-3 text-sm text-muted">The Telegram bot. Betting is not touched.</p>
 			<ul class="flex flex-col gap-3">
 				{#each units as unit (unit.group)}
 					<li class={row}>

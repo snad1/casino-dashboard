@@ -17,8 +17,7 @@
 
 	const UNITS = [
 		{ value: 'cli', label: 'Bot' },
-		{ value: 'tg', label: 'Telegram' },
-		{ value: 'web', label: 'Web' }
+		{ value: 'tg', label: 'Telegram' }
 	] as const;
 	const ROW = 22;
 

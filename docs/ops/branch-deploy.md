@@ -15,17 +15,6 @@ wolfctl web status
 
 `wolfctl update --branch` refuses a checkout with local changes (exit 4, and it lists them), then fetches `origin`, switches to the branch (creating it to track `origin/feat/casino-dashboard` the first time) and fast-forwards. It never resets or forces. It then runs the normal update: copies the files into `~/wolfbet-bot`, reinstalls dependencies (including `casino-shared` from its `feat/casino-dashboard` ref) and restarts the running units.
 
-## First switch: required web credentials
-
-The web admin refuses to start with the shipped defaults. Before `wolfctl update` restarts `wolfbet-web`, set both values in `~/wolfbet-bot/.env`:
-
-```bash
-python3 -c "import secrets; print(secrets.token_urlsafe(48))"   # WOLFBET_WEB_SECRET_KEY, 32+ bytes
-# WOLFBET_WEB_ADMIN_PASS: 12+ characters, your own
-```
-
-A database that was created with the old default password is repaired on the next start: the stored `changeme123` hash is replaced with the password from `.env`. A password you already chose is never overwritten.
-
 ## Everyday loop on the branch
 
 ```bash

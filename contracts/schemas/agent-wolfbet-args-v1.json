@@ -270,8 +270,7 @@
         "default": "cli",
         "enum": [
           "cli",
-          "tg",
-          "web"
+          "tg"
         ],
         "title": "Service",
         "type": "string"
@@ -287,8 +286,7 @@
         "default": "cli",
         "enum": [
           "cli",
-          "tg",
-          "web"
+          "tg"
         ],
         "title": "Service",
         "type": "string"
@@ -455,30 +453,6 @@
     "type": "object"
   },
   "version": {
-    "additionalProperties": false,
-    "properties": {},
-    "title": "NoArgs",
-    "type": "object"
-  },
-  "web.restart": {
-    "additionalProperties": false,
-    "properties": {},
-    "title": "NoArgs",
-    "type": "object"
-  },
-  "web.start": {
-    "additionalProperties": false,
-    "properties": {},
-    "title": "NoArgs",
-    "type": "object"
-  },
-  "web.status": {
-    "additionalProperties": false,
-    "properties": {},
-    "title": "NoArgs",
-    "type": "object"
-  },
-  "web.stop": {
     "additionalProperties": false,
     "properties": {},
     "title": "NoArgs",

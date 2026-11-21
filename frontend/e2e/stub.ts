@@ -137,10 +137,7 @@ export const controlMenu = {
 		action('start_all', 'control.basic', 'Start all', 'Start every {service} bot?', 'Start all'),
 		action('status_all', 'control.basic', 'Check', 'Check services?', 'Check', { read: true }),
 		action('version', 'control.basic', 'Version', 'Show version?', 'Version', { read: true }),
-		...[
-			['tg', 'the Telegram bot'],
-			['web', 'the old web admin']
-		].flatMap(([group, unit]) => [
+		...[['tg', 'the Telegram bot']].flatMap(([group, unit]) => [
 			action(`${group}_start`, 'control.basic', 'Start', `Start ${unit}?`, 'Start'),
 			action(`${group}_stop`, 'control.basic', 'Stop', `Stop ${unit}?`, 'Stop'),
 			action(`${group}_restart`, 'control.basic', 'Restart', `Restart ${unit}?`, 'Restart'),

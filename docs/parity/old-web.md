@@ -1,5 +1,7 @@
 # Old web parity
 
+The old web was removed from `wolfbet` in wolfctl 3.18 and TG 1.25.0. This table stays as the record of where each of its features went.
+
 Every route and template of the old WolfBet web (`wolfbet/web`, plus the sign-in routes it mounts from `casino-shared/web`) and where it lives in the dashboard. Each row names the tests that cover it. `backend/tests/test_parity_old_web.py` checks that every test named here exists. When `../wolfbet` and `../casino-shared` are checked out next to this repo, it also checks that every route and template has a row.
 
 Telegram users sign in with the bot's `/web` link (the `/tg/login` page) and reach only their own pages under `/tg/<their uid>`: "My bot", "Sessions", a session, and "Settings". Owners and admins (with two-factor) reach any Telegram user there, and the "Telegram users" page lists them. Pages are checked by `frontend/e2e/tg.spec.ts` (stubbed) and `frontend/e2e-stack/tg.spec.ts` (the real stack).

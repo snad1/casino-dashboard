@@ -110,7 +110,7 @@ test('an operator restarts the Telegram bot and checks every service', async ({ 
 				status: 'succeeded',
 				exit_code: 0,
 				job_id: null,
-				output: 'CLI Bot: RUNNING\nTelegram Bot: RUNNING\nWeb Admin: stopped'
+				output: 'CLI Bot: RUNNING\nTelegram Bot: RUNNING'
 			}
 		})
 	});
@@ -121,7 +121,7 @@ test('an operator restarts the Telegram bot and checks every service', async ({ 
 	await expect(page.getByText('Restart: done.')).toBeVisible();
 
 	await services(page, 'All services').getByRole('button', { name: 'Check' }).click();
-	await expect(page.getByLabel('All services status')).toContainText('Web Admin: stopped');
+	await expect(page.getByLabel('All services status')).toContainText('Telegram Bot: RUNNING');
 	expect(sent.map((s) => s.path)).toEqual([
 		'/wolfbet/control/tg_restart',
 		'/wolfbet/control/status_all'
@@ -133,7 +133,7 @@ test('a viewer sees the service buttons but cannot press them', async ({ page })
 	await page.goto('/wolfbet/control');
 	for (const name of ['Status', 'Start', 'Stop', 'Restart']) {
 		await expect(
-			services(page, 'Old web admin').getByRole('button', { name, exact: true })
+			services(page, 'Telegram bot').getByRole('button', { name, exact: true })
 		).toBeDisabled();
 	}
 	await expect(

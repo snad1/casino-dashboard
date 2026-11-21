@@ -34,7 +34,7 @@ from agent.validators import (
 
 Runner = Callable[..., Awaitable[RunResult]]
 Handler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
-UNITS = {"cli": "wolfbet", "tg": "wolfbet-tg", "web": "wolfbet-web"}
+UNITS = {"cli": "wolfbet", "tg": "wolfbet-tg"}
 MAX_CONFIG_PAIRS = 32
 
 
@@ -149,12 +149,12 @@ class UpdateArgs(Args):
 
 
 class LogsArgs(Args):
-    service: Literal["cli", "tg", "web"] = "cli"
+    service: Literal["cli", "tg"] = "cli"
     lines: int = Field(default=200, ge=1, le=2000)
 
 
 class FollowArgs(Args):
-    service: Literal["cli", "tg", "web"] = "cli"
+    service: Literal["cli", "tg"] = "cli"
 
 
 class ConfigArgs(Args):
@@ -351,7 +351,7 @@ COMMANDS: dict[str, CommandSpec] = {
         f"{group}.{verb}": CommandSpec(
             NoArgs, _ctl_verb(group, verb), 60, mutating=verb != "status"
         )
-        for group in ("tg", "web")
+        for group in ("tg",)
         for verb in ("start", "stop", "restart", "status")
     },
 }

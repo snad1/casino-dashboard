@@ -186,18 +186,14 @@ ARGV_CASES: list[tuple[str, dict[str, Any], list[str]]] = [
     ),
     (
         "logs_follow",
-        {"service": "web"},
-        [JCTL, "--user", "-u", "wolfbet-web", "-n", "50", "-f", "--no-pager"],
+        {"service": "tg"},
+        [JCTL, "--user", "-u", "wolfbet-tg", "-n", "50", "-f", "--no-pager"],
     ),
     ("start_all", {}, [CTL, "start-all"]),
     ("stop_all", {}, [CTL, "stop-all"]),
     ("status_all", {}, [CTL, "status-all"]),
     ("version", {}, [CTL, "version"]),
-    *[
-        (f"{g}.{v}", {}, [CTL, g, v])
-        for g in ("tg", "web")
-        for v in ("start", "stop", "restart", "status")
-    ],
+    *[(f"tg.{v}", {}, [CTL, "tg", v]) for v in ("start", "stop", "restart", "status")],
 ]
 
 
@@ -288,7 +284,6 @@ def test_mutating_flags() -> None:
         "logs_follow",
         "status_all",
         "tg.status",
-        "web.status",
         "version",
     }
 

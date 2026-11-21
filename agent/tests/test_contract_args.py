@@ -35,7 +35,7 @@ CONTROL_COMMANDS = (
     "start_all",
     "status_all",
     "version",
-    *(f"{g}.{v}" for g in ("tg", "web") for v in ("start", "stop", "restart", "status")),
+    *(f"tg.{v}" for v in ("start", "stop", "restart", "status")),
 )
 
 

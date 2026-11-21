@@ -79,12 +79,12 @@ class UpdateArgs(Args):
 
 
 class LogsArgs(Args):
-    service: Literal["cli", "tg", "web"] = "cli"
+    service: Literal["cli", "tg"] = "cli"
     lines: int = Field(default=200, ge=1, le=2000)
 
 
 class FollowArgs(Args):
-    service: Literal["cli", "tg", "web"] = "cli"
+    service: Literal["cli", "tg"] = "cli"
 
 
 class BenchmarkArgs(Args):
@@ -158,12 +158,11 @@ _EXPORT = Perm.EXPORT
 
 _UNITS = {
     "tg": ("the Telegram bot", "Telegram users get no replies until it starts again."),
-    "web": ("the old web admin", "The old web pages are down until it starts again."),
 }
 
 
 def _unit_actions(group: str) -> dict[str, ControlAction]:
-    """Start, stop, restart and status for one of the bot's side units (`wolfctl tg|web`)."""
+    """Start, stop, restart and status for one of the bot's side units (`wolfctl tg`)."""
     unit, down = _UNITS[group]
     named = unit[0].upper() + unit[1:]
     return {
@@ -463,7 +462,7 @@ ACTIONS: dict[str, ControlAction] = {
         NoArgs,
         label="Check",
         title="Check the {service} services?",
-        effect="Shows whether the betting bot, the Telegram bot and the old web admin run.",
+        effect="Shows whether the betting bot and the Telegram bot run.",
         confirm="Check",
         confirm_first=False,
         exclusive=False,
@@ -480,5 +479,4 @@ ACTIONS: dict[str, ControlAction] = {
         exclusive=False,
     ),
     **_unit_actions("tg"),
-    **_unit_actions("web"),
 }
