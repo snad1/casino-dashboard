@@ -2213,8 +2213,15 @@
             "type": "string"
           },
           "email": {
-            "title": "Email",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
           },
           "roles": {
             "items": {
@@ -2223,6 +2230,17 @@
             "title": "Roles",
             "type": "array"
           },
+          "tg_uid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tg Uid"
+          },
           "totp_enabled": {
             "title": "Totp Enabled",
             "type": "boolean"
@@ -2230,6 +2248,7 @@
         },
         "required": [
           "email",
+          "tg_uid",
           "roles",
           "csrf_token",
           "totp_enabled"
@@ -3315,6 +3334,21 @@
         "title": "TargetArgs",
         "type": "object"
       },
+      "TelegramLoginIn": {
+        "properties": {
+          "token": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "TelegramLoginIn",
+        "type": "object"
+      },
       "TestOut": {
         "properties": {
           "channels": {
@@ -3334,6 +3368,140 @@
           "channels"
         ],
         "title": "TestOut",
+        "type": "object"
+      },
+      "TgConfigOut": {
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          }
+        },
+        "required": [
+          "config"
+        ],
+        "title": "TgConfigOut",
+        "type": "object"
+      },
+      "TgControlIn": {
+        "properties": {
+          "slot": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot"
+          }
+        },
+        "title": "TgControlIn",
+        "type": "object"
+      },
+      "TgControlOut": {
+        "properties": {
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "slots": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Slots",
+            "type": "array"
+          }
+        },
+        "required": [
+          "slots"
+        ],
+        "title": "TgControlOut",
+        "type": "object"
+      },
+      "TgStatusOut": {
+        "properties": {
+          "sessions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Sessions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "sessions"
+        ],
+        "title": "TgStatusOut",
+        "type": "object"
+      },
+      "TgUserList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TgUserOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TgUserList",
+        "type": "object"
+      },
+      "TgUserOut": {
+        "properties": {
+          "bets": {
+            "title": "Bets",
+            "type": "integer"
+          },
+          "last_session_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Session At"
+          },
+          "profit": {
+            "title": "Profit",
+            "type": "number"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          },
+          "uid": {
+            "title": "Uid",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "uid",
+          "sessions",
+          "bets",
+          "profit",
+          "last_session_at"
+        ],
+        "title": "TgUserOut",
         "type": "object"
       },
       "Ticket": {
@@ -4324,6 +4492,41 @@
         ]
       }
     },
+    "/auth/telegram": {
+      "post": {
+        "description": "Exchange the bot's one-time link for a session (404 while no link secret is set).",
+        "operationId": "telegram_login_auth_telegram_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelegramLoginIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Telegram Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/totp/disable": {
       "post": {
         "operationId": "disable_auth_totp_disable_post",
@@ -4518,6 +4721,695 @@
         "summary": "Terminal Ticket",
         "tags": [
           "terminal"
+        ]
+      }
+    },
+    "/tg/users": {
+      "get": {
+        "description": "Every Telegram user ingest has seen, with their totals, newest activity first.",
+        "operationId": "list_tg_users_tg_users_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TgUserList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Tg Users",
+        "tags": [
+          "telegram"
+        ]
+      }
+    },
+    "/tg/{uid}/config": {
+      "get": {
+        "description": "The user's saved bot settings, without the API key or proxy.",
+        "operationId": "get_user_config_tg__uid__config_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Uid",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TgConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get User Config",
+        "tags": [
+          "telegram"
+        ]
+      }
+    },
+    "/tg/{uid}/control/{action}": {
+      "post": {
+        "description": "Start a session, or stop, pause or resume one (a slot is needed when several run).",
+        "operationId": "control_user_tg__uid__control__action__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Uid",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "start",
+                "stop",
+                "pause",
+                "resume"
+              ],
+              "title": "Action",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_-]{16,128}$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TgControlIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TgControlOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Control User",
+        "tags": [
+          "telegram"
+        ]
+      }
+    },
+    "/tg/{uid}/series": {
+      "get": {
+        "description": "The user's profit or balance over a range, from their own bets only.",
+        "operationId": "get_user_series_tg__uid__series_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Uid",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "metric",
+            "required": false,
+            "schema": {
+              "default": "profit",
+              "enum": [
+                "profit",
+                "balance"
+              ],
+              "title": "Metric",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "res",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "1s",
+                    "1m",
+                    "1h",
+                    "1d"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Res"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get User Series",
+        "tags": [
+          "telegram"
+        ]
+      }
+    },
+    "/tg/{uid}/sessions": {
+      "get": {
+        "description": "The user's sessions, newest first; pass `next_cursor` back as `cursor`.",
+        "operationId": "list_user_sessions_tg__uid__sessions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Uid",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Until"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "running",
+                    "ended"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{1,18}:\\d{1,18}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List User Sessions",
+        "tags": [
+          "telegram"
+        ]
+      }
+    },
+    "/tg/{uid}/sessions.csv": {
+      "get": {
+        "description": "Every session of the user, oldest first, as a CSV download.",
+        "operationId": "export_user_sessions_tg__uid__sessions_csv_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Uid",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export User Sessions",
+        "tags": [
+          "telegram"
+        ]
+      }
+    },
+    "/tg/{uid}/sessions/{epoch_id}/{session_id}": {
+      "get": {
+        "operationId": "get_user_session_tg__uid__sessions__epoch_id___session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Uid",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "epoch_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Epoch Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Session Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get User Session",
+        "tags": [
+          "telegram"
+        ]
+      }
+    },
+    "/tg/{uid}/sessions/{epoch_id}/{session_id}/bets": {
+      "get": {
+        "description": "The session's bets, newest first; pass `next_before` back as `before`.",
+        "operationId": "list_user_session_bets_tg__uid__sessions__epoch_id___session_id__bets_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Uid",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "epoch_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Epoch Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Session Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BetPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List User Session Bets",
+        "tags": [
+          "telegram"
+        ]
+      }
+    },
+    "/tg/{uid}/sessions/{epoch_id}/{session_id}/bets.csv": {
+      "get": {
+        "description": "The session's bets, oldest first, as a CSV download.",
+        "operationId": "export_user_session_bets_tg__uid__sessions__epoch_id___session_id__bets_csv_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Uid",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "epoch_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Epoch Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Session Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export User Session Bets",
+        "tags": [
+          "telegram"
+        ]
+      }
+    },
+    "/tg/{uid}/status": {
+      "get": {
+        "description": "The user's running sessions as the bot sees them now, one per slot.",
+        "operationId": "get_user_status_tg__uid__status_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Uid",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TgStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get User Status",
+        "tags": [
+          "telegram"
         ]
       }
     },

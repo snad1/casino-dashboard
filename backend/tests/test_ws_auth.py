@@ -216,13 +216,12 @@ class TestTopics:
         viewer = make_user(app_settings, Role.VIEWER, two_factor=False)
         operator = make_user(app_settings, Role.OPERATOR, two_factor=False)
         admin = make_user(app_settings, Role.ADMIN, two_factor=True)
-        owner = make_user(app_settings, Role.OWNER, two_factor=True)
         cases = [
             (viewer.id, "svc:wolfbet-tg:user:42", False),
             (viewer.id, "svc:wolfbet-tg:user:42:session:3", False),
             (operator.id, "svc:wolfbet-tg:user:42", False),
             (admin.id, "svc:wolfbet-tg:user:42", True),
-            (owner.id, "svc:wolfbet-tg:user:42:lane:1", True),
+            (admin.id, "svc:wolfbet-tg:user:42:lane:1", True),
             (viewer.id, "svc:wolfbet", True),
         ]
         for user_id, topic, expected in cases:

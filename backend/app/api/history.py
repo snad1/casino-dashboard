@@ -16,7 +16,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 from pydantic import BaseModel
-from sqlalchemy import select, text, tuple_
+from sqlalchemy import Select, select, text, tuple_
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -194,12 +194,31 @@ async def list_sessions(
     cache, key = _cache(request)
     if (hit := cache.get(key)) is not None:
         return hit
+    page = await session_page(db, service, None, lane, since, until, session_status, cursor, limit)
+    cache.put(key, page)
+    return page
+
+
+async def session_page(
+    db: AsyncSession,
+    service: str,
+    epochs: Select[int] | None,
+    lane: int | None,
+    since: datetime | None,
+    until: datetime | None,
+    session_status: Literal["running", "ended"] | None,
+    cursor: str | None,
+    limit: int,
+) -> SessionPage:
+    """One page of sessions, newest first; `epochs` limits it to those databases."""
     query = (
         select(HistorySession)
         .where(HistorySession.service == service)
         .order_by(HistorySession.epoch_id.desc(), HistorySession.src_id.desc())
         .limit(limit + 1)
     )
+    if epochs is not None:
+        query = query.where(HistorySession.epoch_id.in_(epochs))
     if lane is not None:
         query = query.where(HistorySession.lane == lane)
     if since is not None:
@@ -218,18 +237,28 @@ async def list_sessions(
     rows = list(await db.scalars(query))
     more = len(rows) > limit
     rows = rows[:limit]
-    page = SessionPage(
+    return SessionPage(
         items=[_session_out(SessionOut, row) for row in rows],
         next_cursor=f"{rows[-1].epoch_id}:{rows[-1].src_id}" if more else None,
     )
-    cache.put(key, page)
-    return page
 
 
-async def _session(
-    db: AsyncSession, service: str, epoch_id: int, session_id: int
+async def find_session(
+    db: AsyncSession,
+    service: str,
+    epoch_id: int,
+    session_id: int,
+    epochs: Select[int] | None = None,
 ) -> HistorySession:
-    row = await db.get(HistorySession, (service, epoch_id, session_id))
+    """The session, or 404; with `epochs`, one outside those databases is not found either."""
+    query = select(HistorySession).where(
+        HistorySession.service == service,
+        HistorySession.epoch_id == epoch_id,
+        HistorySession.src_id == session_id,
+    )
+    if epochs is not None:
+        query = query.where(HistorySession.epoch_id.in_(epochs))
+    row = await db.scalar(query)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, SESSION_NOT_FOUND)
     return row
@@ -243,7 +272,7 @@ async def get_session_detail(
     _: Viewer,
     db: Db,
 ) -> SessionDetail:
-    return _session_out(SessionDetail, await _session(db, service, epoch_id, session_id))
+    return _session_out(SessionDetail, await find_session(db, service, epoch_id, session_id))
 
 
 @router.get("/sessions/{epoch_id}/{session_id}/bets", response_model=BetPage)
@@ -261,7 +290,31 @@ async def list_session_bets(
     cache, key = _cache(request)
     if (hit := cache.get(key)) is not None:
         return hit
-    await _session(db, service, epoch_id, session_id)
+    await find_session(db, service, epoch_id, session_id)
+    page = await bet_page(db, service, epoch_id, session_id, before, limit)
+    cache.put(key, page)
+    return page
+
+
+def bet_out(row: Bet) -> BetOut:
+    return BetOut(
+        id=row.src_id,
+        ts=row.ts,
+        amount=row.amount,
+        multiplier=row.multiplier,
+        rule=row.rule,
+        bet_value=row.bet_value,
+        result_value=row.result_value,
+        state=row.state,
+        profit=row.profit,
+        balance_after=row.balance_after,
+    )
+
+
+async def bet_page(
+    db: AsyncSession, service: str, epoch_id: int, session_id: int, before: int | None, limit: int
+) -> BetPage:
+    """One page of a session's bets, newest first."""
     query = (
         select(Bet)
         .where(Bet.service == service, Bet.epoch_id == epoch_id, Bet.session_src_id == session_id)
@@ -273,26 +326,9 @@ async def list_session_bets(
     rows = list(await db.scalars(query))
     more = len(rows) > limit
     rows = rows[:limit]
-    page = BetPage(
-        items=[
-            BetOut(
-                id=row.src_id,
-                ts=row.ts,
-                amount=row.amount,
-                multiplier=row.multiplier,
-                rule=row.rule,
-                bet_value=row.bet_value,
-                result_value=row.result_value,
-                state=row.state,
-                profit=row.profit,
-                balance_after=row.balance_after,
-            )
-            for row in rows
-        ],
-        next_before=rows[-1].src_id if more else None,
+    return BetPage(
+        items=[bet_out(row) for row in rows], next_before=rows[-1].src_id if more else None
     )
-    cache.put(key, page)
-    return page
 
 
 def pick_resolution(span: timedelta, wanted: Resolution | None) -> Resolution:
@@ -316,6 +352,11 @@ _SERIES_SQL = {
     "1h": "SELECT bucket AS t, lane, profit, last_balance AS balance FROM bets_1h",
     "1d": "SELECT bucket AS t, lane, profit, last_balance AS balance FROM bets_1d",
 }
+_EPOCH_SERIES_SQL = (
+    "SELECT time_bucket(:step, ts) AS t, lane, sum(profit) AS profit,"
+    " last(balance_after, ts) AS balance FROM bets"
+    " WHERE service = :service AND epoch_id = ANY(:epochs) AND ts >= :start AND ts < :end"
+)
 _TIME_COLUMN = {"1s": "ts", "1m": "bucket", "1h": "bucket", "1d": "bucket"}
 
 
@@ -335,19 +376,42 @@ async def get_series(
     cache, key = _cache(request)
     if (hit := cache.get(key)) is not None:
         return hit
+    out = await series(db, service, None, metric, res, since, until, lane)
+    cache.put(key, out)
+    return out
+
+
+async def series(
+    db: AsyncSession,
+    service: str,
+    epochs: list[int] | None,
+    metric: Literal["profit", "balance"],
+    res: Resolution | None,
+    since: datetime | None,
+    until: datetime | None,
+    lane: int | None,
+) -> SeriesOut:
+    """Per-lane points over a range. With `epochs`, only those databases' bets count; the
+    rollups mix every database, so that reads the raw bets at any resolution."""
     end = until or datetime.now(UTC)
     start = since or end - DEFAULT_RANGE
     if start >= end:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, EMPTY_RANGE)
     chosen = pick_resolution(end - start, res)
-    column = _TIME_COLUMN[chosen]
     lane_filter = " AND lane = :lane" if lane is not None else ""
-    grouping = " GROUP BY 1, lane" if chosen == "1s" else ""
-    statement = text(
-        f"{_SERIES_SQL[chosen]} WHERE service = :service"  # nosec B608: fixed SQL per resolution
-        f" AND {column} >= :start AND {column} < :end{lane_filter}{grouping} ORDER BY lane, t"
-    )
     params: dict[str, Any] = {"service": service, "start": start, "end": end}
+    if epochs is not None:
+        statement = text(
+            f"{_EPOCH_SERIES_SQL}{lane_filter} GROUP BY 1, lane ORDER BY lane, t"  # nosec B608: fixed SQL
+        )
+        params |= {"step": RESOLUTIONS[chosen], "epochs": epochs}
+    else:
+        column = _TIME_COLUMN[chosen]
+        grouping = " GROUP BY 1, lane" if chosen == "1s" else ""
+        statement = text(
+            f"{_SERIES_SQL[chosen]} WHERE service = :service"  # nosec B608: fixed SQL per resolution
+            f" AND {column} >= :start AND {column} < :end{lane_filter}{grouping} ORDER BY lane, t"
+        )
     if lane is not None:
         params["lane"] = lane
     rows = (await db.execute(statement, params)).all()
@@ -355,12 +419,10 @@ async def get_series(
     for row in rows:
         values = row._mapping
         by_lane.setdefault(values["lane"], []).append((values["t"], values[metric]))
-    out = SeriesOut(
+    return SeriesOut(
         res=chosen,
         series=[LaneSeries(lane=k, points=v) for k, v in sorted(by_lane.items())],
     )
-    cache.put(key, out)
-    return out
 
 
 async def current_sessions(db: AsyncSession, service: str) -> list[HistorySession]:

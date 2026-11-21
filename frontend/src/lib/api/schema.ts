@@ -341,6 +341,26 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/auth/telegram': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/**
+		 * Telegram Login
+		 * @description Exchange the bot's one-time link for a session (404 while no link secret is set).
+		 */
+		post: operations['telegram_login_auth_telegram_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/auth/totp/disable': {
 		parameters: {
 			query?: never;
@@ -469,6 +489,203 @@ export interface paths {
 		 * @description A one-time pass for opening the terminal socket from this session within 30 s.
 		 */
 		post: operations['terminal_ticket_terminal_ticket_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/tg/users': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * List Tg Users
+		 * @description Every Telegram user ingest has seen, with their totals, newest activity first.
+		 */
+		get: operations['list_tg_users_tg_users_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/tg/{uid}/config': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * Get User Config
+		 * @description The user's saved bot settings, without the API key or proxy.
+		 */
+		get: operations['get_user_config_tg__uid__config_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/tg/{uid}/control/{action}': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/**
+		 * Control User
+		 * @description Start a session, or stop, pause or resume one (a slot is needed when several run).
+		 */
+		post: operations['control_user_tg__uid__control__action__post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/tg/{uid}/series': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * Get User Series
+		 * @description The user's profit or balance over a range, from their own bets only.
+		 */
+		get: operations['get_user_series_tg__uid__series_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/tg/{uid}/sessions': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * List User Sessions
+		 * @description The user's sessions, newest first; pass `next_cursor` back as `cursor`.
+		 */
+		get: operations['list_user_sessions_tg__uid__sessions_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/tg/{uid}/sessions.csv': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * Export User Sessions
+		 * @description Every session of the user, oldest first, as a CSV download.
+		 */
+		get: operations['export_user_sessions_tg__uid__sessions_csv_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/tg/{uid}/sessions/{epoch_id}/{session_id}': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/** Get User Session */
+		get: operations['get_user_session_tg__uid__sessions__epoch_id___session_id__get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/tg/{uid}/sessions/{epoch_id}/{session_id}/bets': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * List User Session Bets
+		 * @description The session's bets, newest first; pass `next_before` back as `before`.
+		 */
+		get: operations['list_user_session_bets_tg__uid__sessions__epoch_id___session_id__bets_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/tg/{uid}/sessions/{epoch_id}/{session_id}/bets.csv': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * Export User Session Bets
+		 * @description The session's bets, oldest first, as a CSV download.
+		 */
+		get: operations['export_user_session_bets_tg__uid__sessions__epoch_id___session_id__bets_csv_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/tg/{uid}/status': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * Get User Status
+		 * @description The user's running sessions as the bot sees them now, one per slot.
+		 */
+		get: operations['get_user_status_tg__uid__status_get'];
+		put?: never;
+		post?: never;
 		delete?: never;
 		options?: never;
 		head?: never;
@@ -2136,9 +2353,11 @@ export interface components {
 			/** Csrf Token */
 			csrf_token: string;
 			/** Email */
-			email: string;
+			email: string | null;
 			/** Roles */
 			roles: components['schemas']['RoleOut'][];
+			/** Tg Uid */
+			tg_uid: number | null;
 			/** Totp Enabled */
 			totp_enabled: boolean;
 		};
@@ -2436,10 +2655,59 @@ export interface components {
 			 */
 			target: number | 'all';
 		};
+		/** TelegramLoginIn */
+		TelegramLoginIn: {
+			/** Token */
+			token: string;
+		};
 		/** TestOut */
 		TestOut: {
 			/** Channels */
 			channels: ('email' | 'telegram' | 'push')[];
+		};
+		/** TgConfigOut */
+		TgConfigOut: {
+			/** Config */
+			config: {
+				[key: string]: unknown;
+			};
+		};
+		/** TgControlIn */
+		TgControlIn: {
+			/** Slot */
+			slot?: number | null;
+		};
+		/** TgControlOut */
+		TgControlOut: {
+			/** Session Id */
+			session_id?: number | null;
+			/** Slots */
+			slots: number[];
+		};
+		/** TgStatusOut */
+		TgStatusOut: {
+			/** Sessions */
+			sessions: {
+				[key: string]: unknown;
+			}[];
+		};
+		/** TgUserList */
+		TgUserList: {
+			/** Items */
+			items: components['schemas']['TgUserOut'][];
+		};
+		/** TgUserOut */
+		TgUserOut: {
+			/** Bets */
+			bets: number;
+			/** Last Session At */
+			last_session_at: string | null;
+			/** Profit */
+			profit: number;
+			/** Sessions */
+			sessions: number;
+			/** Uid */
+			uid: number;
 		};
 		/** Ticket */
 		Ticket: {
@@ -3055,6 +3323,37 @@ export interface operations {
 			};
 		};
 	};
+	telegram_login_auth_telegram_post: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['TelegramLoginIn'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			204: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content?: never;
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
 	disable_auth_totp_disable_post: {
 		parameters: {
 			query?: never;
@@ -3224,6 +3523,328 @@ export interface operations {
 				};
 				content: {
 					'application/json': components['schemas']['Ticket'];
+				};
+			};
+		};
+	};
+	list_tg_users_tg_users_get: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['TgUserList'];
+				};
+			};
+		};
+	};
+	get_user_config_tg__uid__config_get: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				uid: number;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['TgConfigOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_user_tg__uid__control__action__post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				uid: number;
+				action: 'start' | 'stop' | 'pause' | 'resume';
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['TgControlIn'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['TgControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	get_user_series_tg__uid__series_get: {
+		parameters: {
+			query?: {
+				metric?: 'profit' | 'balance';
+				res?: ('1s' | '1m' | '1h' | '1d') | null;
+				from?: string | null;
+				to?: string | null;
+			};
+			header?: never;
+			path: {
+				uid: number;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['SeriesOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	list_user_sessions_tg__uid__sessions_get: {
+		parameters: {
+			query?: {
+				since?: string | null;
+				until?: string | null;
+				status?: ('running' | 'ended') | null;
+				cursor?: string | null;
+				limit?: number;
+			};
+			header?: never;
+			path: {
+				uid: number;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['SessionPage'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	export_user_sessions_tg__uid__sessions_csv_get: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				uid: number;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content?: never;
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	get_user_session_tg__uid__sessions__epoch_id___session_id__get: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				uid: number;
+				epoch_id: number;
+				session_id: number;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['SessionDetail'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	list_user_session_bets_tg__uid__sessions__epoch_id___session_id__bets_get: {
+		parameters: {
+			query?: {
+				before?: number | null;
+				limit?: number;
+			};
+			header?: never;
+			path: {
+				uid: number;
+				epoch_id: number;
+				session_id: number;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['BetPage'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	export_user_session_bets_tg__uid__sessions__epoch_id___session_id__bets_csv_get: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				uid: number;
+				epoch_id: number;
+				session_id: number;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content?: never;
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	get_user_status_tg__uid__status_get: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				uid: number;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['TgStatusOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
 				};
 			};
 		};

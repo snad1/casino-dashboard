@@ -165,12 +165,14 @@ def test_api_gets_its_secrets_as_files_and_plain_settings_as_env(
         "postgres_app_password": "postgres_password",
         "redis_dashboard_password": "redis_dashboard_password",
         "agent_token": "agent_token",
+        "tg_login_secret": "tg_login_secret",
     }
     env = api["environment"]
     assert env["APP_ENV"] == "production"
     assert env["PUBLIC_HOST"].startswith("${WOLFBET_HOST:?")
     assert env["POSTGRES_HOST"] == "timescale"
     assert env["REDIS_HOST"] == "redis"
+    assert env["LIVE_USER_SERVICE"] == "${LIVE_USER_SERVICE:-}"
 
 
 def test_api_reaches_the_agent_only_through_its_group_and_a_read_only_mount(

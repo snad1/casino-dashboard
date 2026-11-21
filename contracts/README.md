@@ -16,5 +16,6 @@ Rules:
 - The api talks to the host agent in JSON lines per `schemas/agent-proto-v1.json`: signed requests (`mac`, `ts`, one-time `id`) from an allowlisted uid/gid, generic error codes back.
 - The Telegram bot publishes per-user streams `wolfbet-tg:<uid>:bets|state|lifecycle` per `schemas/wolfbet-tg-events-v1.json`: the daemon envelope with `svc` `wolfbet-tg` and `uid` in every payload. `fixtures/wolfbet_tg/` holds one golden event of each type; the bot copies them with their SHA-256.
 - The agent talks to the Telegram bot's control socket in the same protocol (`wolfbet_tg.*` commands, the bot's own token). `fixtures/agent_proto_v1/` pins the wire bytes, a signed request and its replies; the bot copies them with their SHA-256.
+- The Telegram bot's `/web` link signs a Telegram user into the dashboard with a token `base64url(payload).base64url(HMAC-SHA256)` over compact JSON `{exp, id, uid, v}`, keyed by the dashboard's `tg_login_secret`. `fixtures/tg_login_v1/` holds one golden token; the bot copies it with its SHA-256.
 - A schema change bumps its version; consumers accept the versions they know and reject the rest.
 - The bot repos copy a fixture into their own tests together with its SHA-256, so a change on either side without the other fails a test.

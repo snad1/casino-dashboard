@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { can, denialReason, type Me } from './permissions';
 
 function me(role: string, service: string | null = null, totp = true): Me {
-	return { email: 'x@y.test', csrf_token: 't', totp_enabled: totp, roles: [{ role, service }] };
+	return {
+		email: 'x@y.test',
+		tg_uid: null,
+		csrf_token: 't',
+		totp_enabled: totp,
+		roles: [{ role, service }]
+	};
 }
 
 describe('can', () => {
@@ -16,6 +22,13 @@ describe('can', () => {
 		expect(can(me('owner'), 'terminal')).toBe(true);
 		expect(can(me('admin'), 'comments.moderate')).toBe(true);
 		expect(can(me('viewer'), 'comments.moderate')).toBe(false);
+	});
+
+	it('gives a Telegram account nothing on any service', () => {
+		for (const perm of ['view', 'comment', 'control.basic', 'users.manage'] as const) {
+			expect(can(me('tg_user'), perm, 'wolfbet')).toBe(false);
+			expect(can(me('tg_user'), perm, 'wolfbet-tg')).toBe(false);
+		}
 	});
 
 	it('limits a service role to that service', () => {

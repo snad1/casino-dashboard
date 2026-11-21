@@ -26,6 +26,7 @@ RANDOM_SECRETS = (
     "postgres_app_password",
     "redis_publisher_password",
     "redis_dashboard_password",
+    "tg_login_secret",
 )
 BREVO = "xkeysib-test-0123456789abcdef"
 AGENT_TOKEN = "agent-token-0123456789abcdefghijklmnopqrstuvwxyz"  # noqa: S105  # nosec B105: test value

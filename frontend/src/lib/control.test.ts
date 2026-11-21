@@ -25,6 +25,7 @@ const action = (perm: string): Action => ({
 });
 const me = (role: string): Me => ({
 	email: 'a@b.test',
+	tg_uid: null,
 	csrf_token: 't',
 	totp_enabled: true,
 	roles: [{ role, service: null }]

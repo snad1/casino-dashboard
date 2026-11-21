@@ -52,7 +52,8 @@ class RoleOut(BaseModel):
 
 
 class Me(BaseModel):
-    email: str
+    email: str | None
+    tg_uid: int | None
     roles: list[RoleOut]
     csrf_token: str
     totp_enabled: bool
@@ -141,6 +142,7 @@ async def me(user: CurrentUser, request: Request, db: Db) -> Me:
     secret: str = request.app.state.session_secret
     return Me(
         email=user.email,
+        tg_uid=user.tg_uid,
         roles=[RoleOut(service=service, role=role) for service, role in rows],
         csrf_token=csrf_token(secret, request.state.session_id),
         totp_enabled=await is_enabled(db, user.id),

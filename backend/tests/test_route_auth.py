@@ -8,7 +8,7 @@ import re
 from typing import Any
 
 from app.audit import UNSAFE_METHODS
-from app.auth.csrf import CSRF_FAILED, LOGIN_PATH
+from app.auth.csrf import CSRF_FAILED, LOGIN_PATHS
 from app.auth.models import Role
 from app.main import create_app
 from app.settings import Settings
@@ -17,11 +17,12 @@ from tests.conftest import make_client
 pytest_plugins = ["tests.fake_agent", "tests.control_rig"]
 
 PARAM = re.compile(r"\{([^}]+)\}")
-# Each of these proves who the caller is by its own token (invite, reset link, password) or,
-# for logout, only ends whatever session the request carries.
+# Each of these proves who the caller is by its own token (invite, reset link, bot link,
+# password) or, for logout, only ends whatever session the request carries.
 PUBLIC = {
     ("GET", "/healthz"),
     ("POST", "/auth/login"),
+    ("POST", "/auth/telegram"),
     ("POST", "/auth/logout"),
     ("POST", "/auth/invites/accept"),
     ("POST", "/auth/password-reset"),
@@ -35,7 +36,8 @@ def _routes(settings: Settings) -> list[tuple[str, str]]:
 
 
 def _url(path: str) -> str:
-    return PARAM.sub(lambda m: "wolfbet" if m.group(1) == "service" else "x", path)
+    names = {"service": "wolfbet", "uid": "42"}
+    return PARAM.sub(lambda m: names.get(m.group(1), "x"), path)
 
 
 def test_every_route_but_the_public_ones_refuses_anonymous_callers(
@@ -55,7 +57,7 @@ def test_a_signed_in_browser_changes_nothing_without_the_csrf_token(
 ) -> None:
     client = signed_in_as(Role.OWNER)
     unsafe = [
-        (m, p) for m, p in _routes(control_settings) if m in UNSAFE_METHODS and p != LOGIN_PATH
+        (m, p) for m, p in _routes(control_settings) if m in UNSAFE_METHODS and p not in LOGIN_PATHS
     ]
     assert any(p.startswith("/{service}/control/") for _, p in unsafe)
     for method, path in unsafe:

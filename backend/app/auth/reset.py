@@ -75,7 +75,7 @@ async def confirm_reset(body: ConfirmIn, db: Db) -> None:
     user = await db.get(User, reset.user_id)
     if user is None or user.disabled:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, RESET_INVALID)
-    if problem := password_problem(body.password, user.email):
+    if problem := password_problem(body.password, user.email or ""):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, problem)
     user.password_hash = await run_in_threadpool(hash_password, body.password)
     user.failed_count = 0

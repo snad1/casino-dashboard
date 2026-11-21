@@ -17,6 +17,7 @@ import csv
 import io
 import json
 import re
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
@@ -245,10 +246,11 @@ def _cell(value: Any) -> Any:
     return f"'{value}" if isinstance(value, str) and value.startswith(_FORMULA) else value
 
 
-def _csv(rows: list[SessionDetail]) -> str:
+def csv_text(model: type[BaseModel], rows: Sequence[BaseModel]) -> str:
+    """`rows` as CSV with `model`'s fields as columns, formula-safe."""
     out = io.StringIO()
     writer = csv.writer(out)
-    columns = list(SessionDetail.model_fields)
+    columns = list(model.model_fields)
     writer.writerow(columns)
     for row in rows:
         values = row.model_dump(mode="json")
@@ -279,7 +281,7 @@ async def export_analytics(
     )
     rows = [_session_out(SessionDetail, row) for row in await db.scalars(query)]
     if file_format == "csv":
-        body, media = _csv(rows), "text/csv; charset=utf-8"
+        body, media = csv_text(SessionDetail, rows), "text/csv; charset=utf-8"
     else:
         body, media = json.dumps([r.model_dump(mode="json") for r in rows]), "application/json"
     name = f"{service}-sessions-{since or 'all'}-{until or 'all'}.{file_format}".replace(":", "")

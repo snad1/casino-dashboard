@@ -182,3 +182,17 @@ def test_paths_default_to_the_bots_data_dir() -> None:
     assert paths.token_file == Path("/home/bot/.wolfbot_tg/control.token")
     with pytest.raises(ValueError):
         WolfBetTgPaths.from_env({"HOME": "/home/bot", "CASINO_AGENT_WOLFBET_TG_SOCKET": "rel.sock"})
+
+
+def test_config_reads_one_users_settings(tg_dir: Path) -> None:
+    svc = _service(tg_dir)
+    result, seen = asyncio.run(
+        _with_bot(
+            tg_dir,
+            {"ok": True, "data": {"config": {"currency": "btc"}}},
+            lambda: svc.handlers()["wolfbet_tg.config"]({"uid": 42}),
+        )
+    )
+    assert result == {"config": {"currency": "btc"}}
+    assert seen[0]["cmd"] == "config"
+    assert seen[0]["args"] == {"uid": 42}

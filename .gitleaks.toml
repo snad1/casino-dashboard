@@ -18,4 +18,6 @@ paths = [
   # Lockfiles carry integrity hashes that look like keys.
   '''(^|/)uv\.lock$''',
   '''(^|/)pnpm-lock\.yaml$''',
+  # The golden bot sign-in token, signed with the fixture secret published beside it.
+  '''^contracts/fixtures/tg_login_v1/token\.json$''',
 ]

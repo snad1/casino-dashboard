@@ -22,7 +22,7 @@ from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
-from app.auth.permissions import ROLE_PERMS, Perm, roles_for
+from app.auth.permissions import ROLE_PERMS, Perm, roles_for, tg_denial
 from app.auth.sessions import SESSION_COOKIE, decode_session_id, load_session
 
 TICKET_TTL_SECONDS = 30
@@ -35,7 +35,7 @@ TERMINAL_TICKET = b"term"
 CLOSE_SIGNED_OUT = 4401
 CLOSE_FORBIDDEN = 4403
 _TOPIC = re.compile(r"svc:([a-z0-9-]+)(?::[A-Za-z0-9:_-]+)?")
-_USER_TOPIC = re.compile(r"svc:[a-z0-9-]+:user:")
+_USER_TOPIC = re.compile(r"svc:[a-z0-9-]+:user:([1-9][0-9]{0,18})(?::|$)")
 
 
 NOT_SIGNED_IN = "Sign in to continue."
@@ -166,12 +166,14 @@ async def still_signed_in(db: AsyncSession, raw: bytes) -> bool:
 async def topic_allowed(db: AsyncSession, user_id: int, topic: str) -> bool:
     """`svc:<name>` and its sub-topics need `view` on that service; nothing else is offered.
 
-    A Telegram user's topics (`svc:<name>:user:<uid>...`) show that person's own betting, so
-    they need `users.manage` until a dashboard account can be tied to its Telegram user.
+    A Telegram user's topics (`svc:<name>:user:<uid>...`) show that person's own betting:
+    their own Telegram account may follow them, and so may whoever manages users.
     """
     match = _TOPIC.fullmatch(topic)
     if match is None:
         return False
-    needed = Perm.USERS_MANAGE if _USER_TOPIC.match(topic) else Perm.VIEW
+    if user_topic := _USER_TOPIC.match(topic):
+        user = await db.get(User, user_id)
+        return user is not None and await tg_denial(db, user, int(user_topic.group(1))) is None
     roles = await roles_for(db, user_id, match.group(1))
-    return any(needed in ROLE_PERMS[role] for role in roles)
+    return any(Perm.VIEW in ROLE_PERMS[role] for role in roles)

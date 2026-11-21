@@ -36,7 +36,9 @@ const ROLE_PERMS: Record<string, Perm[]> = {
 	owner: ALL,
 	admin: ALL.filter((p) => p !== 'terminal'),
 	operator: OPERATOR,
-	viewer: VIEWER
+	viewer: VIEWER,
+	// A Telegram account reaches only its own bot user, through the `/tg/<uid>` routes.
+	tg_user: []
 };
 const NEEDS_TWO_FACTOR = new Set(['owner', 'admin']);
 

@@ -30,6 +30,7 @@ class Role(StrEnum):
     ADMIN = "admin"
     OPERATOR = "operator"
     VIEWER = "viewer"
+    TG_USER = "tg_user"
 
 
 _ROLE_CHECK = "role IN (" + ", ".join(f"'{role}'" for role in Role) + ")"
@@ -53,10 +54,17 @@ def _created_at() -> Mapped[datetime]:
 
 
 class User(Base):
+    """A dashboard account: an invited email, or a Telegram user (`tg_uid`) signed in through
+    the bot's one-time link, who has neither email nor password."""
+
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("email IS NOT NULL OR tg_uid IS NOT NULL", name="email_or_tg_uid"),
+    )
 
     id: Mapped[int] = _id()
-    email: Mapped[str] = mapped_column(CITEXT, unique=True)
+    email: Mapped[str | None] = mapped_column(CITEXT, unique=True)
+    tg_uid: Mapped[int | None] = mapped_column(BigInteger, unique=True)
     password_hash: Mapped[str] = mapped_column(Text)
     disabled: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     failed_count: Mapped[int] = mapped_column(Integer, server_default=text("0"))
@@ -122,6 +130,15 @@ class Invite(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created_at()
+
+
+class TgLoginToken(Base):
+    """A bot login link that was already used; its id is kept hashed."""
+
+    __tablename__ = "tg_login_tokens"
+
+    id_hash: Mapped[bytes] = mapped_column(LargeBinary, primary_key=True)
+    used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class PasswordReset(Base):

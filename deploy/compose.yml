@@ -105,6 +105,7 @@ services:
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       TERMINAL_IP_ALLOWLIST: ${TERMINAL_IP_ALLOWLIST:-}
+      LIVE_USER_SERVICE: ${LIVE_USER_SERVICE:-}
     secrets:
       - session_secret
       - totp_key
@@ -112,6 +113,7 @@ services:
         target: postgres_password
       - redis_dashboard_password
       - agent_token
+      - tg_login_secret
     # The agent's socket is 0660 in the casino-agent group; joining it is the only access.
     group_add:
       - ${AGENT_GID:?set AGENT_GID in deploy/.env}
@@ -288,3 +290,5 @@ secrets:
     file: ${SECRETS_DIR:-./secrets}/redis_dashboard_password.txt
   agent_token:
     file: ${SECRETS_DIR:-./secrets}/agent_token.txt
+  tg_login_secret:
+    file: ${SECRETS_DIR:-./secrets}/tg_login_secret.txt

@@ -3,6 +3,8 @@
 Every route needs `users.manage` and a second factor confirmed in the last five minutes.
 The single owner is made by the CLI and can never be changed, disabled or granted here, and
 an admin cannot act on their own account, so nobody can lock themselves or the owner out.
+Telegram accounts are not listed here and keep their own role: they see only their own bot
+user, and making one an admin would hand a bot login link dashboard rights.
 Disabling an account also ends all of its sessions. The audit middleware records each call.
 """
 
@@ -25,6 +27,7 @@ USER_NOT_FOUND = "That user does not exist."
 OWNER_LOCKED = "The owner account can't be changed here."
 NOT_YOURSELF = "You can't change your own account here."
 UNKNOWN_SERVICE = "That service does not exist."
+TELEGRAM_ROLE = "A Telegram account keeps its own role."
 
 router = APIRouter(prefix="/admin/users", tags=["admin"])
 Db = Annotated[AsyncSession, Depends(get_session)]
@@ -59,7 +62,7 @@ class RoleIn(BaseModel):
 @router.get("", response_model=UserList)
 async def list_users(_: Manager, db: Db) -> UserList:
     """Every account, oldest first, with its roles and whether 2FA is on."""
-    users = list(await db.scalars(select(User).order_by(User.id)))
+    users = list(await db.scalars(select(User).where(User.tg_uid.is_(None)).order_by(User.id)))
     role_rows = await db.execute(
         select(UserRole.user_id, Service.name, UserRole.role)
         .outerjoin(Service, Service.id == UserRole.service_id)
@@ -73,7 +76,7 @@ async def list_users(_: Manager, db: Db) -> UserList:
         items=[
             UserOut(
                 id=user.id,
-                email=user.email,
+                email=user.email or "",
                 roles=roles.get(user.id, []),
                 disabled=user.disabled,
                 totp_enabled=user.id in with_totp,
@@ -102,6 +105,8 @@ async def _target(db: AsyncSession, actor: User, user_id: int) -> User:
 async def set_role(user_id: UserId, body: RoleIn, actor: Manager, _: Fresh, db: Db) -> None:
     """Replace the user's roles with one role, on one service or (no service) on all."""
     user = await _target(db, actor, user_id)
+    if user.tg_uid is not None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, TELEGRAM_ROLE)
     service_id = None
     if body.service is not None:
         service_id = await db.scalar(select(Service.id).where(Service.name == body.service))

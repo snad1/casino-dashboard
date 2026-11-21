@@ -69,6 +69,7 @@ SECRET_FIELDS = frozenset(
         "smtp_password",
         "telegram_bot_token",
         "vapid_private_key",
+        "tg_login_secret",
     }
 )
 # Secrets we generate ourselves; third-party tokens have their own formats and lengths.
@@ -80,6 +81,7 @@ GENERATED_SECRETS = frozenset(
         "postgres_app_password",
         "redis_dashboard_password",
         "agent_token",
+        "tg_login_secret",
     }
 )
 DETAIL_ENVS = frozenset({"local", "development", "testing"})
@@ -186,6 +188,7 @@ class Settings(DatabaseSettings):
     agent_socket: Path | None = None
     vapid_public_key: str | None = None
     live_service: str | None = "wolfbet"
+    live_user_service: str | None = None
     live_hz: int = Field(default=5, ge=4, le=10)
     telegram_bot_username: str | None = None
     terminal_ip_allowlist: Annotated[list[IPv4Network | IPv6Network], NoDecode] = Field(
@@ -196,6 +199,7 @@ class Settings(DatabaseSettings):
     totp_key: SecretStr
     redis_dashboard_password: SecretStr
     agent_token: SecretStr | None = None
+    tg_login_secret: SecretStr | None = None
 
     @field_validator("vapid_public_key", mode="before")
     @classmethod
@@ -236,7 +240,7 @@ class Settings(DatabaseSettings):
         """`203.0.113.0/24, 2001:db8::/32`, commas or spaces; blank allows any address."""
         return value.replace(",", " ").split() if isinstance(value, str) else value
 
-    @field_validator("live_service", mode="before")
+    @field_validator("live_service", "live_user_service", mode="before")
     @classmethod
     def _blank_is_off(cls, value: object) -> object:
         return None if value == "" else value

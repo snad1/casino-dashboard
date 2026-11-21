@@ -21,7 +21,7 @@ AGENT_TOKEN="$HOME/.config/casino-agent/token"
 UV_VERSION="0.13.8"
 API_UID=10001
 RANDOM_SECRETS=(session_secret totp_key postgres_password postgres_app_password
-    redis_publisher_password redis_dashboard_password)
+    redis_publisher_password redis_dashboard_password tg_login_secret)
 
 HOST="" MAIL_FROM="" BOT_DATA_DIR="/root" COOLIFY_URL="" COOLIFY_APP=""
 TOKEN_PROMPT=0 BREVO_FILE="" OWNER_EMAIL="" DRY=0

@@ -12,7 +12,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEPLOY="$ROOT/deploy"
 SECRETS="$DEPLOY/e2e-secrets"
 NAMES=(session_secret totp_key postgres_password postgres_app_password
-    redis_publisher_password redis_dashboard_password agent_token brevo_api_key e2e_password)
+    redis_publisher_password redis_dashboard_password agent_token brevo_api_key e2e_password
+    tg_login_secret)
 export E2E_EMAIL="${E2E_EMAIL:-viewer@e2e.test}"
 
 compose() {

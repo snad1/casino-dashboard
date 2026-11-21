@@ -42,6 +42,7 @@ NO_TARGET = "Pick a session, a bet or a time on the chart."
 RANGE_INVALID = "Pick a chart range of at most 31 days, with the start before the end."
 TARGET_NOT_FOUND = "That session or bet does not exist."
 COMMENT_NOT_FOUND = "Comment not found."
+TELEGRAM_AUTHOR = "Telegram user"
 NOT_YOURS = "You can only change your own comments."
 
 Kind = Literal["session", "bet", "chart"]
@@ -196,7 +197,7 @@ def _target_columns(body: CommentIn) -> dict[str, Any]:
 async def _load(db: AsyncSession, service: str, comment_id: int) -> tuple[Comment, str]:
     row = (
         await db.execute(
-            select(Comment, User.email)
+            select(Comment, func.coalesce(User.email, TELEGRAM_AUTHOR))
             .join(User, User.id == Comment.author_id)
             .where(Comment.id == comment_id, Comment.service == service)
         )
@@ -220,7 +221,7 @@ async def list_comments(
 ) -> CommentList:
     """One target's comments, oldest first; chart notes in a range, by their time."""
     query = (
-        select(Comment, User.email)
+        select(Comment, func.coalesce(User.email, TELEGRAM_AUTHOR))
         .join(User, User.id == Comment.author_id)
         .where(Comment.service == service, Comment.kind == kind)
     )
@@ -256,7 +257,7 @@ async def create_comment(
     await db.commit()
     await db.refresh(comment)
     _announce(request, service, comment)
-    return _out(comment, user.email, user, await _moderator(db, user, service))
+    return _out(comment, user.email or TELEGRAM_AUTHOR, user, await _moderator(db, user, service))
 
 
 @router.patch("/{comment_id}", response_model=CommentOut)

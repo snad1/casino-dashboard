@@ -73,7 +73,7 @@ async def create_invite(
     )
     # The token rides in the fragment, so it never reaches a server log or a Referer header.
     url = f"{request.app.state.public_origin}/invite#token={token}"
-    enqueue(db, email, templates.invite(url, body.role, inviter.email))
+    enqueue(db, email, templates.invite(url, body.role, inviter.email or "an admin"))
     await db.commit()
 
 

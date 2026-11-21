@@ -56,6 +56,7 @@ COMMANDS: dict[str, type[Args]] = {
     "resume": SlotArgs,
     "set": SetArgs,
     "status": UserArgs,
+    "config": UserArgs,
 }
 
 

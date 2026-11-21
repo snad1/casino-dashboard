@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.adapters.base import Event
 from app.adapters.wolfbet_tg import WolfBetTgAdapter
 from app.adapters.wolfbet_tg.events import TgBetEvent
-from app.auth.models import Role, UserRole
+from app.auth.models import Role, Totp, UserRole
 from app.history.models import DbEpoch
 from app.live.aggregator import run_ticker
 from app.live.consumer import Gap, GapTracker, ServiceConsumer
@@ -28,6 +28,9 @@ from app.ws.routes import NOT_PERMITTED
 from tests.conftest import Account, RedisServer, make_client, run_in_session
 from tests.test_hub import Clock, Socket, _settle
 from tests.test_ws_auth import _connect, _login, _ticket
+from tests.tg_links import TgUsers, new_uid, token
+
+pytest_plugins = ["tests.fake_agent", "tests.control_rig", "tests.tg_rig"]
 
 FIXTURES = Path(__file__).resolve().parents[2] / "contracts" / "fixtures" / "wolfbet_tg"
 SVC = "wolfbet-tg"
@@ -243,6 +246,7 @@ def test_the_api_follows_a_known_telegram_user_for_user_managers_only(
     async def promote(session: AsyncSession) -> None:
         query = update(UserRole).where(UserRole.user_id == account.id).values(role=Role.ADMIN)
         await session.execute(query)
+        session.add(Totp(user_id=account.id, secret_ciphertext=b"x", enabled_at=datetime.now(UTC)))
         await session.commit()
 
     async def forget_user(session: AsyncSession) -> None:
@@ -277,3 +281,28 @@ def test_the_api_follows_a_known_telegram_user_for_user_managers_only(
                 assert "1" in tick["lanes"]
     finally:
         run_in_session(migrated, forget_user)
+
+
+def test_one_api_serves_the_daemon_and_the_telegram_users_on_one_socket(
+    tg_settings: Settings, tg_users: TgUsers, redis_server: RedisServer
+) -> None:
+    uid = new_uid()
+    tg_users.history(uid)
+    both = tg_settings.model_copy(update={"live_service": "wolfbet", "live_user_service": SVC})
+    mine = f"svc:wolfbet-tg:user:{uid}"
+    with make_client(both) as client:
+        assert client.post("/auth/telegram", json={"token": token(uid)}).status_code == 204
+        with _connect(client, _ticket(client)) as socket:
+            socket.send_json({"op": "subscribe", "topic": "svc:wolfbet"})
+            assert socket.receive_json()["op"] == "error"
+            socket.send_json({"op": "subscribe", "topic": mine})
+            assert socket.receive_json()["op"] == "snapshot"
+            publisher = SyncRedis.from_url(
+                redis_server.url("publisher", redis_server.publisher_password)
+            )
+            for seq in range(2):
+                document = _document("bet", uid, seq)
+                publisher.xadd(f"wolfbet-tg:{uid}:bets", {"data": json.dumps(document)})
+            publisher.close()
+            tick = socket.receive_json()
+            assert (tick["op"], tick["topic"]) == ("tick", mine)

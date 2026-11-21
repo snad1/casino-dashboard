@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 from enum import StrEnum
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Path, Request, status
 from sqlalchemy import ColumnElement, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +42,8 @@ ROLE_PERMS: dict[Role, frozenset[Perm]] = {
     Role.ADMIN: _ADMIN,
     Role.OPERATOR: _OPERATOR,
     Role.VIEWER: _VIEWER,
+    # A Telegram user reaches only their own bot user, through `tg_access`, never a service.
+    Role.TG_USER: frozenset(),
 }
 # Until they turn on 2FA, these roles may only look: a stolen password alone controls nothing.
 NEEDS_TWO_FACTOR = frozenset({Role.OWNER, Role.ADMIN})
@@ -91,3 +93,34 @@ def require(perm: Perm) -> Callable[..., Awaitable[User]]:
         return user
 
     return dependency
+
+
+TgUid = Annotated[int, Path(ge=1, le=2**63 - 1)]
+
+
+async def tg_denial(session: AsyncSession, user: User, uid: int) -> str | None:
+    """Why `user` may not see or control Telegram user `uid`, or None when they may.
+
+    Their own Telegram account may; so may whoever manages users (owner, admin, with 2FA as
+    for any grant beyond `view`). Every other caller gets the same refusal, whether or not
+    `uid` exists.
+    """
+    if user.disabled:
+        return FORBIDDEN
+    if user.tg_uid == uid and Role.TG_USER in await roles_for(session, user.id, None):
+        return None
+    if user.tg_uid is not None:
+        return FORBIDDEN
+    return await denial(session, user, None, Perm.USERS_MANAGE)
+
+
+async def tg_access(
+    uid: TgUid,
+    user: Annotated[User, Depends(current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> User:
+    """Dependency for every `/tg/{uid}/...` route: the caller, once `tg_denial` allows them."""
+    detail = await tg_denial(session, user, uid)
+    if detail is not None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail)
+    return user

@@ -170,8 +170,9 @@ async def _notify(app: FastAPI, actor: User, ip: str | None, browser: str | None
                     )
                 )
             )
+            who = actor.email or f"Telegram user {actor.tg_uid}"
             notice = templates.terminal_opened(
-                actor.email, when, where, (browser or "unknown browser")[:120]
+                who, when, where, (browser or "unknown browser")[:120]
             )
             for owner, _ in owners:
                 enqueue(db, owner.email, notice)

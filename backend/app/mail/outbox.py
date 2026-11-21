@@ -21,7 +21,10 @@ def retry_delay(attempts: int) -> timedelta:
     return min(delay, MAX_DELAY)
 
 
-def enqueue(db: AsyncSession, to_email: str, message: Rendered) -> None:
+def enqueue(db: AsyncSession, to_email: str | None, message: Rendered) -> None:
+    """Queue one message; an account without an email (a Telegram user) gets none."""
+    if to_email is None:
+        return
     db.add(
         OutboxMessage(
             to_email=to_email,

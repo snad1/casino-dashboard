@@ -16,7 +16,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from app.auth.sessions import SESSION_COOKIE, csrf_token, decode_session_id
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
-LOGIN_PATH = "/auth/login"
+LOGIN_PATHS = frozenset({"/auth/login", "/auth/telegram"})
 CSRF_HEADER = "x-csrf-token"
 CSRF_FAILED = "Your session expired. Reload the page and try again."
 
@@ -29,7 +29,7 @@ class CsrfMiddleware:
 
     def _allowed(self, scope: Scope) -> bool:
         headers = Headers(scope=scope)
-        if scope["path"] == LOGIN_PATH:
+        if scope["path"] in LOGIN_PATHS:
             return headers.get("origin") in self.allowed_origins
         cookie = cookie_parser(headers.get("cookie", "")).get(SESSION_COOKIE)
         if cookie is None:
