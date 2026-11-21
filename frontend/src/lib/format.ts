@@ -1,17 +1,15 @@
-const STABLE = new Set(['usdt', 'usdc', 'busd', 'dai']);
+const DECIMALS = 8;
 
-/** Decimals to show for an amount in `currency`: dollar-pegged coins 4, everything else 8. */
-export function decimalsFor(currency: string | null | undefined): number {
-	return currency && STABLE.has(currency.toLowerCase()) ? 4 : 8;
+/**
+ * An amount at the casino's 8-decimal precision, trailing zeros dropped down to 2 decimals:
+ * 1.01000000 shows as 1.01, 1.00000100 as 1.000001, 0.00000001 stays as is.
+ */
+export function formatAmount(value: number): string {
+	const [whole, fraction = ''] = value.toFixed(DECIMALS).split('.');
+	return `${whole}.${fraction.replace(/0+$/, '').padEnd(2, '0')}`;
 }
 
-/** Signed profit with a fixed number of decimals, e.g. +0.00012000 or -1.50000000. */
-export function formatProfit(value: number, decimals = 8): string {
-	const fixed = Math.abs(value).toFixed(decimals);
-	return `${value < 0 ? '-' : '+'}${fixed}`;
-}
-
-/** An unsigned amount in the currency's precision. */
-export function formatAmount(value: number, currency: string | null | undefined): string {
-	return value.toFixed(decimalsFor(currency));
+/** Signed profit, e.g. +0.00012 or -1.50. */
+export function formatProfit(value: number): string {
+	return `${value < 0 ? '-' : '+'}${formatAmount(Math.abs(value))}`;
 }

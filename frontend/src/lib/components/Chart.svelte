@@ -9,7 +9,7 @@
 		Time,
 		UTCTimestamp
 	} from 'lightweight-charts';
-	import { formatProfit } from '#lib/format';
+	import { formatAmount, formatProfit } from '#lib/format';
 	import { serviceSource, type HistorySource } from '#lib/history-source';
 	import type { LiveStore } from '#lib/live/store.svelte';
 	import {
@@ -70,7 +70,7 @@
 		`${metric === 'profit' ? 'Profit' : 'Balance'} for ${lane === 'all' ? 'all lanes' : `lane ${lane}`}, last ${preset}` +
 			(latest === null
 				? ''
-				: `, latest ${metric === 'profit' ? formatProfit(latest) : latest.toFixed(8)}`)
+				: `, latest ${metric === 'profit' ? formatProfit(latest) : formatAmount(latest)}`)
 	);
 
 	let lib: typeof import('lightweight-charts') | null = null;

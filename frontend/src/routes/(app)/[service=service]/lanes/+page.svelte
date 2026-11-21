@@ -5,6 +5,7 @@
 	import { ApiError, unwrap } from '#lib/api/client';
 	import type { ConfigChange, ConfigOut, Preview } from '#lib/config';
 	import { control } from '#lib/control.svelte';
+	import { formatAmount } from '#lib/format';
 	import { laneShares, parseArchives, restartPlan, type Split } from '#lib/lanes';
 	import { liveFor } from '#lib/live/index';
 	import { topicFor } from '#lib/live/protocol';
@@ -101,7 +102,7 @@
 		}
 	}
 
-	const amount = (value: number | null) => (value === null ? 'unknown' : value.toFixed(8));
+	const amount = (value: number | null) => (value === null ? 'unknown' : formatAmount(value));
 	const list = (lanes: number[]) => lanes.map((l) => `lane ${l}`).join(', ');
 	const section = 'rounded-lg border border-line bg-surface p-4';
 	const input =

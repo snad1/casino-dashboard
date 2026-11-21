@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { components } from '#lib/api/schema';
-	import { decimalsFor, formatProfit } from '#lib/format';
+	import { formatProfit } from '#lib/format';
 	import { serviceSource, type HistorySource } from '#lib/history-source';
 	import type { LiveStore } from '#lib/live/store.svelte';
 	import Button from '#ui/Button';
@@ -123,7 +123,7 @@
 					<span
 						role="cell"
 						class="font-mono text-xs tabular-nums {s.profit < 0 ? 'text-loss' : 'text-profit'}"
-						>{formatProfit(s.profit, decimalsFor(s.currency))}</span
+						>{formatProfit(s.profit)}</span
 					>
 				</div>
 			{/snippet}

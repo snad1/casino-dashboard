@@ -99,12 +99,12 @@ test('each lane gets a card with its state, bet sizes and stop reason', async ({
 	await expect(cards).toHaveCount(3);
 	const first = page.getByRole('article', { name: 'Lane 1' });
 	await expect(first).toContainText('Running');
-	await expect(first).toContainText('+0.50000000');
+	await expect(first).toContainText('+0.50');
 	await expect(first).toContainText('W3');
-	await expect(first).toContainText('Base bet 0.00010000');
-	await expect(first).toContainText('Current bet 0.00040000');
+	await expect(first).toContainText('Base bet 0.0001');
+	await expect(first).toContainText('Current bet 0.0004');
 	await expect(first).toContainText('Split even');
-	await expect(first).toContainText('Run profit +0.25000000');
+	await expect(first).toContainText('Run profit +0.25');
 	await expect(page.getByRole('article', { name: 'Lane 2' })).toContainText('L2');
 	const third = page.getByRole('article', { name: 'Lane 3' });
 	await expect(third).toContainText('Stopped');

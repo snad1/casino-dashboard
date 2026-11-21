@@ -110,7 +110,7 @@ async def test_the_days_totals_come_from_the_rollup_and_sessions(
     assert (summary.best and summary.best.profit, summary.worst and summary.worst.lane) == (0.25, 2)
     assert summary.running_s == pytest.approx((2 + 0.5 + 1 + 1) * 3600)
     assert summary.alerts == 2
-    assert lines(summary)[:2] == ["Bets: 4 (wins 2, losses 2)", "Profit: +0.30000000"]
+    assert lines(summary)[:2] == ["Bets: 4 (wins 2, losses 2)", "Profit: +0.30"]
     assert "Bot running time: 4h 30m 0s" in lines(summary)
 
 

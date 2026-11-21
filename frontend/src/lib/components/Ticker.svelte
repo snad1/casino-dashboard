@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatProfit } from '#lib/format';
+	import { formatAmount, formatProfit } from '#lib/format';
 	import type { LaneStatus } from '#lib/live/protocol';
 	import type { LiveStore } from '#lib/live/store.svelte';
 
@@ -88,7 +88,7 @@
 	>
 	{#if balance !== null}
 		<span class="text-muted"
-			>Balance <span class="font-mono text-ink tabular-nums">{balance.toFixed(8)}</span>
+			>Balance <span class="font-mono text-ink tabular-nums">{formatAmount(balance)}</span>
 			{currency}</span
 		>
 	{/if}

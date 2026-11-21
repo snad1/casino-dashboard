@@ -80,12 +80,12 @@ test('the report shows formatted like the bot and Apply filters by URL', async (
 	const overall = page.getByRole('region', { name: 'Overall' });
 	await expect(overall.getByText('1,234 W: 605 L: 629')).toBeVisible();
 	await expect(overall.getByText('49.0%')).toBeVisible();
-	await expect(overall.getByText('-0.00020000')).toBeVisible();
+	await expect(overall.getByText('-0.0002')).toBeVisible();
 	await expect(overall.getByText('+0.00012345')).toBeVisible();
 	await expect(overall.getByText('1d 2h 0m 0s')).toBeVisible();
 	await expect(overall.getByText('2026-11-02 10:00:00 to 2026-11-03 12:00:00')).toBeVisible();
 	const lanes = page.getByRole('table', { name: 'By lane', exact: true });
-	await expect(lanes.getByRole('row', { name: /Lane 2/ })).toContainText('-0.00030000');
+	await expect(lanes.getByRole('row', { name: /Lane 2/ })).toContainText('-0.0003');
 	await expect(page.getByRole('table', { name: 'Top 5 worst sessions' })).toContainText('9');
 	await expect(page.getByRole('img', { name: /Profit by hour of day: 2 bars/ })).toBeVisible();
 

@@ -55,7 +55,7 @@ test('the chart loads the last hour of profit and switches to balance and 7 days
 	const queries = await chartRig(page);
 	await page.goto('/wolfbet');
 	const chart = page.getByRole('figure', { name: /Profit for all lanes, last 1h/ });
-	await expect(chart).toHaveAccessibleName(/latest \+0\.75000000/);
+	await expect(chart).toHaveAccessibleName(/latest \+0\.75/);
 	await expect(page.getByTitle('Resolution')).toHaveText('1s');
 	expect(queries[0]?.get('metric')).toBe('profit');
 	expect(spanSeconds(queries[0] as URLSearchParams)).toBeCloseTo(3600, -1);

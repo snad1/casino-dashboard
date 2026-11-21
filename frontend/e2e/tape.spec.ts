@@ -103,7 +103,7 @@ test('the tape shows the newest bet first and keeps only visible rows in the pag
 	await replay(socket(), 1, 100);
 	await expect(tape).toHaveAttribute('aria-rowcount', '100');
 	const firstRow = tape.getByRole('row').nth(1);
-	await expect(firstRow).toContainText('100.00000000');
+	await expect(firstRow).toContainText('100.00');
 	await expect(firstRow).toContainText('Win');
 	expect(await tape.getByRole('row').count()).toBeLessThan(45);
 });
@@ -117,9 +117,9 @@ test('hovering pauses the tape and the new-rows button resumes it', async ({ pag
 	await tape.hover();
 	await replay(socket(), 11, 10);
 	await expect(page.getByRole('button', { name: '10 new' })).toBeVisible();
-	await expect(tape.getByRole('row').nth(1)).toContainText('10.00000000');
+	await expect(tape.getByRole('row').nth(1)).toContainText('10.00');
 	await page.getByRole('button', { name: '10 new' }).click();
-	await expect(tape.getByRole('row').nth(1)).toContainText('20.00000000');
+	await expect(tape.getByRole('row').nth(1)).toContainText('20.00');
 });
 
 test('the lane filter shows one lane', async ({ page }) => {

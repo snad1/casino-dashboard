@@ -100,7 +100,7 @@ async def test_milestones_write_one_event_with_three_deliveries_each(
     assert [round(r["value"], 6) for r in rows] == [0.001, 0.002]
     assert all(r["channels"] == ["email", "push", "telegram"] for r in rows)
     assert all(set(r["statuses"]) == {"pending"} for r in rows)
-    assert rows[0]["message"] == "Rule: profit passed +0.00100000 on lane 1"
+    assert rows[0]["message"] == "Rule: profit passed +0.001 on lane 1"
 
 
 async def test_a_restart_while_the_bot_is_still_down_fires_nothing_new(

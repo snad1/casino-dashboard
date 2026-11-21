@@ -6,6 +6,7 @@ import {
 	describe,
 	emptyForm,
 	formFor,
+	KINDS,
 	sentTo,
 	type Rule
 } from './alerts';
@@ -90,6 +91,9 @@ group('rule text', () => {
 		expect(describe(rule({ kind: 'profit', params: { period: 'day', step: 0.01 } }))).toBe(
 			'Profit every +0.01 (day)'
 		);
+		expect(describe(rule({ kind: 'loss', params: { period: 'session', at: 0.00000001 } }))).toBe(
+			'Loss reaches -0.00000001 (session)'
+		);
 		expect(describe(rule({ kind: 'stop_reason', params: { reasons: [] } }))).toBe(
 			'Bot stopped for any reason'
 		);
@@ -111,5 +115,20 @@ group('rule text', () => {
 	it('names the channels a test went to', () => {
 		expect(sentTo(['email', 'telegram'])).toBe('Test sent to email and Telegram.');
 		expect(sentTo(['push'])).toBe('Test sent to push.');
+	});
+});
+
+group('amount presets', () => {
+	it('start at the smallest unit and read as plain decimals', () => {
+		const field = KINDS.profit.fields.find((f) => f.key === 'amount');
+		const options = field?.type === 'choice' ? field.options : [];
+		expect(options[0]).toEqual({ value: '1e-8', label: '0.00000001' });
+		expect(options.map((o) => o.label)).toContain('0.01');
+	});
+
+	it('reopen a saved smallest-unit rule on its preset', () => {
+		const form = formFor(rule({ kind: 'profit', params: { period: 'run', at: 0.00000001 } }));
+		expect(form.values.amount).toBe('1e-8');
+		expect(bodyFor(form)).toMatchObject({ body: { params: { at: 0.00000001 } } });
 	});
 });

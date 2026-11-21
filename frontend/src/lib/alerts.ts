@@ -1,5 +1,6 @@
 import type { components } from '#lib/api/schema';
 import { formatDuration } from '#lib/analytics';
+import { formatAmount } from '#lib/format';
 
 export type Rule = components['schemas']['RuleOut'];
 export type RuleBody = components['schemas']['RuleIn'];
@@ -30,7 +31,10 @@ const seconds = (values: number[]): Option[] =>
 const plain = (values: number[], suffix = ''): Option[] =>
 	values.map((v) => ({ value: String(v), label: `${v}${suffix}` }));
 
-const AMOUNTS = plain([0.00001, 0.0001, 0.001, 0.01, 0.1, 1]);
+const AMOUNTS: Option[] = [0.00000001, 0.00001, 0.0001, 0.001, 0.01, 0.1, 1].map((v) => ({
+	value: String(v),
+	label: formatAmount(v)
+}));
 const PERIOD: FieldSpec = {
 	key: 'period',
 	label: 'Period',
@@ -294,10 +298,10 @@ export function describe(rule: Pick<Rule, 'kind' | 'params'>): string {
 	switch (rule.kind) {
 		case 'profit':
 			return typeof p.step === 'number'
-				? `Profit every +${p.step}${per}`
-				: `Profit reaches +${p.at}${per}`;
+				? `Profit every +${formatAmount(p.step)}${per}`
+				: `Profit reaches +${formatAmount(Number(p.at))}${per}`;
 		case 'loss':
-			return `Loss reaches -${p.at}${per}`;
+			return `Loss reaches -${formatAmount(Number(p.at))}${per}`;
 		case 'drawdown':
 			return `Balance ${p.pct} % below its peak`;
 		case 'down':

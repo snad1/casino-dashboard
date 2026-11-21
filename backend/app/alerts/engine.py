@@ -39,6 +39,7 @@ from app.alerts.rules import (
     Rule,
     StopReasonParams,
 )
+from app.amounts import amount, signed
 from app.live.aggregator import Aggregator
 
 STOPPED_PREFIX = "STOPPED: "
@@ -128,15 +129,14 @@ def evaluate(
         if params.step is not None:
             return _milestone(rule, params.step, value, period, state, now, firing)
         at = params.at or 0.0
-        return _threshold(
-            rule, value >= at, state, now, lambda: firing(value, f"profit {value:+.8f}")
-        )
+        text = f"profit {signed(value)}"
+        return _threshold(rule, value >= at, state, now, lambda: firing(value, text))
     if isinstance(params, LossParams):
         value, _ = _period_value(params, signal)
         if value is None:
             return None, state
         return _threshold(
-            rule, value <= -params.at, state, now, lambda: firing(value, f"profit {value:+.8f}")
+            rule, value <= -params.at, state, now, lambda: firing(value, f"profit {signed(value)}")
         )
     if isinstance(params, DrawdownParams):
         return _drawdown(rule, params, signal, state, now, firing)
@@ -206,7 +206,7 @@ def _milestone(
     new_state = {**state, "next_step": reached + step}
     if not _cooled(rule, state, now):
         return None, new_state
-    return firing(reached, f"profit passed {reached:+.8f}"), {**new_state, "last_fired": now}
+    return firing(reached, f"profit passed {signed(reached)}"), {**new_state, "last_fired": now}
 
 
 def _drawdown(
@@ -232,7 +232,7 @@ def _drawdown(
         drop >= params.pct,
         state,
         now,
-        lambda: firing(drop, f"balance {drop:.1f}% below its peak {peak:.8f}"),
+        lambda: firing(drop, f"balance {drop:.1f}% below its peak {amount(peak)}"),
     )
 
 

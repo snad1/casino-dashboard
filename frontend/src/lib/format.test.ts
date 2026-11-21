@@ -1,26 +1,37 @@
 import { describe, expect, it } from 'vitest';
-import { decimalsFor, formatAmount, formatProfit } from './format';
+import { formatAmount, formatProfit } from './format';
 
-describe('formatProfit', () => {
-	it('prefixes gains with a plus sign', () => {
-		expect(formatProfit(0.00012)).toBe('+0.00012000');
+describe('formatAmount', () => {
+	it('drops trailing zeros but keeps two decimals', () => {
+		expect(formatAmount(1.01)).toBe('1.01');
+		expect(formatAmount(1.000001)).toBe('1.000001');
+		expect(formatAmount(1)).toBe('1.00');
+		expect(formatAmount(0)).toBe('0.00');
 	});
 
-	it('prefixes losses with a minus sign', () => {
-		expect(formatProfit(-1.5, 2)).toBe('-1.50');
+	it('keeps the smallest unit of 0.00000001', () => {
+		expect(formatAmount(0.00000001)).toBe('0.00000001');
+		expect(formatAmount(12.12345678)).toBe('12.12345678');
 	});
 
-	it('treats zero as a gain', () => {
-		expect(formatProfit(0, 2)).toBe('+0.00');
+	it('rounds anything finer than 8 decimals', () => {
+		expect(formatAmount(0.000000004)).toBe('0.00');
+		expect(formatAmount(0.123456789)).toBe('0.12345679');
 	});
 });
 
-describe('currency precision', () => {
-	it('shows dollar-pegged coins with 4 decimals and others with 8', () => {
-		expect(decimalsFor('USDT')).toBe(4);
-		expect(decimalsFor('btc')).toBe(8);
-		expect(decimalsFor(null)).toBe(8);
-		expect(formatAmount(1.5, 'usdc')).toBe('1.5000');
-		expect(formatAmount(0.0001, 'doge')).toBe('0.00010000');
+describe('formatProfit', () => {
+	it('prefixes gains with a plus sign', () => {
+		expect(formatProfit(0.00012)).toBe('+0.00012');
+		expect(formatProfit(1.01)).toBe('+1.01');
+	});
+
+	it('prefixes losses with a minus sign', () => {
+		expect(formatProfit(-1.5)).toBe('-1.50');
+		expect(formatProfit(-0.00000001)).toBe('-0.00000001');
+	});
+
+	it('treats zero as a gain', () => {
+		expect(formatProfit(0)).toBe('+0.00');
 	});
 });

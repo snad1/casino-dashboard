@@ -17,7 +17,7 @@
 		type Filter
 	} from '#lib/analytics';
 	import { ApiError, unwrap } from '#lib/api/client';
-	import { formatProfit } from '#lib/format';
+	import { formatAmount, formatProfit } from '#lib/format';
 	import { denialReason } from '#lib/permissions';
 	import { api, session } from '#lib/session.svelte';
 	import Notice from '#ui/Notice';
@@ -76,7 +76,7 @@
 		void goto(resolve('/(app)/[service=service]/analytics', { service }) + suffix);
 	}
 
-	const amount = (value: number | null | undefined) => (value ?? 0).toFixed(8);
+	const amount = (value: number | null | undefined) => formatAmount(value ?? 0);
 	const signed = (value: number | null | undefined) => formatProfit(value ?? 0);
 	const tone = (value: number | null | undefined) =>
 		(value ?? 0) < 0 ? 'text-loss' : 'text-profit';

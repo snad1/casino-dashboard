@@ -45,7 +45,7 @@ def test_a_profit_threshold_fires_once_and_re_arms_after_clearing() -> None:
         [(t, lane(profit=p)) for t, p in enumerate([0.0, 0.011, 0.02, 0.015, 0.005, 0.012])],
     )
     assert [f.value for f in fired] == [0.011, 0.012]
-    assert fired[0].message == "Test: profit +0.01100000 on lane 1"
+    assert fired[0].message == "Test: profit +0.011 on lane 1"
 
 
 def test_the_cooldown_holds_back_a_second_firing() -> None:

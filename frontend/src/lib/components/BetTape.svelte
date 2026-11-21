@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatAmount, formatProfit, decimalsFor } from '#lib/format';
+	import { formatAmount, formatProfit } from '#lib/format';
 	import type { TapeRow } from '#lib/live/protocol';
 	import type { LiveStore } from '#lib/live/store.svelte';
 	import VirtualList from '#ui/VirtualList';
@@ -43,7 +43,6 @@
 	}
 
 	const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour12: false });
-	const currencyOf = (row: TapeRow) => live.lanes[row.lane]?.currency ?? null;
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -103,17 +102,17 @@
 						role="row"
 						tabindex="-1"
 						class="grid h-full grid-cols-[4.5rem_2rem_4.5rem_1fr_3.5rem_1fr] items-center gap-2 px-1 font-mono text-xs tabular-nums"
-						title="Roll {bet.result}, balance {formatAmount(bet.balance, currencyOf(bet))}"
+						title="Roll {bet.result}, balance {formatAmount(bet.balance)}"
 					>
 						<span role="cell" class="text-muted">{clock(bet.ts_ms)}</span>
 						<span role="cell" class="text-muted">{bet.lane}</span>
 						<span role="cell" class={win ? 'text-profit' : 'text-loss'}
 							><span aria-hidden="true">{win ? '▲' : '▼'}</span> {win ? 'Win' : 'Loss'}</span
 						>
-						<span role="cell" class="text-right">{formatAmount(bet.amount, currencyOf(bet))}</span>
+						<span role="cell" class="text-right">{formatAmount(bet.amount)}</span>
 						<span role="cell" class="text-right">{bet.multiplier.toFixed(2)}x</span>
 						<span role="cell" class="text-right {win ? 'text-profit' : 'text-loss'}"
-							>{formatProfit(bet.profit, decimalsFor(currencyOf(bet)))}</span
+							>{formatProfit(bet.profit)}</span
 						>
 					</div>
 				{/snippet}

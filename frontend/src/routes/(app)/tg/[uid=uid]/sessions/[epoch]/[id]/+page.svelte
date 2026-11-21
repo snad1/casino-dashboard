@@ -4,7 +4,7 @@
 	import { page } from '$app/state';
 	import type { components } from '#lib/api/schema';
 	import { ApiError, unwrap } from '#lib/api/client';
-	import { decimalsFor, formatAmount, formatProfit } from '#lib/format';
+	import { formatAmount, formatProfit } from '#lib/format';
 	import { api } from '#lib/session.svelte';
 	import { betsCsvUrl } from '#lib/tg';
 	import Button from '#ui/Button';
@@ -25,8 +25,6 @@
 	let done = $state(false);
 	let busy = false;
 	let error = $state<string | null>(null);
-
-	const decimals = $derived(decimalsFor(detail?.currency));
 
 	async function more() {
 		if (busy || done) return;
@@ -65,11 +63,11 @@
 					['Ended', detail.ended_at ? new Date(detail.ended_at).toLocaleString() : 'Running'],
 					['Bets', String(detail.total_bets ?? 0)],
 					['Wins / losses', `${detail.wins ?? 0} / ${detail.losses ?? 0}`],
-					['Profit', formatProfit(detail.profit ?? 0, decimals)],
-					['Wagered', formatAmount(detail.wagered ?? 0, detail.currency)],
+					['Profit', formatProfit(detail.profit ?? 0)],
+					['Wagered', formatAmount(detail.wagered ?? 0)],
 					[
 						'Balance',
-						`${formatAmount(detail.start_balance ?? 0, detail.currency)} to ${formatAmount(detail.end_balance ?? 0, detail.currency)} ${detail.currency ?? ''}`
+						`${formatAmount(detail.start_balance ?? 0)} to ${formatAmount(detail.end_balance ?? 0)} ${detail.currency ?? ''}`
 					]
 				]
 			: []
@@ -120,13 +118,11 @@
 					<span role="cell" class={win ? 'text-profit' : 'text-loss'}
 						><span aria-hidden="true">{win ? '▲' : '▼'}</span> {win ? 'Win' : 'Loss'}</span
 					>
-					<span role="cell" class="text-right"
-						>{formatAmount(bet.amount ?? 0, detail?.currency)}</span
-					>
+					<span role="cell" class="text-right">{formatAmount(bet.amount ?? 0)}</span>
 					<span role="cell" class="text-right">{(bet.multiplier ?? 0).toFixed(2)}x</span>
 					<span role="cell" class="text-right">{bet.result_value ?? ''}</span>
 					<span role="cell" class="text-right {win ? 'text-profit' : 'text-loss'}"
-						>{formatProfit(bet.profit ?? 0, decimals)}</span
+						>{formatProfit(bet.profit ?? 0)}</span
 					>
 				</div>
 			{/snippet}

@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.alerts.channels import _can_view
 from app.alerts.models import AlertDelivery, AlertEvent, DigestSend, UserChannels
+from app.amounts import amount, signed
 from app.auth.models import User
 from app.mail import templates
 from app.mail.outbox import enqueue
@@ -83,10 +84,6 @@ def _duration(seconds: float) -> str:
             parts.append(f"{count}{name}")
     parts.append(f"{left}s")
     return " ".join(parts)
-
-
-def _signed(value: float) -> str:
-    return f"{value:+.8f}"
 
 
 async def summarise(
@@ -154,14 +151,14 @@ def lines(summary: Summary) -> list[str]:
     """The summary as plain lines, the same for email and Telegram."""
     out = [
         f"Bets: {summary.bets:,} (wins {summary.wins:,}, losses {summary.losses:,})",
-        f"Profit: {_signed(summary.profit)}",
+        f"Profit: {signed(summary.profit)}",
         f"ROI: {summary.roi:+.2f}%",
-        f"Wagered: {summary.wagered:.8f}",
+        f"Wagered: {amount(summary.wagered)}",
         f"Sessions started: {summary.sessions:,} on {summary.lanes} lane(s)",
     ]
     if summary.best is not None and summary.worst is not None:
-        out.append(f"Best session: {_signed(summary.best.profit)} (lane {summary.best.lane})")
-        out.append(f"Worst session: {_signed(summary.worst.profit)} (lane {summary.worst.lane})")
+        out.append(f"Best session: {signed(summary.best.profit)} (lane {summary.best.lane})")
+        out.append(f"Worst session: {signed(summary.worst.profit)} (lane {summary.worst.lane})")
     out.append(f"Bot running time: {_duration(summary.running_s)}")
     out.append(f"Alerts fired: {summary.alerts:,}")
     return out

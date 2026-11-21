@@ -154,7 +154,7 @@ test('My bot shows the live lane and follows its ticks', async ({ page }) => {
 	await page.goto(`/tg/${UID}`);
 	const lane = page.getByRole('article', { name: 'Lane 1' });
 	await expect(lane).toContainText('Running');
-	await expect(lane).toContainText('+0.50000000');
+	await expect(lane).toContainText('+0.50');
 	socket().send(
 		JSON.stringify({
 			op: 'tick',
@@ -163,7 +163,7 @@ test('My bot shows the live lane and follows its ticks', async ({ page }) => {
 			tape: []
 		})
 	);
-	await expect(lane).toContainText('+0.75000000');
+	await expect(lane).toContainText('+0.75');
 });
 
 test('Pause asks first, sends once and shows the bot refusing', async ({ page }) => {

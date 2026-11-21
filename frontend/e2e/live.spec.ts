@@ -52,10 +52,10 @@ test('the header shows live totals and each lane state, and follows ticks', asyn
 	await page.goto('/wolfbet');
 	const header = page.getByRole('banner');
 	await expect(header.getByRole('status')).toHaveText('Live');
-	await expect(header).toContainText('+0.40000000');
+	await expect(header).toContainText('+0.40');
 	await expect(header).toContainText('Bets 15');
 	await expect(header).toContainText('W/L 8/7');
-	await expect(header).toContainText('Balance 100.12000000 btc');
+	await expect(header).toContainText('Balance 100.12 btc');
 	await expect(header).toContainText('ROI 1.60%');
 	await expect(header).toContainText('API 40/90 ms');
 	const lanes = header.getByRole('list', { name: 'Lanes' });
@@ -64,7 +64,7 @@ test('the header shows live totals and each lane state, and follows ticks', asyn
 	socket(0).send(
 		JSON.stringify({ op: 'tick', topic: 'svc:wolfbet', lanes: { 1: { profit: 1.0 } }, tape: [] })
 	);
-	await expect(header).toContainText('+0.90000000');
+	await expect(header).toContainText('+0.90');
 });
 
 test('a signed-out socket sends the viewer to sign-in', async ({ page }) => {

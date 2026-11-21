@@ -127,8 +127,8 @@ test('a preview shows the diff, each lane share and what restarts, then the chan
 
 	await expect(page.getByRole('region', { name: 'Changes' })).toContainText('lanes32restart');
 	const shares = page.getByRole('table', { name: 'Lane shares' });
-	await expect(shares.getByRole('row', { name: 'Lane 1 0.00010000 0.50000000' })).toBeVisible();
-	await expect(shares.getByRole('row', { name: 'Lane 2 0.00010000 0.50000000' })).toBeVisible();
+	await expect(shares.getByRole('row', { name: 'Lane 1 0.0001 0.50' })).toBeVisible();
+	await expect(shares.getByRole('row', { name: 'Lane 2 0.0001 0.50' })).toBeVisible();
 	await expect(page.getByText('Every running lane restarts (lane 1, lane 2)')).toBeVisible();
 	await expect(page.getByText('lane 3 stops.')).toBeVisible();
 
