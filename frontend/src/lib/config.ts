@@ -119,3 +119,72 @@ export function badgeClass(apply: string): string {
 		? 'rounded border border-profit px-1.5 text-xs text-profit'
 		: 'rounded border border-warn px-1.5 text-xs text-warn';
 }
+
+export interface Pasted {
+	values: Record<string, string>;
+	skipped: Array<{ key: string; reason: string }>;
+}
+
+const NOT_EDITABLE = 'not editable here';
+const CUT_OFF = 'value is cut off; type it in';
+const TRUE_WORDS = new Set(['on', 'yes', 'true']);
+const FALSE_WORDS = new Set(['off', 'no', 'false']);
+
+/**
+ * Form values from pasted `key=value` lines or a `wolfctl config-show` table, for the Base
+ * tab. A value the table wrapped onto more rows is cut off, so it is skipped rather than
+ * half-filled; `api_key` never enters the form.
+ */
+export function parsePasted(text: string, keys: ConfigKey[]): Pasted {
+	const byName = new Map(keys.map((k) => [k.key, k]));
+	const raw = new Map<string, string>();
+	const wrapped = new Set<string>();
+	const skipped: Pasted['skipped'] = [];
+	let last: string | null = null;
+	for (const line of text.split(/\r?\n/)) {
+		const lanes = line.match(/^\s*Lanes:\s*\d+.*?\bsplit:\s*([a-z]+)/i);
+		if (lanes) {
+			raw.set(LANE_SPLIT, lanes[1] ?? '');
+			skipped.push({ key: 'lanes', reason: 'set it on the Lanes page' });
+			continue;
+		}
+		const cells = line.includes('│') || line.trim().startsWith('|') ? line.split(/[│|]/) : null;
+		if (cells) {
+			const [key = '', value = ''] = cells.slice(1).map((c) => c.trim());
+			if (!key) {
+				if (value && last) wrapped.add(last);
+				continue;
+			}
+			if (!/^[a-z][a-z0-9_]*$/.test(key)) continue;
+			raw.set(key, value);
+			last = key;
+			continue;
+		}
+		const pair = line.match(/^\s*([a-z][a-z0-9_]*)\s*[=:]\s*(.*)$/);
+		if (pair) raw.set(pair[1] ?? '', (pair[2] ?? '').trim());
+	}
+	const values: Record<string, string> = {};
+	for (const [name, rawValue] of raw) {
+		const value = rawValue.replace(/\s+\(live\b.*\)$/, '').trim();
+		if (name === 'api_key') skipped.push({ key: name, reason: "secret: stays in the bot's .env" });
+		else if (wrapped.has(name) || value.endsWith('...'))
+			skipped.push({ key: name, reason: CUT_OFF });
+		else if (name === LANE_SPLIT) values[name] = value;
+		else {
+			const key = byName.get(name);
+			if (!key) skipped.push({ key: name, reason: NOT_EDITABLE });
+			else values[name] = formValue(key, value);
+		}
+	}
+	return { values, skipped };
+}
+
+function formValue(key: ConfigKey, value: string): string {
+	const word = value.toLowerCase();
+	if (fieldKind(key) === 'boolean') {
+		if (TRUE_WORDS.has(word)) return 'true';
+		if (FALSE_WORDS.has(word)) return 'false';
+	}
+	if (word === 'off' && key.off_allowed) return '';
+	return value;
+}

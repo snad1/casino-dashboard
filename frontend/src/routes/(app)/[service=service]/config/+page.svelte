@@ -13,12 +13,14 @@
 		initialEdits,
 		LANE_SPLIT,
 		needsRestart,
+		parsePasted,
 		RELOAD_WAIT_MS,
 		reloadMarks,
 		type ConfigChange,
 		type ConfigKey,
 		type ConfigOut,
 		type Edits,
+		type Pasted,
 		type Preview,
 		type Scope
 	} from '#lib/config';
@@ -47,6 +49,8 @@
 	let waitedOut = $state(false);
 	let restartOnly = $state(false);
 	let waitTimer: ReturnType<typeof setTimeout> | null = null;
+	let pasteText = $state('');
+	let pasted = $state<{ filled: number; skipped: Pasted['skipped'] } | null>(null);
 
 	const scopes = $derived(config ? [BASE, ...laneScopes(config)] : [BASE]);
 	const keys = $derived(
@@ -123,6 +127,23 @@
 		if (!onlyRestart) waitTimer = setTimeout(() => (waitedOut = true), RELOAD_WAIT_MS);
 	}
 
+	/** Put a pasted config into the Base form; nothing is sent until Preview. */
+	function fillFromPaste() {
+		if (!config) return;
+		const out = parsePasted(pasteText, config.keys);
+		const base = edits[BASE] ?? {};
+		let filled = 0;
+		for (const [key, value] of Object.entries(out.values)) {
+			const edit = base[key];
+			if (!edit) continue;
+			edit.value = value;
+			filled++;
+		}
+		scope = BASE;
+		pasteText = '';
+		pasted = { filled, skipped: out.skipped };
+	}
+
 	onDestroy(() => {
 		if (waitTimer) clearTimeout(waitTimer);
 	});
@@ -164,6 +185,40 @@
 				<Notice tone="error">No reload seen after 10 s. Check the bot's logs.</Notice>
 			{:else if restartOnly}
 				<Notice>Saved. These changes apply after a restart.</Notice>
+			{/if}
+
+			<details class="rounded-lg border border-line bg-surface p-4">
+				<summary class="min-h-11 cursor-pointer content-center text-sm font-medium"
+					>Paste config</summary
+				>
+				<div class="mt-3 flex flex-col gap-3">
+					<label for="paste-config" class="text-sm font-medium">Config to paste</label>
+					<textarea
+						id="paste-config"
+						rows="8"
+						spellcheck="false"
+						autocomplete="off"
+						class="{input} py-2 font-mono text-sm"
+						placeholder="key=value lines, or the output of wolfctl config-show"
+						bind:value={pasteText}></textarea>
+					<p class="text-xs text-muted">
+						Fills the Base tab. Nothing is saved until you Preview and Save. The API key is never
+						taken from the paste.
+					</p>
+					<div>
+						<Button disabled={!pasteText.trim()} onclick={fillFromPaste}>Fill form</Button>
+					</div>
+				</div>
+			</details>
+			{#if pasted}
+				<Notice>
+					<span class="block">Filled {pasted.filled} fields.</span>
+					{#if pasted.skipped.length}
+						<span class="block"
+							>Not set: {pasted.skipped.map((s) => `${s.key} (${s.reason})`).join(', ')}</span
+						>
+					{/if}
+				</Notice>
 			{/if}
 
 			<div role="tablist" aria-label="Config scope" class="flex flex-wrap gap-2">

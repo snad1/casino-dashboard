@@ -8,6 +8,7 @@ import {
 	fieldKind,
 	initialEdits,
 	needsRestart,
+	parsePasted,
 	reloadMarks,
 	type ConfigKey,
 	type ConfigOut,
@@ -108,5 +109,56 @@ describe('preview and reload', () => {
 		expect(appliedSince(before, marks)).toEqual([]);
 		const after = { ...before, 1: { last_reload: { ts_ms: 9, keys: ['max_loss'] } } };
 		expect(appliedSince(after, marks)).toEqual([{ lane: 1, keys: ['max_loss'] }]);
+	});
+});
+
+describe('parsePasted', () => {
+	const SHOW = [
+		'┏━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓',
+		'┃ Field     ┃ Value       ┃ Description ┃',
+		'│ api_key   │ eyJ0eXAi...MWu8 (SET) │ API bearer token (set via WOLFBET_API_KEY env │',
+		'│           │             │ var)        │',
+		'│ currency  │ usdt        │ Betting currency │',
+		'│ multiplier │ 2          │ Payout multiplier │',
+		'│ max_loss  │ off         │ Stop when loss ≥ this │',
+		'│ recurring │ on          │ Auto-restart cycle │',
+		'│ game      │ limbo       │ Game        │',
+		'│ custom_rules_text │ [{"cond_type": "sequence", │ Rule-Based custom rules │',
+		'│           │ "cond_mode":... │             │',
+		'└───────────┴─────────────┴─────────────┘',
+		'',
+		'Lanes: 2  split: budget  (every lane uses the full base bet, no lane budget)'
+	].join('\n');
+
+	it('fills the editable keys from a config-show table', () => {
+		const out = parsePasted(SHOW, CONFIG.keys);
+		expect(out.values).toEqual({
+			multiplier: '2',
+			max_loss: '',
+			recurring: 'true',
+			game: 'limbo',
+			lane_split: 'budget'
+		});
+		expect(out.skipped).toEqual([
+			{ key: 'lanes', reason: 'set it on the Lanes page' },
+			{ key: 'api_key', reason: "secret: stays in the bot's .env" },
+			{ key: 'currency', reason: 'not editable here' },
+			{ key: 'custom_rules_text', reason: 'value is cut off; type it in' }
+		]);
+	});
+
+	it('drops the live note after a bumped base bet', () => {
+		const keys = [key({ key: 'base_bet' })];
+		const row = '│ base_bet │ 0.00000388  (live 0.00000505, +117 bumps) │ Base bet amount │';
+		expect(parsePasted(row, keys).values).toEqual({ base_bet: '0.00000388' });
+	});
+
+	it('reads key=value and key: value lines', () => {
+		const out = parsePasted(
+			'multiplier=2.5\nrecurring: no\nmax_loss = 0.01\napi_key=x',
+			CONFIG.keys
+		);
+		expect(out.values).toEqual({ multiplier: '2.5', recurring: 'false', max_loss: '0.01' });
+		expect(out.skipped.map((s) => s.key)).toEqual(['api_key']);
 	});
 });

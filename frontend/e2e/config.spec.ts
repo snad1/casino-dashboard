@@ -257,3 +257,40 @@ test('a viewer cannot open the editor', async ({ page }) => {
 	).toBeVisible();
 	await expect(page.getByLabel('max_loss')).toHaveCount(0);
 });
+
+test('a pasted config fills the form, and only the preview sends it', async ({ page }) => {
+	const { posts } = await rig(page, operatorMe);
+	await page.goto('/wolfbet/config');
+	await page.getByText('Paste config').click();
+	await page
+		.getByLabel('Config to paste')
+		.fill(
+			[
+				'│ api_key    │ eyJ0eXAi...MWu8 (SET) │ API bearer token │',
+				'│ currency   │ usdt   │ Betting currency │',
+				'│ multiplier │ 2.5    │ Payout multiplier │',
+				'│ max_loss   │ off    │ Stop when loss is this │',
+				'│ recurring  │ on     │ Auto-restart cycle │',
+				'Lanes: 2  split: budget'
+			].join('\n')
+		);
+	await page.getByRole('button', { name: 'Fill form' }).click();
+	await expect(page.getByText('Filled 4 fields.')).toBeVisible();
+	await expect(
+		page.getByText(/Not set: lanes .*api_key \(secret.*currency \(not editable here\)/)
+	).toBeVisible();
+	await expect(page.getByLabel('multiplier')).toHaveValue('2.5');
+	await expect(page.getByLabel('max_loss')).toHaveValue('');
+	await expect(page.getByLabel('recurring')).toHaveValue('true');
+	await expect(page.getByLabel('lane_split')).toHaveValue('budget');
+	await expect(page.getByLabel('Config to paste')).toHaveValue('');
+	expect(posts).toEqual([]);
+
+	await page.getByRole('button', { name: 'Preview' }).click();
+	await expect(page.getByRole('region', { name: 'Changes' })).toBeVisible();
+	const [sent] = posts;
+	expect(sent?.path).toBe('/wolfbet/config/preview');
+	const keys = (sent?.body as { changes: Array<{ key: string }> }).changes.map((c) => c.key);
+	expect(keys.sort()).toEqual(['lane_split', 'max_loss', 'multiplier', 'recurring']);
+	expect(JSON.stringify(sent?.body)).not.toContain('eyJ0eXAi');
+});
