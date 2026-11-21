@@ -1,5 +1,7 @@
 """The request envelope is closed: anything off-spec is rejected before dispatch."""
 
+from pathlib import Path
+
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
@@ -101,3 +103,28 @@ def test_schema_fields_match_the_models() -> None:
     from agent.protocol import Chunk
 
     assert set(defs["chunk"]["properties"]) == set(Chunk.model_json_schema()["properties"])
+
+
+# ── golden wire fixtures shared with the bots ──
+_GOLDEN = Path(__file__).resolve().parents[2] / "contracts/fixtures/agent_proto_v1"
+
+
+def test_golden_fixtures_match_their_checksums() -> None:
+    import hashlib
+
+    for line in (_GOLDEN / "SHA256SUMS").read_text().splitlines():
+        digest, name = line.split()
+        assert hashlib.sha256((_GOLDEN / name).read_bytes()).hexdigest() == digest, name
+
+
+def test_golden_request_mac_and_replies_are_what_the_agent_produces() -> None:
+    import json
+
+    from agent.protocol import Response
+
+    fixture = json.loads((_GOLDEN / "request.json").read_text())
+    request = Request.model_validate(fixture["request"])
+    assert verify_mac(fixture["token"].encode(), request)
+    assert sign(fixture["token"].encode(), fixture["request"]) == fixture["request"]["mac"]
+    for line in (_GOLDEN / "responses.jsonl").read_bytes().splitlines(keepends=True):
+        assert Response.model_validate_json(line).line() == line

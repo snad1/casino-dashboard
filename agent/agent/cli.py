@@ -20,6 +20,7 @@ from agent.protocol import PROTO_VERSION, signed_request
 from agent.pty import PtyManager
 from agent.server import DEFAULT_HANDLERS, AgentServer
 from agent.services.wolfbet import WolfBetPaths, WolfBetService
+from agent.services.wolfbet_tg import WolfBetTgPaths, WolfBetTgService
 
 
 def call(
@@ -40,8 +41,8 @@ def call(
 
 
 async def _serve(config: AgentConfig) -> None:
-    """The agent with WolfBet's commands, jobs, the export store (swept now and every 10 min)
-    and the owner's terminal."""
+    """The agent with WolfBet's commands, its Telegram bot's per-user commands, jobs, the
+    export store (swept now and every 10 min) and the owner's terminal."""
     paths = WolfBetPaths.from_env()
     files = FileStore(paths.export_dir)
     files.sweep()
@@ -53,6 +54,7 @@ async def _serve(config: AgentConfig) -> None:
     handlers = {
         **DEFAULT_HANDLERS,
         **service.handlers(),
+        **WolfBetTgService(WolfBetTgPaths.from_env()).handlers(),
         **jobs.handlers(),
         **files.handlers(),
         **terminal.handlers(),
