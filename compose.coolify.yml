@@ -1,6 +1,6 @@
-# GENERATED for Coolify from compose.yml — regenerate rather than hand-edit.
-# Coolify runs with --project-directory <repo root> and rejects '${...}' in volume sources,
-# so relative paths are rooted at the repo and the two host binds plus ports are literal.
+# GENERATED for Coolify from compose.yml — do not hand-edit.
+# Coolify copies only this directory and never clones the repo, so the images are built on
+# the host (docker compose build) and referenced by tag, and every host path is literal.
 name: ${COMPOSE_PROJECT_NAME:-wolfbet-dashboard}
 
 x-hardening: &hardening
@@ -16,8 +16,6 @@ x-hardening: &hardening
 
 x-app: &app
   <<: *hardening
-  build:
-    context: ./backend
   image: casino-dashboard-api:local
   user: "10001:10001"
   read_only: true
@@ -79,8 +77,8 @@ services:
       - redis_publisher_password
       - redis_dashboard_password
     volumes:
-      - ./deploy/redis/users.acl.tmpl:/etc/redis/users.acl.tmpl:ro
-      - ./deploy/redis/entrypoint.sh:/etc/redis/entrypoint.sh:ro
+      - ./redis/users.acl.tmpl:/etc/redis/users.acl.tmpl:ro
+      - ./redis/entrypoint.sh:/etc/redis/entrypoint.sh:ro
     ports:
       - "127.0.0.1:9479:6379"
     networks:
@@ -108,6 +106,7 @@ services:
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       TERMINAL_IP_ALLOWLIST: ${TERMINAL_IP_ALLOWLIST:-}
+      LIVE_USER_SERVICE: ${LIVE_USER_SERVICE:-}
     secrets:
       - session_secret
       - totp_key
@@ -115,6 +114,7 @@ services:
         target: postgres_password
       - redis_dashboard_password
       - agent_token
+      - tg_login_secret
     # The agent's socket is 0660 in the casino-agent group; joining it is the only access.
     group_add:
       - ${AGENT_GID:?set AGENT_GID in deploy/.env}
@@ -224,9 +224,6 @@ services:
   # service to port 80 and terminates TLS; nothing is published on the host.
   caddy:
     <<: *hardening
-    build:
-      context: ./frontend
-      dockerfile: ../deploy/caddy/Dockerfile
     image: casino-dashboard-caddy:local
     cpus: 0.25
     mem_limit: 128m
@@ -242,7 +239,7 @@ services:
     ports:
       - "127.0.0.1:9441:8080"
     volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
@@ -291,3 +288,5 @@ secrets:
     file: /opt/wolfbet/secrets/redis_dashboard_password.txt
   agent_token:
     file: /opt/wolfbet/secrets/agent_token.txt
+  tg_login_secret:
+    file: /opt/wolfbet/secrets/tg_login_secret.txt
