@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { ApiError, unwrap } from '#lib/api/client';
+	import { qrPath, type QrPath } from '#lib/qr';
 	import { api, loadMe, session } from '#lib/session.svelte';
 	import Button from '#ui/Button';
 	import Field from '#ui/Field';
 	import Notice from '#ui/Notice';
 
 	let enrolment: { secret: string; otpauth_uri: string } | null = $state(null);
+	let qr: QrPath | null = $state(null);
 	let code = $state('');
 	let recovery: string[] = $state([]);
 	let error: string | null = $state(null);
@@ -26,6 +28,7 @@
 	const start = () =>
 		step(async () => {
 			enrolment = await unwrap(api.POST('/auth/totp/enrol'));
+			qr = await qrPath(enrolment.otpauth_uri).catch(() => null);
 		});
 
 	function verify(event: SubmitEvent) {
@@ -34,6 +37,7 @@
 			const result = await unwrap(api.POST('/auth/totp/verify', { body: { code: code.trim() } }));
 			recovery = result.recovery_codes;
 			enrolment = null;
+			qr = null;
 			await loadMe();
 		});
 	}
@@ -57,9 +61,21 @@
 		<Notice tone="success">Two-factor sign-in is on for {session.me.email}.</Notice>
 	{:else if enrolment}
 		<p class="text-sm">
-			Add this key to your authenticator app, then enter the code it shows. Most apps can also open
-			the setup link on this device.
+			Scan this QR code with your authenticator app, or enter the key below, then enter the code it
+			shows. Most apps can also open the setup link on this device.
 		</p>
+		{#if qr}
+			<svg
+				role="img"
+				aria-label="QR code for authenticator setup"
+				viewBox="0 0 {qr.size} {qr.size}"
+				shape-rendering="crispEdges"
+				class="size-52 self-center rounded"
+			>
+				<rect width={qr.size} height={qr.size} fill="#fff" />
+				<path d={qr.d} fill="#000" />
+			</svg>
+		{/if}
 		<p class="font-mono text-sm break-all">{enrolment.secret}</p>
 		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- an otpauth: link for the authenticator app, not a route -->
 		<a href={enrolment.otpauth_uri} class="text-sm text-accent underline">Open in authenticator</a>

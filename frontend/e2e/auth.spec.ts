@@ -104,6 +104,25 @@ test('an admin invites a user, and a role change asks for 2FA first', async ({ p
 	expect(calls.filter((c) => c === 'PUT /admin/users/2/role')).toHaveLength(2);
 });
 
+test('2FA setup shows a QR code to scan alongside the key', async ({ page }) => {
+	const secret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
+	await stubApi(page, {
+		'GET /auth/me': () => ({ status: 200, json: viewerMe }),
+		'POST /auth/totp/enrol': () => ({
+			status: 200,
+			json: {
+				secret,
+				otpauth_uri: `otpauth://totp/Casino%20dashboard:viewer%40example.test?secret=${secret}&issuer=Casino%20dashboard`
+			}
+		})
+	});
+	await page.goto('/totp');
+	await page.getByRole('button', { name: 'Set up two-factor sign-in' }).click();
+	await expect(page.getByRole('img', { name: 'QR code for authenticator setup' })).toBeVisible();
+	await expect(page.getByText(secret)).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Open in authenticator' })).toBeVisible();
+});
+
 test('a viewer is told the users page is not for them', async ({ page }) => {
 	await stubApi(page, { 'GET /auth/me': () => ({ status: 200, json: viewerMe }) });
 	await page.goto('/admin/users');
