@@ -2,7 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import ActionButton from '#components/ActionButton';
-	import type { ActionBody } from '#lib/control';
+	import type { ActionBody, ActionName } from '#lib/control';
 	import { control } from '#lib/control.svelte';
 	import { liveFor } from '#lib/live/index';
 	import Notice from '#ui/Notice';
@@ -15,6 +15,20 @@
 			.sort((a, b) => a - b)
 	);
 	let days = $state(7);
+	let report: { title: string; text: string } | null = $state(null);
+	let checking = $state(false);
+
+	const units = [
+		{ group: 'tg', name: 'Telegram bot' },
+		{ group: 'web', name: 'Old web admin' }
+	] as const;
+
+	async function check(name: ActionName, title: string) {
+		checking = true;
+		const out = await control.run(name);
+		checking = false;
+		if (out) report = { title, text: out.output ?? '' };
+	}
 	let branch = $state('');
 
 	const updateBody = $derived.by(() => {
@@ -88,6 +102,42 @@
 				<ActionButton name="stop" />
 				<ActionButton name="restart" />
 			</div>
+		</section>
+
+		<section class={section} aria-labelledby="services-title">
+			<h2 id="services-title" class="font-semibold">Services</h2>
+			<p class="mb-3 text-sm text-muted">
+				The Telegram bot and the old web admin. Betting is not touched.
+			</p>
+			<ul class="flex flex-col gap-3">
+				{#each units as unit (unit.group)}
+					<li class={row}>
+						<span class="min-w-32 pt-3 text-sm font-medium">{unit.name}</span>
+						<ActionButton
+							name="{unit.group}_status"
+							busy={checking}
+							onpress={() => void check(`${unit.group}_status`, unit.name)}
+						/>
+						<ActionButton name="{unit.group}_start" />
+						<ActionButton name="{unit.group}_stop" />
+						<ActionButton name="{unit.group}_restart" />
+					</li>
+				{/each}
+				<li class={row}>
+					<span class="min-w-32 pt-3 text-sm font-medium">All services</span>
+					<ActionButton
+						name="status_all"
+						busy={checking}
+						onpress={() => void check('status_all', 'All services')}
+					/>
+					<ActionButton name="start_all" />
+				</li>
+			</ul>
+			{#if report}
+				<pre
+					class="mt-3 max-h-96 overflow-auto rounded-md bg-raised p-3 font-mono text-xs whitespace-pre-wrap"
+					aria-label="{report.title} status">{report.text || 'No output.'}</pre>
+			{/if}
 		</section>
 
 		<section class="{section} border-loss" aria-labelledby="danger-title">

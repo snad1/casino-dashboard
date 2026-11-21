@@ -387,6 +387,18 @@
     "title": "NoArgs",
     "type": "object"
   },
+  "start_all": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "status_all": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
   "stop": {
     "additionalProperties": false,
     "properties": {},
@@ -394,6 +406,30 @@
     "type": "object"
   },
   "stop_all": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "tg.restart": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "tg.start": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "tg.status": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "tg.stop": {
     "additionalProperties": false,
     "properties": {},
     "title": "NoArgs",
@@ -416,6 +452,36 @@
       }
     },
     "title": "UpdateArgs",
+    "type": "object"
+  },
+  "version": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "web.restart": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "web.start": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "web.status": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "web.stop": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
     "type": "object"
   }
 }

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { adminMe, controlMenu, operatorMe, stubApi, type Handler } from './stub';
+import { adminMe, controlMenu, operatorMe, stubApi, viewerMe, type Handler } from './stub';
 
 const JOB_ID = 'ab'.repeat(16);
 const BUSY = 'Another control action is running. Try again when it finishes.';
@@ -98,6 +98,50 @@ test('an operator pauses and resumes a lane and cannot reach the danger zone', a
 	await expect(danger(page).getByText('Needs admin role').first()).toBeVisible();
 });
 
+const services = (page: Page, name: string) =>
+	page.getByRole('region', { name: 'Services' }).getByRole('listitem').filter({ hasText: name });
+
+test('an operator restarts the Telegram bot and checks every service', async ({ page }) => {
+	const sent = await rig(page, operatorMe, {
+		'POST /wolfbet/control/tg_restart': () => done,
+		'POST /wolfbet/control/status_all': () => ({
+			status: 200,
+			json: {
+				status: 'succeeded',
+				exit_code: 0,
+				job_id: null,
+				output: 'CLI Bot: RUNNING\nTelegram Bot: RUNNING\nWeb Admin: stopped'
+			}
+		})
+	});
+	await page.goto('/wolfbet/control');
+	await services(page, 'Telegram bot').getByRole('button', { name: 'Restart' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Restart the Telegram bot?' });
+	await dialog.getByRole('button', { name: 'Restart' }).click();
+	await expect(page.getByText('Restart: done.')).toBeVisible();
+
+	await services(page, 'All services').getByRole('button', { name: 'Check' }).click();
+	await expect(page.getByLabel('All services status')).toContainText('Web Admin: stopped');
+	expect(sent.map((s) => s.path)).toEqual([
+		'/wolfbet/control/tg_restart',
+		'/wolfbet/control/status_all'
+	]);
+});
+
+test('a viewer sees the service buttons but cannot press them', async ({ page }) => {
+	const sent = await rig(page, viewerMe);
+	await page.goto('/wolfbet/control');
+	for (const name of ['Status', 'Start', 'Stop', 'Restart']) {
+		await expect(
+			services(page, 'Old web admin').getByRole('button', { name, exact: true })
+		).toBeDisabled();
+	}
+	await expect(
+		services(page, 'All services').getByRole('button', { name: 'Start all' })
+	).toBeDisabled();
+	expect(sent).toEqual([]);
+});
+
 test('an admin reset needs the typed service name and a fresh code, then retries once', async ({
 	page
 }) => {
@@ -166,7 +210,7 @@ test('a busy agent shows its message as a toast', async ({ page }) => {
 	});
 	await page.goto('/wolfbet/control');
 	await page
-		.getByRole('region', { name: 'Service' })
+		.getByRole('region', { name: 'Service', exact: true })
 		.getByRole('button', { name: 'Start', exact: true })
 		.click();
 	await page

@@ -7,6 +7,8 @@
 
 	let report: string | null = $state(null);
 	let diagnosing = $state(false);
+	let version: string | null = $state(null);
+	let reading = $state(false);
 	let count = $state(20);
 	let lanes = $state('');
 	const job = new ToolJob();
@@ -16,6 +18,13 @@
 		const out = await control.run('diagnose');
 		diagnosing = false;
 		if (out) report = out.output ?? '';
+	}
+
+	async function readVersion() {
+		reading = true;
+		const out = await control.run('version');
+		reading = false;
+		if (out) version = out.output ?? '';
 	}
 
 	function benchmark() {
@@ -78,6 +87,17 @@
 				done={job.job.status !== 'running'}
 				class="mt-2 max-h-96 rounded-md bg-raised p-3"
 			/>
+		{/if}
+	</section>
+
+	<section class={section} aria-labelledby="version-title">
+		<h2 id="version-title" class="font-semibold">Version</h2>
+		<p class="mb-3 text-sm text-muted">The bot and wolfctl versions on the host.</p>
+		<ActionButton name="version" busy={reading} onpress={() => void readVersion()} />
+		{#if version !== null}
+			<pre
+				class="mt-3 rounded-md bg-raised p-3 font-mono text-xs whitespace-pre-wrap"
+				aria-label="Version report">{version || 'No output.'}</pre>
 		{/if}
 	</section>
 

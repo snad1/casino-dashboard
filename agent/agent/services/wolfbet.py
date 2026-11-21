@@ -346,6 +346,7 @@ COMMANDS: dict[str, CommandSpec] = {
     "start_all": CommandSpec(NoArgs, _ctl_verb("start-all"), 120, mutating=True),
     "stop_all": CommandSpec(NoArgs, _ctl_verb("stop-all"), 120, mutating=True),
     "status_all": CommandSpec(NoArgs, _ctl_verb("status-all"), 30),
+    "version": CommandSpec(NoArgs, _ctl_verb("version"), 30),
     **{
         f"{group}.{verb}": CommandSpec(
             NoArgs, _ctl_verb(group, verb), 60, mutating=verb != "status"

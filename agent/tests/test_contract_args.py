@@ -32,6 +32,10 @@ CONTROL_COMMANDS = (
     "backtest",
     "export",
     "archives",
+    "start_all",
+    "status_all",
+    "version",
+    *(f"{g}.{v}" for g in ("tg", "web") for v in ("start", "stop", "restart", "status")),
 )
 
 

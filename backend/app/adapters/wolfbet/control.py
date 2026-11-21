@@ -156,6 +156,58 @@ _DESTRUCTIVE = Perm.CONTROL_DESTRUCTIVE
 _LOGS = Perm.LOGS
 _EXPORT = Perm.EXPORT
 
+_UNITS = {
+    "tg": ("the Telegram bot", "Telegram users get no replies until it starts again."),
+    "web": ("the old web admin", "The old web pages are down until it starts again."),
+}
+
+
+def _unit_actions(group: str) -> dict[str, ControlAction]:
+    """Start, stop, restart and status for one of the bot's side units (`wolfctl tg|web`)."""
+    unit, down = _UNITS[group]
+    named = unit[0].upper() + unit[1:]
+    return {
+        f"{group}_start": ControlAction(
+            _BASIC,
+            f"{group}.start",
+            NoArgs,
+            label="Start",
+            title=f"Start {unit}?",
+            effect=f"Starts {unit}. Betting is not touched.",
+            confirm="Start",
+        ),
+        f"{group}_stop": ControlAction(
+            _BASIC,
+            f"{group}.stop",
+            NoArgs,
+            label="Stop",
+            title=f"Stop {unit}?",
+            effect=f"{down} Betting is not touched.",
+            confirm="Stop",
+        ),
+        f"{group}_restart": ControlAction(
+            _BASIC,
+            f"{group}.restart",
+            NoArgs,
+            label="Restart",
+            title=f"Restart {unit}?",
+            effect=f"{named} is down for a few seconds. Betting is not touched.",
+            confirm="Restart",
+        ),
+        f"{group}_status": ControlAction(
+            _BASIC,
+            f"{group}.status",
+            NoArgs,
+            label="Status",
+            title=f"Status of {unit}?",
+            effect=f"Shows whether {unit} is running. Changes nothing.",
+            confirm="Status",
+            confirm_first=False,
+            exclusive=False,
+        ),
+    }
+
+
 ACTIONS: dict[str, ControlAction] = {
     "start": ControlAction(
         _BASIC,
@@ -395,4 +447,38 @@ ACTIONS: dict[str, ControlAction] = {
         confirm_first=False,
         exclusive=False,
     ),
+    "start_all": ControlAction(
+        _BASIC,
+        "start_all",
+        NoArgs,
+        label="Start all",
+        title="Start every {service} bot?",
+        effect="The bot starts betting with its saved config and the Telegram bot starts. Ones "
+        "already running are left alone.",
+        confirm="Start all",
+    ),
+    "status_all": ControlAction(
+        _BASIC,
+        "status_all",
+        NoArgs,
+        label="Check",
+        title="Check the {service} services?",
+        effect="Shows whether the betting bot, the Telegram bot and the old web admin run.",
+        confirm="Check",
+        confirm_first=False,
+        exclusive=False,
+    ),
+    "version": ControlAction(
+        _BASIC,
+        "version",
+        NoArgs,
+        label="Version",
+        title="Show the {service} version?",
+        effect="Shows the bot and wolfctl versions. Changes nothing.",
+        confirm="Version",
+        confirm_first=False,
+        exclusive=False,
+    ),
+    **_unit_actions("tg"),
+    **_unit_actions("web"),
 }

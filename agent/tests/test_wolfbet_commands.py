@@ -192,6 +192,7 @@ ARGV_CASES: list[tuple[str, dict[str, Any], list[str]]] = [
     ("start_all", {}, [CTL, "start-all"]),
     ("stop_all", {}, [CTL, "stop-all"]),
     ("status_all", {}, [CTL, "status-all"]),
+    ("version", {}, [CTL, "version"]),
     *[
         (f"{g}.{v}", {}, [CTL, g, v])
         for g in ("tg", "web")
@@ -288,6 +289,7 @@ def test_mutating_flags() -> None:
         "status_all",
         "tg.status",
         "web.status",
+        "version",
     }
 
 

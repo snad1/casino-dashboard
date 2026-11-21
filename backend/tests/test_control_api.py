@@ -63,6 +63,10 @@ ALLOWED: dict[Role, set[str]] = {
         "backtest",
         "export",
         "archives",
+        "start_all",
+        "status_all",
+        "version",
+        *(f"{g}_{v}" for g in ("tg", "web") for v in ("start", "stop", "restart", "status")),
     },
     Role.ADMIN: set(ACTIONS),
     Role.OWNER: set(ACTIONS),
@@ -143,6 +147,21 @@ def test_each_action_sends_its_command_and_validated_args(
     assert update_job["cmd"] == "job.start"
     assert update_job["args"] == {"cmd": "wolfbet.update", "args": {"branch": "main"}}
     assert doctor["args"] == {"cmd": "wolfbet.doctor", "args": {"fix": True}}
+
+
+def test_side_unit_and_all_service_actions_send_their_wolfctl_commands(
+    signed_in_as: Any, fake_agent: FakeAgent
+) -> None:
+    client = signed_in_as(Role.OPERATOR, two_factor=True)
+    for action in ("tg_restart", "web_stop", "start_all", "status_all", "version"):
+        assert _post(client, action).status_code == 200, action
+    assert fake_agent.cmds() == [
+        "wolfbet.tg.restart",
+        "wolfbet.web.stop",
+        "wolfbet.start_all",
+        "wolfbet.status_all",
+        "wolfbet.version",
+    ]
 
 
 def test_a_failed_command_reports_its_exit_code(signed_in_as: Any, fake_agent: FakeAgent) -> None:
@@ -450,6 +469,10 @@ def test_reads_run_without_a_confirm_and_return_clean_output(
         "backtest",
         "export",
         "archives",
+        "status_all",
+        "version",
+        "tg_status",
+        "web_status",
     }
     fake_agent.reply = lambda request: [
         ok(request, {"exit_code": 0, "stderr": "", "stdout": "\x1b[32mINFO\x1b[0m  ok\r\nnext\x07"})

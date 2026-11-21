@@ -187,6 +187,19 @@ test('diagnose shows its report and benchmark streams its job output', async ({ 
 	await expect(page.getByRole('button', { name: 'Doctor fix' })).toBeDisabled();
 });
 
+test('version shows the bot and wolfctl versions', async ({ page }) => {
+	const { posts } = await rig(page, operatorMe, {
+		'POST /wolfbet/control/version': () => ({
+			status: 200,
+			json: { status: 'succeeded', exit_code: 0, job_id: null, output: 'v2.41.2\n  wolfctl v3.16' }
+		})
+	});
+	await page.goto('/wolfbet/tools/health');
+	await page.getByRole('button', { name: 'Version', exact: true }).click();
+	await expect(page.getByLabel('Version report')).toContainText('wolfctl v3.16');
+	expect(posts.at(-1)?.path).toBe('/wolfbet/control/version');
+});
+
 test('a backtest fills its progress bar, then shows the result', async ({ page }) => {
 	const result = {
 		v: 1,
