@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import history
 from app.auth.models import Role, User
+from app.history.epochs import EPOCH_NOT_FOUND
+from app.ingest.tailer import ARCHIVE_GLOB, LIVE_DB
 from app.settings import Settings
 from tests.conftest import NO_LOGIN, make_user, new_email, run_in_session
 
@@ -35,11 +37,25 @@ class Seed:
 
         return run_in_session(self.settings, step)
 
-    def epoch(self, inode: int = 1) -> int:
+    def epoch(
+        self,
+        inode: int = 1,
+        archived: bool = False,
+        started: datetime = T0,
+        tg_uid: int | None = None,
+    ) -> int:
+        """A database epoch; an archived one carries the name `wolfctl reset` gives it."""
+        name = ARCHIVE_GLOB.replace("*", f"2026010{inode}-000000") if archived else LIVE_DB
         epoch_id: int = self._run(
-            "INSERT INTO db_epochs (service, source_path, inode, first_started_at)"
-            " VALUES (:s, '/botdata/x.db', :inode, :t) RETURNING epoch_id",
-            {"s": self.service, "inode": inode, "t": T0},
+            "INSERT INTO db_epochs (service, source_path, inode, first_started_at, tg_uid)"
+            " VALUES (:s, :path, :inode, :t, :uid) RETURNING epoch_id",
+            {
+                "s": self.service,
+                "path": f"/botdata/{name}",
+                "inode": inode,
+                "t": started,
+                "uid": tg_uid,
+            },
             returning=True,
         )
         return epoch_id
@@ -237,7 +253,7 @@ def _iso(value: datetime) -> str:
 def test_current_is_each_lanes_latest_session_in_the_newest_epoch(
     viewer: TestClient, seed: Seed
 ) -> None:
-    old = seed.epoch(inode=1)
+    old = seed.epoch(inode=1, archived=True)
     seed.session(old, 9, lane=3, ended=False)
     epoch = seed.epoch(inode=2)
     seed.session(epoch, 1, lane=1)
@@ -272,3 +288,50 @@ def test_ingest_status_is_the_latest_reconcile_run(viewer: TestClient, seed: See
     run = viewer.get(path).json()["last_run"]
     assert (run["mismatched"], run["persisting"], run["lag_alert"]) == (2, 2, True)
     assert (run["lag_rows"], run["lag_seconds"], run["kind"]) == (5, 42.0, "quick")
+
+
+def test_after_a_reset_every_view_is_empty_until_the_next_session(
+    viewer: TestClient, seed: Seed
+) -> None:
+    old = seed.epoch(inode=1, archived=True)
+    seed.session(old, 1, lane=1, ended=False)
+    seed.bet(old, 1, T0 + timedelta(minutes=1))
+    base = f"/{seed.service}"
+    window = {"from": T0.isoformat(), "to": (T0 + timedelta(hours=1)).isoformat()}
+    assert viewer.get(f"{base}/sessions").json()["items"] == []
+    assert viewer.get(f"{base}/current").json()["lanes"] == []
+    assert viewer.get(f"{base}/series", params=window).json()["series"] == []
+
+    picked = viewer.get(f"{base}/sessions", params={"epoch": old}).json()["items"]
+    assert [(s["epoch_id"], s["id"]) for s in picked] == [(old, 1)]
+    points = viewer.get(f"{base}/series", params=window | {"epoch": old}).json()["series"]
+    assert [p["lane"] for p in points] == [1]
+
+
+def test_the_current_epoch_hides_the_archived_ones(viewer: TestClient, seed: Seed) -> None:
+    old = seed.epoch(inode=1, archived=True)
+    seed.session(old, 1)
+    new = seed.epoch(inode=2, started=T0 + timedelta(days=1))
+    seed.session(new, 1)
+    items = viewer.get(f"/{seed.service}/sessions").json()["items"]
+    assert [s["epoch_id"] for s in items] == [new]
+
+
+def test_epochs_list_the_current_database_and_each_reset(viewer: TestClient, seed: Seed) -> None:
+    old = seed.epoch(inode=1, archived=True)
+    seed.session(old, 1)
+    new = seed.epoch(inode=2, started=T0 + timedelta(days=1))
+    seed.epoch(inode=3, tg_uid=42)
+    items = viewer.get(f"/{seed.service}/epochs").json()["items"]
+    assert [(e["epoch_id"], e["current"]) for e in items] == [(new, True), (old, False)]
+    assert items[0]["last_started_at"] is None
+    assert items[1]["last_started_at"] is not None
+
+
+def test_an_unknown_or_telegram_epoch_is_not_found(viewer: TestClient, seed: Seed) -> None:
+    seed.epoch(inode=1)
+    user_db = seed.epoch(inode=2, tg_uid=42)
+    for epoch in (user_db, 999_999):
+        reply = viewer.get(f"/{seed.service}/sessions", params={"epoch": epoch})
+        assert reply.status_code == 404
+        assert reply.json()["detail"] == EPOCH_NOT_FOUND

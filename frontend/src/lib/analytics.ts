@@ -1,4 +1,5 @@
 import type { components } from '#lib/api/schema';
+import { parseEpoch } from '#lib/epochs';
 
 export type AnalyticsOut = components['schemas']['AnalyticsOut'];
 export type Report = AnalyticsOut['report'];
@@ -11,6 +12,7 @@ export interface Filter {
 	since: string | null;
 	until: string | null;
 	lane: number | null;
+	epoch: number | null;
 }
 
 /** Read the filter from a query string, dropping anything the form could not have sent. */
@@ -23,7 +25,8 @@ export function parseFilter(params: Pick<URLSearchParams, 'get'>): Filter {
 	return {
 		since: date('since'),
 		until: date('until'),
-		lane: LANES.includes(lane) ? lane : null
+		lane: LANES.includes(lane) ? lane : null,
+		epoch: parseEpoch(params)
 	};
 }
 
@@ -33,6 +36,7 @@ export function filterQuery(filter: Filter): Record<string, string> {
 	if (filter.since) out.since = filter.since;
 	if (filter.until) out.until = filter.until;
 	if (filter.lane !== null) out.lane = String(filter.lane);
+	if (filter.epoch !== null) out.epoch = String(filter.epoch);
 	return out;
 }
 

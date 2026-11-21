@@ -195,15 +195,25 @@ class Tailer:
             if not self._unavailable_logged:
                 logger.info("live database not readable yet: %s", error)
                 self._unavailable_logged = True
+            await self._live_moved()
             return None
         self._unavailable_logged = False
         if epoch is None:
+            await self._live_moved()
             return None
         if self.live is None or self.live.epoch != epoch:
             source = Source(path, archived=False, closed_ok=self.closed_ok)
             self.live = await self._start(source, epoch)
             await self._rescan_archives()
         return self.live
+
+    async def _live_moved(self) -> None:
+        """A reset leaves the live path empty or missing until the bot's next session; find
+        the archive now, so the old epoch is recorded under its archive name at once."""
+        if self.live is None:
+            return
+        self.live = None
+        await self._rescan_archives()
 
     async def _rescan_archives(self) -> None:
         if self.archive_glob is None:

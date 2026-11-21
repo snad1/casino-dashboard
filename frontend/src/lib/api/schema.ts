@@ -797,7 +797,8 @@ export interface paths {
 		};
 		/**
 		 * Get Analytics
-		 * @description The report for sessions started in the window (a bare `until` date counts whole).
+		 * @description The report for sessions started in the window (a bare `until` date counts whole), from
+		 *     the bot for the current epoch, or from history for an archived `epoch`.
 		 */
 		get: operations['get_analytics__service__analytics_get'];
 		put?: never;
@@ -1435,9 +1436,29 @@ export interface paths {
 		};
 		/**
 		 * Get Current
-		 * @description Each lane's latest session in the newest epoch, with its totals, for live resync.
+		 * @description Each lane's latest session in the current epoch, with its totals, for live resync.
 		 */
 		get: operations['get_current__service__current_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/epochs': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * List Epochs
+		 * @description The bot's databases, newest first: the current one and each one a reset archived.
+		 */
+		get: operations['list_epochs__service__epochs_get'];
 		put?: never;
 		post?: never;
 		delete?: never;
@@ -1535,7 +1556,8 @@ export interface paths {
 		};
 		/**
 		 * Get Series
-		 * @description Per-lane points `[t, value]`: profit summed per bucket, or the bucket's last balance.
+		 * @description Per-lane points `[t, value]`: profit summed per bucket, or the bucket's last balance,
+		 *     from the current epoch or `epoch`, cut to that epoch's whole buckets.
 		 */
 		get: operations['get_series__service__series_get'];
 		put?: never;
@@ -1555,7 +1577,7 @@ export interface paths {
 		};
 		/**
 		 * List Sessions
-		 * @description Newest first; pass `next_cursor` back as `cursor` for the next page.
+		 * @description Newest first, from the current epoch or `epoch`; pass `next_cursor` back as `cursor`.
 		 */
 		get: operations['list_sessions__service__sessions_get'];
 		put?: never;
@@ -2046,6 +2068,25 @@ export interface components {
 			otpauth_uri: string;
 			/** Secret */
 			secret: string;
+		};
+		/** EpochList */
+		EpochList: {
+			/** Items */
+			items: components['schemas']['EpochOut'][];
+		};
+		/** EpochOut */
+		EpochOut: {
+			/** Current */
+			current: boolean;
+			/** Epoch Id */
+			epoch_id: number;
+			/**
+			 * First Started At
+			 * Format: date-time
+			 */
+			first_started_at: string;
+			/** Last Started At */
+			last_started_at: string | null;
 		};
 		/** EventOut */
 		EventOut: {
@@ -4005,6 +4046,7 @@ export interface operations {
 				since?: string | null;
 				until?: string | null;
 				lane?: number | null;
+				epoch?: number | null;
 			};
 			header?: never;
 			path: {
@@ -4041,6 +4083,7 @@ export interface operations {
 				until?: string | null;
 				lane?: number | null;
 				format?: 'csv' | 'json';
+				epoch?: number | null;
 			};
 			header?: never;
 			path: {
@@ -5669,6 +5712,37 @@ export interface operations {
 			};
 		};
 	};
+	list_epochs__service__epochs_get: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['EpochList'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
 	get_ingest__service__ingest_get: {
 		parameters: {
 			query?: never;
@@ -5806,6 +5880,7 @@ export interface operations {
 				from?: string | null;
 				to?: string | null;
 				lane?: number | null;
+				epoch?: number | null;
 			};
 			header?: never;
 			path: {
@@ -5844,6 +5919,7 @@ export interface operations {
 				status?: ('running' | 'ended') | null;
 				cursor?: string | null;
 				limit?: number;
+				epoch?: number | null;
 			};
 			header?: never;
 			path: {

@@ -4,10 +4,11 @@ The models mirror `contracts/schemas/wolfbet-cli-analytics-v1.json` field for fi
 refuse anything else, so a drifted or tampered reply never reaches the browser.
 
 `history_report` answers from the dashboard's copy of the sessions with the bot's own SQL
-rules (`wolfbet.py` `_analytics_data`): the newest epoch only, because the bot reads only
-its live database; `started_at` compared in the host's local time, a bare `until` date
-counting the whole day; missing values counted as 0 and a missing lane as lane 1. Times
-come back as the naive local ISO strings the bot prints.
+rules (`wolfbet.py` `_analytics_data`): one epoch only, as the bot reads only its live
+database (the current epoch unless an archived one is asked for); `started_at` compared
+in the host's local time, a bare `until` date counting the whole day; missing values
+counted as 0 and a missing lane as lane 1. Times come back as the naive local ISO strings
+the bot prints.
 """
 
 from datetime import UTC, datetime
@@ -103,16 +104,23 @@ class SessionWindow:
     """The bot's `_stats_date_window` as SQL over the history `sessions` table."""
 
     def __init__(
-        self, service: str, since: str | None, until: str | None, lane: int | None, zone: ZoneInfo
+        self,
+        service: str,
+        since: str | None,
+        until: str | None,
+        lane: int | None,
+        zone: ZoneInfo,
+        epochs: list[int],
     ) -> None:
         self.since, self.until, self.lane = since, until, lane
         self.zone = zone
+        self.epochs = epochs
         self.start = aware(since, zone) if since else None
         self.end = (
             aware(until if len(until) > 10 else until + "T23:59:59.999999", zone) if until else None
         )
         conds = ["service = :service"]
-        self.params: dict[str, Any] = {"service": service}
+        self.params: dict[str, Any] = {"service": service, "epochs": epochs}
         if self.start is not None:
             conds.append("started_at >= :start")
             self.params["start"] = self.start
@@ -125,12 +133,9 @@ class SessionWindow:
         self.conditions = " AND ".join(conds)
 
     @property
-    def newest_epoch(self) -> str:
-        """The filter plus the newest epoch: what the bot's live database holds."""
-        return (
-            f"{self.conditions} AND epoch_id = (SELECT max(epoch_id) FROM sessions"  # noqa: S608  # nosec B608: fixed SQL, values are bound
-            " WHERE service = :service)"
-        )
+    def in_epochs(self) -> str:
+        """The filter limited to the window's epochs: what that bot database holds."""
+        return f"{self.conditions} AND epoch_id = ANY(:epochs)"
 
     def local(self, value: datetime | None) -> str | None:
         return value.astimezone(self.zone).replace(tzinfo=None).isoformat() if value else None
@@ -150,7 +155,7 @@ async def _rows(db: AsyncSession, sql: str, params: dict[str, Any]) -> list[dict
 
 async def history_report(db: AsyncSession, window: SessionWindow) -> AnalyticsReport:
     """The bot's analytics report computed from the history copy of its sessions."""
-    where, params = window.newest_epoch, window.params
+    where, params = window.in_epochs, window.params
     [lifetime] = await _rows(
         db,
         "SELECT count(*) AS sessions_total, coalesce(sum(total_bets), 0)::bigint AS bets_total,"  # noqa: S608  # nosec B608: fixed SQL, values are bound

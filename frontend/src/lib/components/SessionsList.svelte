@@ -24,8 +24,9 @@
 	let {
 		live,
 		service,
-		source = serviceSource(service)
-	}: { live: LiveStore; service: string; source?: HistorySource } = $props();
+		source = serviceSource(service),
+		empty = 'No sessions yet.'
+	}: { live: LiveStore; service: string; source?: HistorySource; empty?: string } = $props();
 
 	const ROW = 44;
 	const MAX_ROWS = 2000;
@@ -37,7 +38,7 @@
 	let error = $state<string | null>(null);
 
 	const liveRows = $derived(
-		Object.entries(live.lanes)
+		Object.entries(source.live ? live.lanes : {})
 			.filter(([, lane]) => typeof lane.session_id === 'number')
 			.map(([n, lane]): Row => {
 				const id = lane.session_id as number;
@@ -98,6 +99,9 @@
 	{#if error}
 		<Notice tone="error">{error}</Notice>
 		<Button onclick={more}>Try again</Button>
+	{/if}
+	{#if done && !error && rows.length === 0}
+		<p class="text-sm text-muted">{empty}</p>
 	{/if}
 	<div class="min-h-0 flex-1">
 		<VirtualList items={rows} key={(r) => r.key} rowHeight={ROW} label="Sessions" onend={more}>

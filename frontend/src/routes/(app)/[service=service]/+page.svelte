@@ -1,13 +1,18 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import BetTape from '#components/BetTape';
 	import Chart from '#components/Chart';
 	import Comments from '#components/Comments';
+	import EpochPicker from '#components/EpochPicker';
 	import LaneCard from '#components/LaneCard';
 	import SessionsList from '#components/SessionsList';
 	import Streaks from '#components/Streaks';
 	import SystemPanel from '#components/SystemPanel';
 	import type { CommentOut } from '#lib/comments';
+	import { parseEpoch } from '#lib/epochs';
+	import { serviceSource } from '#lib/history-source';
 	import { liveFor } from '#lib/live/index';
 
 	const panels = [
@@ -22,11 +27,31 @@
 	let chartRange = $state<{ from: string; to: string } | null>(null);
 	let noteAt = $state<string | null>(null);
 	let notes: CommentOut[] = $state.raw([]);
+
+	const epoch = $derived(parseEpoch(page.url.searchParams));
+	const source = $derived(serviceSource(page.params.service ?? '', epoch));
+
+	function pick(next: number | null) {
+		const service = page.params.service ?? '';
+		const suffix = next === null ? '' : `?epoch=${next}`;
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- this page plus its own epoch query
+		void goto(resolve('/(app)/[service=service]', { service }) + suffix);
+	}
 </script>
 
 <svelte:head><title>{page.params.service} · Casino dashboard</title></svelte:head>
 
 <h1 class="sr-only">{page.params.service} live dashboard</h1>
+{#if page.params.service}
+	<div class="mb-4 flex flex-wrap items-end gap-4">
+		<EpochPicker service={page.params.service} value={epoch} onchange={pick} />
+		{#if epoch !== null}
+			<p class="text-sm text-muted">
+				Sessions and chart show a previous reset. Live data is not added to them.
+			</p>
+		{/if}
+	</div>
+{/if}
 <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-12">
 	{#each panels as panel (panel.id)}
 		<section
@@ -37,13 +62,16 @@
 			<h2 id="{panel.id}-title" class="text-sm font-semibold text-muted">{panel.title}</h2>
 			{#if panel.id === 'chart' && page.params.service}
 				<div class="mt-2 h-80">
-					<Chart
-						live={liveFor(page.params.service)}
-						service={page.params.service}
-						{notes}
-						onrange={(range) => (chartRange = range)}
-						onpick={(at) => (noteAt = at)}
-					/>
+					{#key epoch}
+						<Chart
+							live={liveFor(page.params.service)}
+							service={page.params.service}
+							{source}
+							{notes}
+							onrange={(range) => (chartRange = range)}
+							onpick={(at) => (noteAt = at)}
+						/>
+					{/key}
 				</div>
 				{#if chartRange}
 					<div class="mt-4">
@@ -58,7 +86,14 @@
 				{/if}
 			{:else if panel.id === 'sessions' && page.params.service}
 				<div class="mt-2 h-[36rem]">
-					<SessionsList live={liveFor(page.params.service)} service={page.params.service} />
+					{#key epoch}
+						<SessionsList
+							live={liveFor(page.params.service)}
+							service={page.params.service}
+							{source}
+							empty={epoch === null ? 'No sessions since the last reset.' : 'No sessions.'}
+						/>
+					{/key}
 				</div>
 			{:else if panel.id === 'tape' && page.params.service}
 				<div class="mt-2 h-[36rem]">

@@ -8,25 +8,34 @@ type SessionPage = components['schemas']['SessionPage'];
 export type SeriesQuery = { metric: 'profit' | 'balance'; from: string; to: string; lane?: number };
 export type SessionsQuery = { limit: number; since?: string; cursor?: string; lane?: number };
 
-const serviceSeries = (service: string, query: SeriesQuery) =>
+const serviceSeries = (service: string, query: SeriesQuery & { epoch?: number }) =>
 	unwrap(api.GET('/{service}/series', { params: { path: { service }, query } }));
 type SeriesOut = Awaited<ReturnType<typeof serviceSeries>>;
 
 /**
  * Where the chart and the sessions list read history from: a whole service, or one Telegram
  * user's own bets. A Telegram user has one lane, so the lane filter does not apply there.
+ * `live` is false for a database a reset archived: live ticks belong to the running bot.
  */
 export interface HistorySource {
+	live: boolean;
 	series(query: SeriesQuery): Promise<SeriesOut>;
 	sessions(query: SessionsQuery): Promise<SessionPage>;
 	sessionHref(epoch: number, id: number): string;
 }
 
-export function serviceSource(service: string): HistorySource {
+/** `epoch` picks a database a reset archived; without it, the one since the last reset. */
+export function serviceSource(service: string, epoch: number | null = null): HistorySource {
+	const picked = epoch === null ? {} : { epoch };
 	return {
-		series: (query) => serviceSeries(service, query),
+		live: epoch === null,
+		series: (query) => serviceSeries(service, { ...query, ...picked }),
 		sessions: (query) =>
-			unwrap(api.GET('/{service}/sessions', { params: { path: { service }, query } })),
+			unwrap(
+				api.GET('/{service}/sessions', {
+					params: { path: { service }, query: { ...query, ...picked } }
+				})
+			),
 		sessionHref: (epoch, id) =>
 			resolve('/(app)/[service=service]/sessions/[epoch]/[id]', {
 				service,
@@ -39,6 +48,7 @@ export function serviceSource(service: string): HistorySource {
 export function tgSource(uid: number): HistorySource {
 	const path = { uid };
 	return {
+		live: true,
 		series: ({ metric, from, to }) =>
 			unwrap(api.GET('/tg/{uid}/series', { params: { path, query: { metric, from, to } } })),
 		sessions: ({ limit, since, cursor }) =>

@@ -243,7 +243,7 @@
 				if (param.time !== undefined) onpick?.(iso(Number(param.time)));
 			});
 			stopCandles = live.onCandles((candles) => {
-				if (!folder || !series) return;
+				if (!folder || !series || !source.live) return;
 				for (const candle of candles) {
 					const point = folder.add(candle, live.lanes[candle.lane]?.session_id ?? null);
 					if (!point) continue;

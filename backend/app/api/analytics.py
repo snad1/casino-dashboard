@@ -18,7 +18,7 @@ import io
 import json
 import re
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
 
@@ -36,6 +36,7 @@ from app.api.history import SessionDetail, _cache, _session_out
 from app.auth.models import User
 from app.auth.permissions import Perm, require
 from app.db.engine import get_session
+from app.history.epochs import EpochView, epoch_view
 from app.history.models import HistorySession
 
 BOT_SECONDS = 60.0
@@ -133,9 +134,18 @@ async def _bot_report(
         return None
 
 
-def _rollup_filter(window: SessionWindow) -> tuple[str, dict[str, Any]]:
+def _rollup_filter(window: SessionWindow, view: EpochView) -> tuple[str, dict[str, Any]]:
+    if not view.ids:
+        return "false", {"tz": window.zone.key}
     conds = ["service = :service"]
     params: dict[str, Any] = {"service": window.params["service"], "tz": window.zone.key}
+    first, last = view.bounds(timedelta(hours=1))
+    if first is not None:
+        conds.append("bucket >= :epoch_start")
+        params["epoch_start"] = first
+    if last is not None:
+        conds.append("bucket < :epoch_end")
+        params["epoch_end"] = last
     if window.start is not None:
         conds.append("bucket >= :start")
         params["start"] = window.start
@@ -156,7 +166,7 @@ async def _bins(
         db,
         (
             f"WITH s AS (SELECT {value_sql} AS v FROM sessions"  # noqa: S608  # nosec B608: fixed SQL, values are bound
-            f" WHERE {window.newest_epoch}), r AS (SELECT min(v) AS lo, max(v) AS hi FROM s)"
+            f" WHERE {window.in_epochs}), r AS (SELECT min(v) AS lo, max(v) AS hi FROM s)"
             f" SELECT least(width_bucket(s.v, r.lo, r.hi, {BINS}), {BINS}) AS bin,"
             " count(*) AS n, r.lo, r.hi FROM s, r WHERE s.v IS NOT NULL AND r.hi > r.lo"
             " GROUP BY bin, r.lo, r.hi"
@@ -178,8 +188,8 @@ async def _bins(
     ]
 
 
-async def chart_data(db: AsyncSession, window: SessionWindow) -> Charts:
-    where, params = _rollup_filter(window)
+async def chart_data(db: AsyncSession, window: SessionWindow, view: EpochView) -> Charts:
+    where, params = _rollup_filter(window, view)
     hours = await _rows(
         db,
         (
@@ -220,8 +230,10 @@ async def get_analytics(
     since: Bound = None,
     until: Bound = None,
     lane: Annotated[int | None, Query(ge=1, le=LANES_MAX)] = None,
+    epoch: Annotated[int | None, Query(ge=1)] = None,
 ) -> BaseModel:
-    """The report for sessions started in the window (a bare `until` date counts whole)."""
+    """The report for sessions started in the window (a bare `until` date counts whole), from
+    the bot for the current epoch, or from history for an archived `epoch`."""
     if service not in CONTROLS:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
     since, until = _bound(since), _bound(until)
@@ -231,12 +243,14 @@ async def get_analytics(
     args = {
         k: v for k, v in {"since": since, "until": until, "lane": lane}.items() if v is not None
     }
-    window = SessionWindow(service, since, until, lane, ZoneInfo(request.app.state.host_tz))
-    report = await _bot_report(request, service, args)
+    view = await epoch_view(db, service, epoch)
+    zone = ZoneInfo(request.app.state.host_tz)
+    window = SessionWindow(service, since, until, lane, zone, view.ids)
+    report = await _bot_report(request, service, args) if epoch is None else None
     source: Literal["bot", "history"] = "bot" if report is not None else "history"
     if report is None:
         report = await history_report(db, window)
-    out = AnalyticsOut(source=source, report=report, charts=await chart_data(db, window))
+    out = AnalyticsOut(source=source, report=report, charts=await chart_data(db, window, view))
     cache.put(key, out, None if source == "bot" else HISTORY_SECONDS)
     return out
 
@@ -268,15 +282,19 @@ async def export_analytics(
     until: Bound = None,
     lane: Annotated[int | None, Query(ge=1, le=LANES_MAX)] = None,
     file_format: Annotated[Literal["csv", "json"], Query(alias="format")] = "csv",
+    epoch: Annotated[int | None, Query(ge=1)] = None,
 ) -> Response:
     """The window's sessions, the ones the report counts, oldest first, as a download."""
     if service not in CONTROLS:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
     since, until = _bound(since), _bound(until)
-    window = SessionWindow(service, since, until, lane, ZoneInfo(request.app.state.host_tz))
+    view = await epoch_view(db, service, epoch)
+    window = SessionWindow(
+        service, since, until, lane, ZoneInfo(request.app.state.host_tz), view.ids
+    )
     query = (
         select(HistorySession)
-        .where(text(window.newest_epoch).bindparams(**window.params))
+        .where(text(window.in_epochs).bindparams(**window.params))
         .order_by(HistorySession.started_at, HistorySession.src_id)
     )
     rows = [_session_out(SessionDetail, row) for row in await db.scalars(query)]

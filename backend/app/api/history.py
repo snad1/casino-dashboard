@@ -11,19 +11,21 @@ dashboard open on many screens costs one query.
 
 import math
 import time
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 from pydantic import BaseModel
-from sqlalchemy import Select, select, text, tuple_
+from sqlalchemy import Select, func, select, text, tuple_
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.auth.permissions import Perm, require
 from app.db.engine import get_session
-from app.history.models import Bet, HistorySession, ReconcileRun
+from app.history.epochs import epoch_view
+from app.history.models import Bet, DbEpoch, HistorySession, ReconcileRun
 
 MAX_POINTS = 5000
 DEFAULT_RANGE = timedelta(hours=1)
@@ -134,6 +136,17 @@ class CurrentOut(BaseModel):
     lanes: list[SessionOut]
 
 
+class EpochOut(BaseModel):
+    epoch_id: int
+    first_started_at: datetime
+    last_started_at: datetime | None
+    current: bool
+
+
+class EpochList(BaseModel):
+    items: list[EpochOut]
+
+
 class _Cache:
     """A tiny per-process cache; the api runs one worker, so this is shared by every client."""
 
@@ -189,12 +202,16 @@ async def list_sessions(
     session_status: Annotated[Literal["running", "ended"] | None, Query(alias="status")] = None,
     cursor: Annotated[str | None, Query(pattern=CURSOR)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    epoch: Annotated[int | None, Query(ge=1)] = None,
 ) -> BaseModel:
-    """Newest first; pass `next_cursor` back as `cursor` for the next page."""
+    """Newest first, from the current epoch or `epoch`; pass `next_cursor` back as `cursor`."""
     cache, key = _cache(request)
     if (hit := cache.get(key)) is not None:
         return hit
-    page = await session_page(db, service, None, lane, since, until, session_status, cursor, limit)
+    view = await epoch_view(db, service, epoch)
+    page = await session_page(
+        db, service, view.ids, lane, since, until, session_status, cursor, limit
+    )
     cache.put(key, page)
     return page
 
@@ -202,7 +219,7 @@ async def list_sessions(
 async def session_page(
     db: AsyncSession,
     service: str,
-    epochs: Select[int] | None,
+    epochs: Select[int] | Sequence[int] | None,
     lane: int | None,
     since: datetime | None,
     until: datetime | None,
@@ -371,12 +388,26 @@ async def get_series(
     since: Annotated[datetime | None, Query(alias="from")] = None,
     until: Annotated[datetime | None, Query(alias="to")] = None,
     lane: Annotated[int | None, Query(ge=1, le=64)] = None,
+    epoch: Annotated[int | None, Query(ge=1)] = None,
 ) -> BaseModel:
-    """Per-lane points `[t, value]`: profit summed per bucket, or the bucket's last balance."""
+    """Per-lane points `[t, value]`: profit summed per bucket, or the bucket's last balance,
+    from the current epoch or `epoch`, cut to that epoch's whole buckets."""
     cache, key = _cache(request)
     if (hit := cache.get(key)) is not None:
         return hit
-    out = await series(db, service, None, metric, res, since, until, lane)
+    end = until or datetime.now(UTC)
+    start = since or end - DEFAULT_RANGE
+    if start >= end:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, EMPTY_RANGE)
+    chosen = pick_resolution(end - start, res)
+    view = await epoch_view(db, service, epoch)
+    first, last = view.bounds(RESOLUTIONS[chosen])
+    start = max(start, first) if first else start
+    end = min(end, last) if last else end
+    if not view.ids or start >= end:
+        out = SeriesOut(res=chosen, series=[])
+    else:
+        out = await series(db, service, None, metric, chosen, start, end, lane)
     cache.put(key, out)
     return out
 
@@ -426,17 +457,11 @@ async def series(
 
 
 async def current_sessions(db: AsyncSession, service: str) -> list[HistorySession]:
-    """Each lane's latest session in the newest epoch."""
-    newest_epoch = (
-        select(HistorySession.epoch_id)
-        .where(HistorySession.service == service)
-        .order_by(HistorySession.epoch_id.desc())
-        .limit(1)
-        .scalar_subquery()
-    )
+    """Each lane's latest session in the current epoch; none right after a reset."""
+    view = await epoch_view(db, service)
     query = (
         select(HistorySession)
-        .where(HistorySession.service == service, HistorySession.epoch_id == newest_epoch)
+        .where(HistorySession.service == service, HistorySession.epoch_id.in_(view.ids))
         .ext(distinct_on(HistorySession.lane))
         .order_by(HistorySession.lane, HistorySession.src_id.desc())
     )
@@ -445,7 +470,7 @@ async def current_sessions(db: AsyncSession, service: str) -> list[HistorySessio
 
 @router.get("/current", response_model=CurrentOut)
 async def get_current(service: str, request: Request, _: Viewer, db: Db) -> BaseModel:
-    """Each lane's latest session in the newest epoch, with its totals, for live resync."""
+    """Each lane's latest session in the current epoch, with its totals, for live resync."""
     cache, key = _cache(request)
     if (hit := cache.get(key)) is not None:
         return hit
@@ -453,6 +478,40 @@ async def get_current(service: str, request: Request, _: Viewer, db: Db) -> Base
     out = CurrentOut(lanes=[_session_out(SessionOut, row) for row in rows])
     cache.put(key, out)
     return out
+
+
+@router.get("/epochs", response_model=EpochList)
+async def list_epochs(service: str, _: Viewer, db: Db) -> EpochList:
+    """The bot's databases, newest first: the current one and each one a reset archived."""
+    view = await epoch_view(db, service)
+    rows = (
+        await db.execute(
+            select(
+                DbEpoch.epoch_id,
+                DbEpoch.first_started_at,
+                func.max(HistorySession.started_at).label("last_started_at"),
+            )
+            .outerjoin(
+                HistorySession,
+                (HistorySession.service == DbEpoch.service)
+                & (HistorySession.epoch_id == DbEpoch.epoch_id),
+            )
+            .where(DbEpoch.service == service, DbEpoch.tg_uid.is_(None))
+            .group_by(DbEpoch.epoch_id)
+            .order_by(DbEpoch.epoch_id.desc())
+        )
+    ).all()
+    return EpochList(
+        items=[
+            EpochOut(
+                epoch_id=row.epoch_id,
+                first_started_at=row.first_started_at,
+                last_started_at=row.last_started_at,
+                current=row.epoch_id in view.ids,
+            )
+            for row in rows
+        ]
+    )
 
 
 async def latest_reconcile(db: AsyncSession, service: str) -> ReconcileRun | None:

@@ -1499,6 +1499,59 @@
         "title": "Enrolment",
         "type": "object"
       },
+      "EpochList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EpochOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "EpochList",
+        "type": "object"
+      },
+      "EpochOut": {
+        "properties": {
+          "current": {
+            "title": "Current",
+            "type": "boolean"
+          },
+          "epoch_id": {
+            "title": "Epoch Id",
+            "type": "integer"
+          },
+          "first_started_at": {
+            "format": "date-time",
+            "title": "First Started At",
+            "type": "string"
+          },
+          "last_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Started At"
+          }
+        },
+        "required": [
+          "epoch_id",
+          "first_started_at",
+          "last_started_at",
+          "current"
+        ],
+        "title": "EpochOut",
+        "type": "object"
+      },
       "EventOut": {
         "properties": {
           "fired_at": {
@@ -5767,7 +5820,7 @@
     },
     "/{service}/analytics": {
       "get": {
-        "description": "The report for sessions started in the window (a bare `until` date counts whole).",
+        "description": "The report for sessions started in the window (a bare `until` date counts whole), from\nthe bot for the current epoch, or from history for an archived `epoch`.",
         "operationId": "get_analytics__service__analytics_get",
         "parameters": [
           {
@@ -5830,6 +5883,23 @@
                 }
               ],
               "title": "Lane"
+            }
+          },
+          {
+            "in": "query",
+            "name": "epoch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Epoch"
             }
           }
         ],
@@ -5940,6 +6010,23 @@
               ],
               "title": "Format",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "epoch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Epoch"
             }
           }
         ],
@@ -8524,7 +8611,7 @@
     },
     "/{service}/current": {
       "get": {
-        "description": "Each lane's latest session in the newest epoch, with its totals, for live resync.",
+        "description": "Each lane's latest session in the current epoch, with its totals, for live resync.",
         "operationId": "get_current__service__current_get",
         "parameters": [
           {
@@ -8560,6 +8647,49 @@
           }
         },
         "summary": "Get Current",
+        "tags": [
+          "history"
+        ]
+      }
+    },
+    "/{service}/epochs": {
+      "get": {
+        "description": "The bot's databases, newest first: the current one and each one a reset archived.",
+        "operationId": "list_epochs__service__epochs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "title": "Service",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpochList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Epochs",
         "tags": [
           "history"
         ]
@@ -8784,7 +8914,7 @@
     },
     "/{service}/series": {
       "get": {
-        "description": "Per-lane points `[t, value]`: profit summed per bucket, or the bucket's last balance.",
+        "description": "Per-lane points `[t, value]`: profit summed per bucket, or the bucket's last balance,\nfrom the current epoch or `epoch`, cut to that epoch's whole buckets.",
         "operationId": "get_series__service__series_get",
         "parameters": [
           {
@@ -8883,6 +9013,23 @@
               ],
               "title": "Lane"
             }
+          },
+          {
+            "in": "query",
+            "name": "epoch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Epoch"
+            }
           }
         ],
         "responses": {
@@ -8915,7 +9062,7 @@
     },
     "/{service}/sessions": {
       "get": {
-        "description": "Newest first; pass `next_cursor` back as `cursor` for the next page.",
+        "description": "Newest first, from the current epoch or `epoch`; pass `next_cursor` back as `cursor`.",
         "operationId": "list_sessions__service__sessions_get",
         "parameters": [
           {
@@ -9026,6 +9173,23 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "epoch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Epoch"
             }
           }
         ],

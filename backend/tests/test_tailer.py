@@ -94,6 +94,32 @@ async def test_reset_starts_a_new_epoch_and_finishes_the_archive(
     fresh.close()
 
 
+@pytest.mark.parametrize("fresh_db", [False, True], ids=["no-live-file", "empty-live-file"])
+async def test_a_reset_is_seen_before_the_bot_starts_its_next_session(
+    wolfbet: ModuleType,
+    tmp_path: Path,
+    pg: asyncpg.Connection,
+    service: str,
+    make_tailer: Any,
+    fresh_db: bool,
+) -> None:
+    live = tmp_path / LIVE_DB
+    bot = BotDb(wolfbet, live)
+    bot.bets(bot.session(started="2026-01-04T09:00:00"), 10, T0)
+    tailer = await make_tailer()
+    await drain(tailer)
+    bot.close()
+    archive = tmp_path / ARCHIVE_GLOB.replace("*", "20260105-120000")
+    live.rename(archive)
+    fresh = BotDb(wolfbet, live) if fresh_db else None
+    await drain(tailer)
+    paths = await pg.fetch("SELECT source_path FROM db_epochs WHERE service = $1", service)
+    assert [r["source_path"] for r in paths] == [str(archive)]
+    assert await count(pg, service) == 10
+    if fresh is not None:
+        fresh.close()
+
+
 async def test_purged_rows_do_not_break_the_watermark(
     wolfbet: ModuleType, tmp_path: Path, pg: asyncpg.Connection, service: str, make_tailer: Any
 ) -> None:

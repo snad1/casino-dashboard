@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.wolfbet.analytics import AnalyticsReport, SessionWindow, history_report
 from app.api.analytics import BINS, chart_data
+from app.history.epochs import epoch_view
 from app.ingest.tailer import LIVE_DB
 from tests.test_reconcile import copy_all
 from tests.wolfbet_db import WORKSPACE, BotDb, needs_wolfbet
@@ -122,10 +123,16 @@ def assert_same(ours: Any, theirs: Any, where: str = "report") -> None:
         assert ours == theirs, where
 
 
-def window(
-    service: str, since: str | None = None, until: str | None = None, lane: int | None = None
+async def window(
+    db: AsyncSession,
+    service: str,
+    since: str | None = None,
+    until: str | None = None,
+    lane: int | None = None,
 ) -> SessionWindow:
-    return SessionWindow(service, since, until, lane, UTC_ZONE)
+    """A window over the current epoch, as the api builds one without `epoch`."""
+    view = await epoch_view(db, service)
+    return SessionWindow(service, since, until, lane, UTC_ZONE, view.ids)
 
 
 def flags(since: str | None, until: str | None, lane: int | None) -> list[str]:
@@ -161,7 +168,7 @@ async def test_history_report_equals_the_bots_json(
     AnalyticsReport.model_validate(bot)
     await copy_all(pg, service, tmp_path)
 
-    ours = await history_report(db_session, window(service, since, until, lane))
+    ours = await history_report(db_session, await window(db_session, service, since, until, lane))
     assert_same(ours.model_dump(), bot)
 
 
@@ -181,7 +188,7 @@ async def test_an_older_epoch_does_not_count_once_the_bot_was_reset(
     epochs = await pg.fetchval("SELECT count(*) FROM db_epochs WHERE service = $1", service)
     assert epochs == 2
 
-    ours = await history_report(db_session, window(service))
+    ours = await history_report(db_session, await window(db_session, service))
     assert_same(ours.model_dump(), bot)
     assert ours.lifetime.sessions_total == 3
 
@@ -196,7 +203,9 @@ async def test_charts_cover_the_same_sessions_and_bets(
     build(wolfbet, tmp_path / LIVE_DB, SESSIONS)
     await copy_all(pg, service, tmp_path)
 
-    charts = await chart_data(db_session, window(service))
+    charts = await chart_data(
+        db_session, await window(db_session, service), await epoch_view(db_session, service)
+    )
     assert len(charts.profit_bins) == BINS
     assert sum(b.sessions for b in charts.profit_bins) == len(SESSIONS)
     assert charts.profit_bins[0].lo == pytest.approx(-0.0003)
@@ -207,6 +216,8 @@ async def test_charts_cover_the_same_sessions_and_bets(
     assert {h.hour for h in charts.by_hour} == {0, 8, 9, 10, 11, 23}
     assert [d.day for d in charts.by_day] == ["2026-01-05", "2026-01-06", "2026-01-07"]
 
-    lane_two = await chart_data(db_session, window(service, lane=2))
+    lane_two = await chart_data(
+        db_session, await window(db_session, service, lane=2), await epoch_view(db_session, service)
+    )
     assert sum(b.sessions for b in lane_two.profit_bins) == 3
     assert sum(h.bets for h in lane_two.by_hour) == 3 * BETS_PER_SESSION

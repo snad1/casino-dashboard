@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import BarChart from '#components/BarChart';
+	import EpochPicker from '#components/EpochPicker';
 	import {
 		exportUrl,
 		filterQuery,
@@ -32,12 +33,14 @@
 	let since = $state('');
 	let until = $state('');
 	let lane = $state('all');
+	let epoch = $state<number | null>(null);
 	let request = 0;
 
 	$effect(() => {
 		since = filter.since ?? '';
 		until = filter.until ?? '';
 		lane = filter.lane === null ? 'all' : String(filter.lane);
+		epoch = filter.epoch;
 		if (service) void load(service, filter);
 	});
 
@@ -68,7 +71,8 @@
 			filterQuery({
 				since: since || null,
 				until: until || null,
-				lane: lane === 'all' ? null : Number(lane)
+				lane: lane === 'all' ? null : Number(lane),
+				epoch
 			})
 		).toString();
 		const suffix = query ? `?${query}` : '';
@@ -152,6 +156,7 @@
 				{/each}
 			</select>
 		</label>
+		<EpochPicker {service} value={epoch} onchange={(next) => (epoch = next)} />
 		<button
 			type="submit"
 			class="min-h-11 rounded-md bg-accent px-4 text-sm font-medium text-on-accent">Apply</button
