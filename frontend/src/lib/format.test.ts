@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatAmount, formatProfit } from './format';
+import { formatAmount, formatProfit, plainNumber } from './format';
 
 describe('formatAmount', () => {
 	it('drops trailing zeros but keeps two decimals', () => {
@@ -33,5 +33,17 @@ describe('formatProfit', () => {
 
 	it('treats zero as a gain', () => {
 		expect(formatProfit(0)).toBe('+0.00');
+	});
+});
+
+describe('plainNumber', () => {
+	it('never writes an exponent and keeps every digit', () => {
+		expect(plainNumber(1e-8)).toBe('0.00000001');
+		expect(plainNumber(1.5e-7)).toBe('0.00000015');
+		expect(plainNumber(-2e-8)).toBe('-0.00000002');
+		expect(plainNumber(1e21)).toBe('1000000000000000000000');
+		expect(plainNumber(0.1)).toBe('0.1');
+		expect(plainNumber(123)).toBe('123');
+		expect(plainNumber(2.01)).toBe('2.01');
 	});
 });

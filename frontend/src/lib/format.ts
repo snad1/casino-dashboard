@@ -13,3 +13,24 @@ export function formatAmount(value: number): string {
 export function formatProfit(value: number): string {
 	return `${value < 0 ? '-' : '+'}${formatAmount(Math.abs(value))}`;
 }
+
+/**
+ * A number as plain decimal text, never in exponent form: 1e-8 reads 0.00000001. Unlike
+ * formatAmount it neither rounds nor pads, so a form value comes back exactly as saved.
+ */
+export function plainNumber(value: number): string {
+	const text = String(value);
+	const parts = /^(-?)(\d)(?:\.(\d+))?e([+-]\d+)$/.exec(text);
+	if (!parts) return text;
+	const [, sign, lead, rest = '', exponent] = parts;
+	const digits = `${lead}${rest}`;
+	const point = 1 + Number(exponent);
+	if (point <= 0) return `${sign}0.${'0'.repeat(-point)}${digits}`;
+	if (point >= digits.length) return `${sign}${digits}${'0'.repeat(point - digits.length)}`;
+	return `${sign}${digits.slice(0, point)}.${digits.slice(point)}`;
+}
+
+/** Any saved value as text, numbers in plain decimal form. */
+export function plainText(value: unknown): string {
+	return typeof value === 'number' ? plainNumber(value) : String(value);
+}

@@ -44,6 +44,7 @@ describe('downloads and settings', () => {
 		expect(settingValue(null)).toBe('Not set');
 		expect(settingValue('')).toBe('Not set');
 		expect(settingValue(0.5)).toBe('0.5');
+		expect(settingValue(1e-8)).toBe('0.00000001');
 		expect(settingValue({ a: 1 })).toBe('{"a":1}');
 	});
 });

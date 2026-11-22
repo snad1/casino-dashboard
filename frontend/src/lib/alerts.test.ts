@@ -122,13 +122,13 @@ group('amount presets', () => {
 	it('start at the smallest unit and read as plain decimals', () => {
 		const field = KINDS.profit.fields.find((f) => f.key === 'amount');
 		const options = field?.type === 'choice' ? field.options : [];
-		expect(options[0]).toEqual({ value: '1e-8', label: '0.00000001' });
+		expect(options[0]).toEqual({ value: '0.00000001', label: '0.00000001' });
 		expect(options.map((o) => o.label)).toContain('0.01');
 	});
 
 	it('reopen a saved smallest-unit rule on its preset', () => {
 		const form = formFor(rule({ kind: 'profit', params: { period: 'run', at: 0.00000001 } }));
-		expect(form.values.amount).toBe('1e-8');
+		expect(form.values.amount).toBe('0.00000001');
 		expect(bodyFor(form)).toMatchObject({ body: { params: { at: 0.00000001 } } });
 	});
 });

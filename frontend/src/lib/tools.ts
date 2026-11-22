@@ -1,3 +1,5 @@
+import { plainText } from '#lib/format';
+
 export const MAX_LOG_LINES = 5000;
 export const LEVELS = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'] as const;
 export type Level = (typeof LEVELS)[number];
@@ -95,7 +97,7 @@ export function resultRows(result: BacktestResult): Array<[string, string]> {
 			: result;
 	return Object.entries(source)
 		.filter(([key, value]) => key !== 'v' && (typeof value !== 'object' || value === null))
-		.map(([key, value]) => [key, value === null ? 'none' : String(value)]);
+		.map(([key, value]) => [key, value === null ? 'none' : plainText(value)]);
 }
 
 /** Where the browser downloads an export job's file; the api names it, never the host. */

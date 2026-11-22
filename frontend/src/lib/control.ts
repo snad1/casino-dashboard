@@ -1,3 +1,4 @@
+import { plainText } from '#lib/format';
 import type { components, paths } from '#lib/api/schema';
 import type { JobLine } from '#lib/live/protocol';
 import { denialReason, type Me, type Perm } from '#lib/permissions';
@@ -30,7 +31,7 @@ export function fill(template: string, body: ActionBody, service: string): strin
 		if (key === 'target') return targetLabel(value);
 		if (key === 'branch') return typeof value === 'string' && value ? ` from branch ${value}` : '';
 		if (key === 'split') return typeof value === 'string' ? value : 'current';
-		return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+		return typeof value === 'string' || typeof value === 'number' ? plainText(value) : '';
 	});
 }
 

@@ -38,6 +38,7 @@ describe('fill', () => {
 		expect(fill('Pause {target}?', { target: 'all' }, 'wolfbet')).toBe('Pause all lanes?');
 		expect(fill('Reset {service}?', {}, 'wolfbet')).toBe('Reset wolfbet?');
 		expect(fill('Older than {days} days', { days: 7 }, 'w')).toBe('Older than 7 days');
+		expect(fill('Bet {amount}', { amount: 1e-8 }, 'w')).toBe('Bet 0.00000001');
 	});
 
 	it('reads optional fields naturally', () => {

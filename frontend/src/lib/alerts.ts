@@ -1,6 +1,6 @@
 import type { components } from '#lib/api/schema';
 import { formatDuration } from '#lib/analytics';
-import { formatAmount } from '#lib/format';
+import { formatAmount, plainNumber } from '#lib/format';
 
 export type Rule = components['schemas']['RuleOut'];
 export type RuleBody = components['schemas']['RuleIn'];
@@ -29,10 +29,10 @@ export type FieldSpec =
 const seconds = (values: number[]): Option[] =>
 	values.map((v) => ({ value: String(v), label: v === 0 ? 'None' : formatDuration(v) }));
 const plain = (values: number[], suffix = ''): Option[] =>
-	values.map((v) => ({ value: String(v), label: `${v}${suffix}` }));
+	values.map((v) => ({ value: plainNumber(v), label: `${plainNumber(v)}${suffix}` }));
 
 const AMOUNTS: Option[] = [0.00000001, 0.00001, 0.0001, 0.001, 0.01, 0.1, 1].map((v) => ({
-	value: String(v),
+	value: plainNumber(v),
 	label: formatAmount(v)
 }));
 const PERIOD: FieldSpec = {
@@ -210,11 +210,12 @@ function choose(form: RuleForm, key: ValueKey, raw: number | null | undefined): 
 	const spec = Object.values(KINDS)
 		.flatMap((k) => k.fields)
 		.find((f) => f.key === key);
-	const known = spec?.type === 'choice' && spec.options.some((o) => o.value === String(raw));
-	if (known) form.values[key] = String(raw);
+	const text = plainNumber(raw);
+	const known = spec?.type === 'choice' && spec.options.some((o) => o.value === text);
+	if (known) form.values[key] = text;
 	else {
 		form.values[key] = CUSTOM;
-		form.custom[key] = String(raw);
+		form.custom[key] = text;
 	}
 }
 

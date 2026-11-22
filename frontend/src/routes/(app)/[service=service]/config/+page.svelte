@@ -25,6 +25,8 @@
 		type Scope
 	} from '#lib/config';
 	import ConfigDiff from '#components/ConfigDiff';
+	import RulesBuilder from '#components/RulesBuilder';
+	import { BAD_JSON, parseRules } from '#lib/rules';
 	import { control } from '#lib/control.svelte';
 	import { liveFor } from '#lib/live/index';
 	import { can } from '#lib/permissions';
@@ -58,6 +60,22 @@
 	);
 	const changes: ConfigChange[] = $derived(config ? changesFrom(config, edits) : []);
 	const changesKey = $derived(JSON.stringify(changes));
+	const brokenRules = $derived(
+		config
+			? config.keys.some(
+					(k) =>
+						k.format === 'rules' &&
+						Object.entries(edits).some(([name, scope]) => {
+							const edit = scope[k.key];
+							return (
+								edit !== undefined &&
+								(name === BASE || !edit.useBase) &&
+								parseRules(edit.value).error === BAD_JSON
+							);
+						})
+				)
+			: false
+	);
 	const previewFresh = $derived(preview !== null && previewFor === changesKey);
 	const applied = $derived(marks ? appliedSince(live.lanes, marks) : []);
 
@@ -297,6 +315,14 @@
 											<option value="true">yes</option>
 											<option value="false">no</option>
 										</select>
+									{:else if fieldKind(key) === 'long' && key.rule_options}
+										<RulesBuilder
+											{id}
+											{input}
+											options={key.rule_options}
+											disabled={locked}
+											bind:value={edit.value}
+										/>
 									{:else if fieldKind(key) === 'long'}
 										<textarea
 											{id}
@@ -330,7 +356,7 @@
 			<div class="flex flex-wrap items-center gap-3">
 				<Button
 					variant="primary"
-					disabled={changes.length === 0 || previewing}
+					disabled={changes.length === 0 || previewing || brokenRules}
 					onclick={() => void runPreview()}
 				>
 					{previewing ? 'Checking...' : 'Preview'}
@@ -342,11 +368,13 @@
 					</Button>
 				{/if}
 				<span class="text-sm text-muted" aria-live="polite">
-					{changes.length === 0
-						? 'No changes.'
-						: previewFresh
-							? `${changes.length} change(s) checked.`
-							: 'Preview your changes before saving.'}
+					{brokenRules
+						? 'Fix the rules JSON before Preview.'
+						: changes.length === 0
+							? 'No changes.'
+							: previewFresh
+								? `${changes.length} change(s) checked.`
+								: 'Preview your changes before saving.'}
 				</span>
 			</div>
 

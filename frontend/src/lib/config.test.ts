@@ -62,6 +62,8 @@ describe('fields from the schema', () => {
 	it('shows saved values as form text, lanes falling back to the base', () => {
 		expect(display(null)).toBe('');
 		expect(display([3, 1.5])).toBe('3:1.5');
+		expect(display(1e-8)).toBe('0.00000001');
+		expect(display([3, 1e-8])).toBe('3:0.00000001');
 		expect(current(CONFIG, BASE, 'streak_delay_win')).toBe('3:1.5');
 		expect(current(CONFIG, '2', 'multiplier')).toBe('3');
 		expect(current(CONFIG, '3', 'multiplier')).toBe('2.01');

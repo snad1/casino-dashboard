@@ -1,3 +1,4 @@
+import { plainText } from '#lib/format';
 import type { components } from '#lib/api/schema';
 import type { Lanes } from '#lib/live/protocol';
 
@@ -31,8 +32,8 @@ export function fieldKind(key: ConfigKey): FieldKind {
 /** A saved value as form text: lists read `N:X`, nothing reads empty. */
 export function display(value: unknown): string {
 	if (value === null || value === undefined) return '';
-	if (Array.isArray(value)) return value.join(':');
-	return String(value);
+	if (Array.isArray(value)) return value.map(plainText).join(':');
+	return plainText(value);
 }
 
 export function overridden(config: ConfigOut, scope: Scope, key: string): boolean {

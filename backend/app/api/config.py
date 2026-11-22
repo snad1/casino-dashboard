@@ -28,6 +28,27 @@ router = APIRouter(tags=["config"])
 Writer = Annotated[User, Depends(require(Perm.CONFIG_WRITE))]
 
 
+class Option(BaseModel):
+    key: str
+    label: str
+
+
+class RuleAction(Option):
+    value: bool
+
+
+class RuleOptions(BaseModel):
+    """The bot's rule menus, so the rule builder offers exactly what the bot runs."""
+
+    cond_types: list[str]
+    seq_modes: list[Option]
+    seq_triggers: list[str]
+    profit_fields: list[str]
+    bet_fields: list[str]
+    ops: list[Option]
+    actions: list[RuleAction]
+
+
 class ConfigKey(BaseModel):
     key: str
     type: Literal["number", "integer", "boolean", "string"]
@@ -40,6 +61,7 @@ class ConfigKey(BaseModel):
     default: JsonValue = None
     live_reload: bool
     lane_overridable: bool
+    rule_options: RuleOptions | None = None
 
 
 class LaneRange(BaseModel):

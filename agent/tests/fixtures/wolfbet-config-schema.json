@@ -81,7 +81,177 @@
       "default": "",
       "live_reload": true,
       "lane_overridable": true,
-      "help": "Rule-Based custom rules (JSON per line)"
+      "help": "Rule-Based custom rules (JSON per line)",
+      "rule_options": {
+        "cond_types": [
+          "sequence",
+          "profit",
+          "bet"
+        ],
+        "seq_modes": [
+          {
+            "key": "every",
+            "label": "Every N (total count)"
+          },
+          {
+            "key": "every_streak",
+            "label": "Every N in streak (N, 2N, 3N\u2026)"
+          },
+          {
+            "key": "first_streak",
+            "label": "First streak of N (once, resets on flip)"
+          },
+          {
+            "key": "streak_above",
+            "label": "Streak above N (every bet past N)"
+          },
+          {
+            "key": "streak_below",
+            "label": "Streak below N"
+          }
+        ],
+        "seq_triggers": [
+          "win",
+          "loss",
+          "bet"
+        ],
+        "profit_fields": [
+          "profit",
+          "loss",
+          "balance"
+        ],
+        "bet_fields": [
+          "amount",
+          "number",
+          "winchance",
+          "payout"
+        ],
+        "ops": [
+          {
+            "key": "gte",
+            "label": ">="
+          },
+          {
+            "key": "gt",
+            "label": ">"
+          },
+          {
+            "key": "lte",
+            "label": "<="
+          },
+          {
+            "key": "lt",
+            "label": "<"
+          }
+        ],
+        "actions": [
+          {
+            "key": "reset_amount",
+            "label": "Reset bet amount",
+            "value": false
+          },
+          {
+            "key": "increase_amount",
+            "label": "Increase amount by %",
+            "value": true
+          },
+          {
+            "key": "decrease_amount",
+            "label": "Decrease amount by %",
+            "value": true
+          },
+          {
+            "key": "add_amount",
+            "label": "Add to amount",
+            "value": true
+          },
+          {
+            "key": "deduct_amount",
+            "label": "Deduct from amount",
+            "value": true
+          },
+          {
+            "key": "set_amount",
+            "label": "Set amount",
+            "value": true
+          },
+          {
+            "key": "switch",
+            "label": "Switch over/under",
+            "value": false
+          },
+          {
+            "key": "stop",
+            "label": "Stop betting",
+            "value": false
+          },
+          {
+            "key": "reset_winchance",
+            "label": "Reset win chance",
+            "value": false
+          },
+          {
+            "key": "set_winchance",
+            "label": "Set win chance",
+            "value": true
+          },
+          {
+            "key": "increase_wc",
+            "label": "Increase win chance by %",
+            "value": true
+          },
+          {
+            "key": "decrease_wc",
+            "label": "Decrease win chance by %",
+            "value": true
+          },
+          {
+            "key": "add_wc",
+            "label": "Add to win chance",
+            "value": true
+          },
+          {
+            "key": "deduct_wc",
+            "label": "Deduct from win chance",
+            "value": true
+          },
+          {
+            "key": "reset_payout",
+            "label": "Reset payout",
+            "value": false
+          },
+          {
+            "key": "set_payout",
+            "label": "Set payout",
+            "value": true
+          },
+          {
+            "key": "increase_payout",
+            "label": "Increase payout by %",
+            "value": true
+          },
+          {
+            "key": "decrease_payout",
+            "label": "Decrease payout by %",
+            "value": true
+          },
+          {
+            "key": "add_payout",
+            "label": "Add to payout",
+            "value": true
+          },
+          {
+            "key": "deduct_payout",
+            "label": "Deduct from payout",
+            "value": true
+          },
+          {
+            "key": "reset_game",
+            "label": "Reset game (full reset)",
+            "value": false
+          }
+        ]
+      }
     },
     {
       "key": "db_write_mode",
@@ -151,7 +321,7 @@
       "aliases": [],
       "default": "dice",
       "live_reload": false,
-      "lane_overridable": false,
+      "lane_overridable": true,
       "help": "Game (dice / limbo / dice-auto / limbo-auto / ...)"
     },
     {
@@ -509,7 +679,7 @@
       "aliases": [],
       "default": "over",
       "live_reload": false,
-      "lane_overridable": false,
+      "lane_overridable": true,
       "help": "Dice rule (over / under)"
     },
     {

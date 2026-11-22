@@ -1191,6 +1191,16 @@
             "title": "Off Allowed",
             "type": "boolean"
           },
+          "rule_options": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuleOptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "type": {
             "enum": [
               "number",
@@ -2334,6 +2344,24 @@
         "title": "NoArgs",
         "type": "object"
       },
+      "Option": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "Option",
+        "type": "object"
+      },
       "PreviewOut": {
         "properties": {
           "base": {
@@ -2586,6 +2614,29 @@
         "title": "RoleOut",
         "type": "object"
       },
+      "RuleAction": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "value"
+        ],
+        "title": "RuleAction",
+        "type": "object"
+      },
       "RuleIn": {
         "additionalProperties": false,
         "properties": {
@@ -2634,6 +2685,71 @@
           "kind"
         ],
         "title": "RuleIn",
+        "type": "object"
+      },
+      "RuleOptions": {
+        "description": "The bot's rule menus, so the rule builder offers exactly what the bot runs.",
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/RuleAction"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "bet_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Bet Fields",
+            "type": "array"
+          },
+          "cond_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Cond Types",
+            "type": "array"
+          },
+          "ops": {
+            "items": {
+              "$ref": "#/components/schemas/Option"
+            },
+            "title": "Ops",
+            "type": "array"
+          },
+          "profit_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Profit Fields",
+            "type": "array"
+          },
+          "seq_modes": {
+            "items": {
+              "$ref": "#/components/schemas/Option"
+            },
+            "title": "Seq Modes",
+            "type": "array"
+          },
+          "seq_triggers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Seq Triggers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cond_types",
+          "seq_modes",
+          "seq_triggers",
+          "profit_fields",
+          "bet_fields",
+          "ops",
+          "actions"
+        ],
+        "title": "RuleOptions",
         "type": "object"
       },
       "RuleOut": {

@@ -66,6 +66,11 @@ def test_writers_get_the_schema_and_saved_values_without_secrets(
     max_loss = next(k for k in body["keys"] if k["key"] == "max_loss")
     assert (max_loss["off_allowed"], max_loss["live_reload"]) == (True, True)
     assert "aliases" not in max_loss
+    assert max_loss["rule_options"] is None
+    rules = next(k for k in body["keys"] if k["key"] == "custom_rules_text")
+    assert rules["rule_options"]["cond_types"] == ["sequence", "profit", "bet"]
+    stop = {"key": "stop", "label": "Stop betting", "value": False}
+    assert stop in rules["rule_options"]["actions"]
     assert body["lane_count"] == 3
     assert body["override_lanes"] == {"min": 2, "max": 10}
     assert body["split_choices"] == ["none", "budget", "bet", "both"]

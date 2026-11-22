@@ -63,6 +63,10 @@ describe('backtest', () => {
 			['profit', '0.5'],
 			['stop', 'none']
 		]);
+		expect(resultRows({ v: 1, mode: 'session', profit: 1e-8 })).toContainEqual([
+			'profit',
+			'0.00000001'
+		]);
 		expect(parseBacktest(['nothing here'])).toBeNull();
 	});
 });

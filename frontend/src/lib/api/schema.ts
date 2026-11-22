@@ -1997,6 +1997,7 @@ export interface components {
 			min?: number | null;
 			/** Off Allowed */
 			off_allowed: boolean;
+			rule_options?: components['schemas']['RuleOptions'] | null;
 			/**
 			 * Type
 			 * @enum {string}
@@ -2379,6 +2380,13 @@ export interface components {
 		};
 		/** NoArgs */
 		NoArgs: Record<string, never>;
+		/** Option */
+		Option: {
+			/** Key */
+			key: string;
+			/** Label */
+			label: string;
+		};
 		/** PreviewOut */
 		PreviewOut: {
 			/** Base */
@@ -2466,6 +2474,15 @@ export interface components {
 			/** Service */
 			service: string | null;
 		};
+		/** RuleAction */
+		RuleAction: {
+			/** Key */
+			key: string;
+			/** Label */
+			label: string;
+			/** Value */
+			value: boolean;
+		};
 		/** RuleIn */
 		RuleIn: {
 			/**
@@ -2487,6 +2504,26 @@ export interface components {
 			params?: {
 				[key: string]: unknown;
 			};
+		};
+		/**
+		 * RuleOptions
+		 * @description The bot's rule menus, so the rule builder offers exactly what the bot runs.
+		 */
+		RuleOptions: {
+			/** Actions */
+			actions: components['schemas']['RuleAction'][];
+			/** Bet Fields */
+			bet_fields: string[];
+			/** Cond Types */
+			cond_types: string[];
+			/** Ops */
+			ops: components['schemas']['Option'][];
+			/** Profit Fields */
+			profit_fields: string[];
+			/** Seq Modes */
+			seq_modes: components['schemas']['Option'][];
+			/** Seq Triggers */
+			seq_triggers: string[];
 		};
 		/** RuleOut */
 		RuleOut: {

@@ -14,6 +14,25 @@ const key = (over: Record<string, unknown>) => ({
 	lane_overridable: true,
 	...over
 });
+const RULE_OPTIONS = {
+	cond_types: ['sequence', 'profit', 'bet'],
+	seq_modes: [
+		{ key: 'every', label: 'Every N (total count)' },
+		{ key: 'every_streak', label: 'Every N in streak (N, 2N, 3N...)' }
+	],
+	seq_triggers: ['win', 'loss', 'bet'],
+	profit_fields: ['profit', 'loss', 'balance'],
+	bet_fields: ['amount', 'number', 'winchance', 'payout'],
+	ops: [
+		{ key: 'gte', label: '>=' },
+		{ key: 'lt', label: '<' }
+	],
+	actions: [
+		{ key: 'reset_amount', label: 'Reset bet amount', value: false },
+		{ key: 'increase_amount', label: 'Increase amount by %', value: true },
+		{ key: 'stop', label: 'Stop betting', value: false }
+	]
+};
 const CONFIG = {
 	keys: [
 		key({ key: 'max_loss', help: 'Stop after this loss', off_allowed: true }),
@@ -26,7 +45,14 @@ const CONFIG = {
 			choices: ['session', 'run'],
 			live_reload: false
 		}),
-		key({ key: 'custom_rules_text', type: 'string', format: 'rules', off_allowed: true })
+		key({ key: 'base_bet' }),
+		key({
+			key: 'custom_rules_text',
+			type: 'string',
+			format: 'rules',
+			off_allowed: true,
+			rule_options: RULE_OPTIONS
+		})
 	],
 	lane_count: 2,
 	override_lanes: { min: 2, max: 10 },
@@ -38,6 +64,7 @@ const CONFIG = {
 		game: 'dice',
 		recurring: false,
 		profit_increment_scope: 'session',
+		base_bet: 0.00000001,
 		custom_rules_text: ''
 	},
 	lanes: { '2': { multiplier: 3 } }
@@ -297,17 +324,71 @@ test('a pasted config fills the form, and only the preview sends it', async ({ p
 	expect(JSON.stringify(sent?.body)).not.toContain('eyJ0eXAi');
 });
 
-test('custom rules are typed in a textarea and sent as one line', async ({ page }) => {
+test('rules JSON typed on the JSON tab is sent as one line', async ({ page }) => {
 	const { posts } = await rig(page, operatorMe);
 	await page.goto('/wolfbet/config');
+	await page.getByRole('tab', { name: 'JSON' }).click();
 	const rules = page.getByLabel('custom_rules_text');
 	await expect(rules).toHaveJSProperty('tagName', 'TEXTAREA');
-	await rules.fill('[\n  {"n": 3}\n]');
+	await rules.fill('[\n  {"cond_type": "sequence"}\n]');
 	await page.getByRole('button', { name: 'Preview' }).click();
 	await expect(page.getByRole('region', { name: 'Changes' })).toBeVisible();
 	expect(posts[0]?.body).toEqual({
-		changes: [{ key: 'custom_rules_text', value: '[ {"n": 3} ]', lane: null }]
+		changes: [{ key: 'custom_rules_text', value: '[ {"cond_type": "sequence"} ]', lane: null }]
 	});
+});
+
+test('a rule built from the menus is sent as the bot saves it', async ({ page }) => {
+	const { posts } = await rig(page, operatorMe);
+	await page.goto('/wolfbet/config');
+	await page.getByRole('button', { name: 'Add rule' }).click();
+	const rule = page.getByRole('list', { name: 'Rules' }).getByRole('listitem').first();
+	await rule.getByLabel('Mode').selectOption('every_streak');
+	await rule.getByLabel('N', { exact: true }).fill('3');
+	await rule.getByLabel('N', { exact: true }).blur();
+	await rule.getByLabel('Event').selectOption('loss');
+	await expect(rule.getByLabel('Action value')).toHaveCount(0);
+	await rule.getByLabel('Action', { exact: true }).selectOption('increase_amount');
+	await rule.getByLabel('Action value').fill('100');
+	await rule.getByLabel('Action value').blur();
+	await expect(
+		rule.getByText('1. Every streak of 3 loss(s) → Increase amount by % 100')
+	).toBeVisible();
+	await page.getByRole('button', { name: 'Preview' }).click();
+	await expect(page.getByRole('region', { name: 'Changes' })).toBeVisible();
+	const [sent] = (posts[0]?.body as { changes: Array<{ value: string }> }).changes;
+	expect(JSON.parse(sent?.value ?? '')).toEqual([
+		{
+			cond_type: 'sequence',
+			cond_field: '',
+			cond_mode: 'every_streak',
+			cond_value: 3,
+			cond_trigger: 'loss',
+			action: 'increase_amount',
+			action_value: 100,
+			description: 'Every streak of 3 loss(s) → Increase amount by % 100'
+		}
+	]);
+});
+
+test('broken rules JSON blocks Preview until it is fixed', async ({ page }) => {
+	const { posts } = await rig(page, operatorMe);
+	await page.goto('/wolfbet/config');
+	await page.getByRole('tab', { name: 'JSON' }).click();
+	await page.getByLabel('custom_rules_text').fill('[{"cond_type": ');
+	await expect(page.getByText('Not valid rules JSON.')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Preview' })).toBeDisabled();
+	await expect(page.getByText('Fix the rules JSON before Preview.')).toBeVisible();
+	await page.getByLabel('custom_rules_text').fill('');
+	await expect(page.getByRole('button', { name: 'Preview' })).toBeDisabled();
+	expect(posts).toEqual([]);
+});
+
+test('a tiny base bet reads as a decimal and is not a change', async ({ page }) => {
+	await rig(page, operatorMe);
+	await page.goto('/wolfbet/config');
+	await expect(page.getByLabel('base_bet')).toHaveValue('0.00000001');
+	await expect(page.getByText('No changes.')).toBeVisible();
 });
 
 test('a lane card link opens that lane tab', async ({ page }) => {

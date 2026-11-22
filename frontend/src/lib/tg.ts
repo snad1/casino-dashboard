@@ -1,3 +1,4 @@
+import { plainText } from './format';
 import { can, type Me } from './permissions';
 
 /** The Telegram bot's service name, whose live topics are one per user. */
@@ -61,7 +62,7 @@ export function settingLabel(key: string): string {
 export function settingValue(value: unknown): string {
 	if (value === null || value === undefined || value === '') return 'Not set';
 	if (typeof value === 'object') return JSON.stringify(value);
-	return String(value);
+	return plainText(value);
 }
 
 export const ACTION_COPY: Record<TgAction, { label: string; title: string; body: string }> = {
