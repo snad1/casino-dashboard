@@ -1,0 +1,86 @@
+name: images
+
+# Release images for wolfbet-dashboard. On a push to feat/casino-dashboard: wait for this
+# commit's ci run and stop unless it passed, then build the api, caddy and redis images and
+# push them to GHCR as <sha> and latest. Coolify deploys on its own GitHub webhook and pulls
+# :latest, so a deploy runs the newest images that finished building (workflow_run would only
+# fire from the default branch, which never carries dashboard work).
+
+on:
+  push:
+    branches: [feat/casino-dashboard]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  actions: read
+
+concurrency:
+  group: images-wolfbet-dashboard
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io/snad1
+  SHA: ${{ github.sha }}
+
+jobs:
+  ci-passed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Wait for this commit's ci run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for _ in $(seq 240); do
+            run=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$SHA&event=push" \
+              --jq '.workflow_runs[0] | "\(.status) \(.conclusion)"')
+            case "$run" in
+              "completed success") echo "ci passed for $SHA"; exit 0 ;;
+              completed*) echo "ci $run for $SHA; not deploying"; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "ci did not finish for $SHA"; exit 1
+
+  images:
+    needs: ci-passed
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SHA }}
+          persist-credentials: false
+
+      - name: Sign in to GHCR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push the api image
+        run: |
+          docker buildx build --push \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.revision=$SHA" \
+            -t "$REGISTRY/casino-dashboard-api:$SHA" -t "$REGISTRY/casino-dashboard-api:latest" \
+            backend
+
+      - name: Build and push the caddy image
+        run: |
+          docker buildx build --push \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.revision=$SHA" \
+            -t "$REGISTRY/casino-dashboard-caddy:$SHA" -t "$REGISTRY/casino-dashboard-caddy:latest" \
+            --build-context deploy=deploy \
+            -f deploy/caddy/Dockerfile frontend
+
+      - name: Build and push the redis image
+        run: |
+          docker buildx build --push \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.revision=$SHA" \
+            -t "$REGISTRY/casino-dashboard-redis:$SHA" -t "$REGISTRY/casino-dashboard-redis:latest" \
+            deploy/redis

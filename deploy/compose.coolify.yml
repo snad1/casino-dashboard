@@ -1,7 +1,7 @@
 # The Coolify deployment's source of truth; compose.yml is the host-only fallback.
 # Coolify copies no file besides this one and pulls every image before starting, so the app,
 # caddy and redis images come from GHCR with their config baked in (built and pushed by
-# .github/workflows/deploy.yml, tag IMAGE_TAG = commit sha), and every bind source is an
+# .github/workflows/images.yml; IMAGE_TAG is latest, or a sha to roll back), and every bind source is an
 # absolute host path: Coolify rejects ${VAR} in volume sources.
 name: ${COMPOSE_PROJECT_NAME:-wolfbet-dashboard}
 
