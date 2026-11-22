@@ -26,7 +26,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.models import Role, TgLoginToken, User, UserRole
+from app.auth.models import AuditActor, Role, TgLoginToken, User, UserRole
 from app.auth.ratelimit import check_login_rate
 from app.auth.sessions import (
     SESSION_COOKIE,
@@ -125,4 +125,4 @@ async def telegram_login(
     raw = await new_session(db, user.id, ip, request.headers.get("user-agent"))
     await db.commit()
     set_session_cookie(response, raw)
-    request.state.audit_actor = user
+    request.state.audit_actor = AuditActor.of(user)

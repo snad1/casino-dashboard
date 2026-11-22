@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Mapped, mapped_column
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.auth.models import User
+from app.auth.models import AuditActor, User
 from app.auth.permissions import Perm, require, roles_for
 from app.db.engine import get_session
 from app.db.models import Base
@@ -202,7 +202,7 @@ class AuditMiddleware:
             route = scope.get("route")
             path = getattr(route, "path_format", None) or scope["path"]
             path_params: dict[str, Any] = scope.get("path_params", {})
-            actor: User | None = scope.get("state", {}).get("audit_actor")
+            actor: AuditActor | None = scope.get("state", {}).get("audit_actor")
             service = path_params.get("service")
             roles = None
             if actor is not None:

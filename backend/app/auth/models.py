@@ -1,5 +1,6 @@
 """Users, per-service roles, and the credential tables the login, 2FA and invite flows use."""
 
+from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from ipaddress import IPv4Address, IPv6Address
@@ -73,6 +74,19 @@ class User(Base):
         BigInteger, ForeignKey("users.id", ondelete="SET NULL")
     )
     created_at: Mapped[datetime] = _created_at()
+
+
+@dataclass(frozen=True)
+class AuditActor:
+    """Who made the request, copied while the user row is still loaded: the audit row is
+    written after the request's session has closed, and a rollback expires the ORM row."""
+
+    id: int
+    email: str | None
+
+    @classmethod
+    def of(cls, user: User) -> "AuditActor":
+        return cls(user.id, user.email)
 
 
 class UserRole(Base):

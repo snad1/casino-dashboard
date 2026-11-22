@@ -13,7 +13,7 @@ from fastapi import Depends, HTTPException, Request, Response, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.models import ApiSession, User
+from app.auth.models import ApiSession, AuditActor, User
 from app.db.engine import get_session
 
 SESSION_COOKIE = "__Host-sid"
@@ -136,5 +136,5 @@ async def current_user(request: Request, db: Annotated[AsyncSession, Depends(get
     session, user = loaded
     request.state.session_id = raw
     request.state.api_session = session
-    request.state.audit_actor = user
+    request.state.audit_actor = AuditActor.of(user)
     return user

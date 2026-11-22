@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
-from app.auth.models import User, UserRole
+from app.auth.models import AuditActor, User, UserRole
 from app.auth.passwords import dummy_verify, verify_password
 from app.auth.ratelimit import check_login_rate
 from app.auth.sessions import (
@@ -112,7 +112,7 @@ async def login(body: LoginIn, request: Request, response: Response, db: Db) -> 
     enqueue(db, user.email, notice)
     await db.commit()
     set_session_cookie(response, raw)
-    request.state.audit_actor = user
+    request.state.audit_actor = AuditActor.of(user)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

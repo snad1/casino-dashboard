@@ -95,6 +95,28 @@ class TestRows:
         rows = _rows_by_agent(app_settings, agent)
         assert [(r.result, r.actor_id) for r in rows] == [("401", None), ("403", None)]
 
+    def test_a_signed_in_request_that_the_handler_refuses_names_the_actor(
+        self, app_settings: Settings, account: Account
+    ) -> None:
+        agent = f"refused-{uuid.uuid4().hex}"
+        with make_client(app_settings) as client:
+            body = {"email": account.email, "password": PASSWORD}
+            assert client.post("/auth/login", json=body).status_code == 204
+            token = client.get("/auth/me").json()["csrf_token"]
+            response = client.post(
+                "/auth/totp/verify",
+                json={"code": "000000"},
+                headers={"x-csrf-token": token, "user-agent": agent},
+            )
+            assert response.status_code == 409
+        [row] = _rows_by_agent(app_settings, agent)
+        assert (row.result, row.actor_id, row.actor_email, row.roles) == (
+            "409",
+            account.id,
+            account.email,
+            "viewer",
+        )
+
     def test_codes_and_nested_secrets_are_redacted(self, app_settings: Settings) -> None:
         agent = f"redact-{uuid.uuid4().hex}"
         args = {"code": "123456", "nested": {"api_key": "k", "keep": 1}, "email": "a@b.test"}
