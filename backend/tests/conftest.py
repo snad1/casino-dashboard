@@ -171,11 +171,15 @@ def redis_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[RedisServ
     dashboard_password = secrets.token_urlsafe(48)
     publisher_password = secrets.token_urlsafe(48)
     acl_dir = tmp_path_factory.mktemp("redis-acl")
-    (acl_dir / "users.acl").write_text(
+    acl_file = acl_dir / "users.acl"
+    acl_file.write_text(
         ACL_TEMPLATE.read_text()
         .replace("PUBLISHER_HASH", _sha256(publisher_password))
         .replace("DASHBOARD_HASH", _sha256(dashboard_password))
     )
+    # Redis runs as uid 999; on a Linux host it cannot read pytest's private 0700 temp dir.
+    acl_dir.chmod(0o755)
+    acl_file.chmod(0o644)
     container = (
         DockerContainer(compose_image(REDIS_SERVICE))
         .with_exposed_ports(6379)

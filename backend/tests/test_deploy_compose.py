@@ -82,14 +82,15 @@ def test_app_containers_are_locked_down(compose: dict[str, Any], name: str) -> N
 
 
 def test_nothing_is_public_and_redis_stays_on_loopback(compose: dict[str, Any]) -> None:
-    """Coolify's proxy owns 80/443 and reaches caddy over its network; the host publishes
-    only Redis, on loopback, for the bot daemon."""
+    """The host nginx owns 80/443 and reaches caddy on loopback; Redis is on loopback for the
+    bot daemon. Nothing else is published, and the defaults never leave 127.0.0.1."""
+    expected = {
+        "redis": ["${REDIS_PUBLISH:-127.0.0.1:9479:6379}"],
+        "caddy": ["${CADDY_PUBLISH:-127.0.0.1:9441:8080}"],
+    }
     for name in SERVICES:
         ports = _service(compose, name).get("ports", [])
-        if name == "redis":
-            assert ports == ["127.0.0.1:6379:6379"]
-        else:
-            assert ports == [], f"{name} publishes {ports}"
+        assert ports == expected.get(name, []), f"{name} publishes {ports}"
 
 
 @pytest.mark.parametrize("name", NEEDS_MIGRATION)

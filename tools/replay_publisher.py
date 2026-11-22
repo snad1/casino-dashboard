@@ -124,7 +124,12 @@ def _text(value: bytes | str) -> str:
 
 async def record(redis: Redis, seconds: float) -> list[Recorded]:
     """Every entry the streams receive during the next `seconds`, with offsets from the first."""
-    last = {stream: "$" for stream in STREAMS}
+    # Pinned to each stream's current last id: re-reading `$` would skip entries that land
+    # between two reads on a stream that has not had one yet.
+    last: dict[str, str] = {}
+    for stream in STREAMS:
+        newest: Any = await redis.xrevrange(stream, count=1)
+        last[stream] = _text(newest[0][0]) if newest else "0-0"
     entries: list[tuple[int, str, dict[str, Any]]] = []
     deadline = time.monotonic() + seconds
     while (left := deadline - time.monotonic()) > 0:
@@ -141,7 +146,8 @@ async def record(redis: Redis, seconds: float) -> list[Recorded]:
     if not entries:
         return []
     first = min(ms for ms, _, _ in entries)
-    return [Recorded(name, ms - first, data) for ms, name, data in sorted(entries)]
+    ordered = sorted(entries, key=lambda entry: entry[:2])
+    return [Recorded(name, ms - first, data) for ms, name, data in ordered]
 
 
 def dump(records: Iterable[Recorded], path: Path) -> None:
