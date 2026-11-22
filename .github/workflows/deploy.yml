@@ -1,21 +1,21 @@
 name: deploy
 
 # Push-to-deploy for wolfbet-dashboard, with Coolify as the system of record.
-# Runs after a green ci on feat/casino-dashboard: build both images, push them to GHCR as
-# <sha> and latest, point Coolify's IMAGE_TAG at the sha, deploy, wait until every container
-# is healthy, then check the public health endpoints. A failed migration keeps api, ingest
-# and mailer from starting, so the app never turns healthy and this run fails.
+# On a push to feat/casino-dashboard: wait for this commit's ci run and stop unless it passed,
+# build both images, push them to GHCR as <sha> and latest, point Coolify's IMAGE_TAG at the
+# sha, deploy, wait until every container is healthy, then check the public health endpoints.
+# A failed migration keeps api, ingest and mailer from starting, so the app never turns
+# healthy and this run fails. (workflow_run would only fire from the default branch.)
 
 on:
-  workflow_run:
-    workflows: [ci]
-    types: [completed]
+  push:
     branches: [feat/casino-dashboard]
   workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
+  actions: read
 
 concurrency:
   group: deploy-wolfbet-dashboard
@@ -23,14 +23,33 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io/snad1
-  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  SHA: ${{ github.sha }}
   COOLIFY_URL: ${{ vars.COOLIFY_URL }}
   COOLIFY_APP_UUID: ${{ vars.COOLIFY_APP_UUID }}
   PUBLIC_URL: ${{ vars.PUBLIC_URL }}
 
 jobs:
+  ci-passed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Wait for this commit's ci run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for _ in $(seq 240); do
+            run=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$SHA&event=push" \
+              --jq '.workflow_runs[0] | "\(.status) \(.conclusion)"')
+            case "$run" in
+              "completed success") echo "ci passed for $SHA"; exit 0 ;;
+              completed*) echo "ci $run for $SHA; not deploying"; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "ci did not finish for $SHA"; exit 1
+
   images:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    needs: ci-passed
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
