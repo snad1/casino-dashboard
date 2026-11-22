@@ -101,7 +101,11 @@ def test_app_services_start_only_after_migrations(compose: dict[str, Any], name:
 
 def test_caddy_image_carries_the_spa(compose: dict[str, Any]) -> None:
     caddy = _service(compose, "caddy")
-    assert caddy["build"] == {"context": "../frontend", "dockerfile": "../deploy/caddy/Dockerfile"}
+    assert caddy["build"] == {
+        "context": "../frontend",
+        "dockerfile": "../deploy/caddy/Dockerfile",
+        "additional_contexts": {"deploy": "."},
+    }
     assert not any("frontend/build" in str(v) for v in caddy["volumes"])
     dockerfile = (DEPLOY / "caddy" / "Dockerfile").read_text()
     assert "pnpm install --frozen-lockfile" in dockerfile
@@ -321,7 +325,7 @@ def test_the_coolify_variant_runs_the_same_services(coolify: dict[str, Any]) -> 
 
 def test_the_coolify_variant_pulls_every_image_from_a_registry(coolify: dict[str, Any]) -> None:
     """Coolify pulls before it starts anything and never builds from the repo."""
-    app = re.compile(r"ghcr\.io/snad1/casino-dashboard-(api|caddy):\$\{IMAGE_TAG:-latest\}")
+    app = re.compile(r"ghcr\.io/snad1/casino-dashboard-(api|caddy|redis):\$\{IMAGE_TAG:-latest\}")
     upstream = re.compile(r"[a-z0-9/._-]+:\d[\w.-]*")
     for name, service in coolify["services"].items():
         assert "build" not in service, name
@@ -330,13 +334,14 @@ def test_the_coolify_variant_pulls_every_image_from_a_registry(coolify: dict[str
         assert not image.endswith(":local"), name
 
 
-def test_the_coolify_variant_binds_only_literal_paths(coolify: dict[str, Any]) -> None:
+def test_the_coolify_variant_binds_only_absolute_host_paths(coolify: dict[str, Any]) -> None:
+    """Coolify copies no repo file, so a relative bind would mount an empty directory."""
     named = set(coolify.get("volumes", {}))
     for name, service in coolify["services"].items():
         for mount in service.get("volumes", []):
             source = mount.split(":", 1)[0]
             assert "${" not in source, f"{name}: {mount}"
-            assert source in named or source.startswith(("/", "./")), f"{name}: {mount}"
+            assert source in named or source.startswith("/"), f"{name}: {mount}"
     for name, secret in coolify["secrets"].items():
         assert secret["file"].startswith("/opt/wolfbet/secrets/"), name
 
@@ -351,3 +356,11 @@ def test_coolify_ignores_the_finished_migration_and_waits_for_it(coolify: dict[s
     for name in NEEDS_MIGRATION:
         wait = _service(coolify, name)["depends_on"]["migrate"]
         assert wait == {"condition": "service_completed_successfully"}, name
+
+
+def test_the_config_files_coolify_cannot_copy_are_baked_into_the_images() -> None:
+    caddy = (DEPLOY / "caddy" / "Dockerfile").read_text()
+    assert "COPY --from=deploy Caddyfile /etc/caddy/Caddyfile" in caddy
+    redis = (DEPLOY / "redis" / "Dockerfile").read_text()
+    assert "FROM redis:7.4.12-alpine" in redis
+    assert "COPY entrypoint.sh users.acl.tmpl /etc/redis/" in redis

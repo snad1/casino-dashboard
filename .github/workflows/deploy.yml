@@ -2,7 +2,7 @@ name: deploy
 
 # Push-to-deploy for wolfbet-dashboard, with Coolify as the system of record.
 # On a push to feat/casino-dashboard: wait for this commit's ci run and stop unless it passed,
-# build both images, push them to GHCR as <sha> and latest, point Coolify's IMAGE_TAG at the
+# build the api, caddy and redis images, push them to GHCR as <sha> and latest, point Coolify's IMAGE_TAG at the
 # sha, deploy, wait until every container is healthy, then check the public health endpoints.
 # A failed migration keeps api, ingest and mailer from starting, so the app never turns
 # healthy and this run fails. (workflow_run would only fire from the default branch.)
@@ -78,7 +78,16 @@ jobs:
             --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
             --label "org.opencontainers.image.revision=$SHA" \
             -t "$REGISTRY/casino-dashboard-caddy:$SHA" -t "$REGISTRY/casino-dashboard-caddy:latest" \
+            --build-context deploy=deploy \
             -f deploy/caddy/Dockerfile frontend
+
+      - name: Build and push the redis image
+        run: |
+          docker buildx build --push \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.revision=$SHA" \
+            -t "$REGISTRY/casino-dashboard-redis:$SHA" -t "$REGISTRY/casino-dashboard-redis:latest" \
+            deploy/redis
 
   coolify:
     needs: images

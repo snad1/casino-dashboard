@@ -1,7 +1,8 @@
 # The Coolify deployment's source of truth; compose.yml is the host-only fallback.
-# Coolify copies only this directory and pulls every image before starting, so the app images
-# come from GHCR (built and pushed by .github/workflows/deploy.yml, tag IMAGE_TAG = commit sha)
-# and every host path is literal: Coolify rejects ${VAR} in volume sources.
+# Coolify copies no file besides this one and pulls every image before starting, so the app,
+# caddy and redis images come from GHCR with their config baked in (built and pushed by
+# .github/workflows/deploy.yml, tag IMAGE_TAG = commit sha), and every bind source is an
+# absolute host path: Coolify rejects ${VAR} in volume sources.
 name: ${COMPOSE_PROJECT_NAME:-wolfbet-dashboard}
 
 x-hardening: &hardening
@@ -64,7 +65,7 @@ services:
 
   redis:
     <<: *hardening
-    image: redis:7.4.12-alpine
+    image: ghcr.io/snad1/casino-dashboard-redis:${IMAGE_TAG:-latest}
     cpus: 0.25
     mem_limit: 320m
     read_only: true
@@ -77,9 +78,6 @@ services:
     secrets:
       - redis_publisher_password
       - redis_dashboard_password
-    volumes:
-      - ./redis/users.acl.tmpl:/etc/redis/users.acl.tmpl:ro
-      - ./redis/entrypoint.sh:/etc/redis/entrypoint.sh:ro
     ports:
       - "127.0.0.1:9479:6379"
     networks:
@@ -240,7 +238,6 @@ services:
     ports:
       - "127.0.0.1:9441:8080"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
