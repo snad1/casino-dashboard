@@ -9,11 +9,11 @@ Every control button goes through `POST /{service}/control/<action>`. `test_ever
 | Command | Dashboard | Role | Tests |
 |---|---|---|---|
 | `setup` | N/A. The first-run wizard asks for the api key and writes `.env`, so it stays on the host. Web terminal | owner | `backend/tests/test_terminal.py::test_the_owner_opens_the_terminal` |
-| `start` | Control > Service "Start" | operator | `agent/tests/test_wolfbet_commands.py::test_argv`; `backend/tests/test_control_api.py::test_every_action_for_every_role` |
-| `stop` | Control > Service "Stop" | operator | `agent/tests/test_wolfbet_commands.py::test_argv`; `backend/tests/test_control_api.py::test_every_action_for_every_role` |
+| `start` | Control > Service "Start"; `start K`: a lane card's "Start" (lanes 2+) | operator | `agent/tests/test_wolfbet_commands.py::test_argv`; `backend/tests/test_control_api.py::test_every_action_for_every_role` |
+| `stop` | Control > Service "Stop"; `stop K`: a lane card's "Stop" (lanes 2+) | operator | `agent/tests/test_wolfbet_commands.py::test_argv`; `backend/tests/test_control_api.py::test_every_action_for_every_role`; `frontend/e2e/control.spec.ts::a lane card pauses or stops only its own lane` |
 | `restart` | Control > Service "Restart" (runs as a job with live output) | operator | `agent/tests/test_wolfbet_commands.py::test_argv`; `backend/tests/test_control_api.py::test_every_action_for_every_role` |
 | `status` | Live page: one card per lane with state, bets and stop reason | viewer | `backend/tests/test_resync.py::test_restart_mid_session_shows_the_running_totals`; `frontend/e2e/panels.spec.ts::each lane gets a card with its state, bet sizes and stop reason` |
-| `pause` | Control > Lanes "Pause" (all lanes or one); the header kill switch | operator | `backend/tests/test_control_api.py::test_every_action_for_every_role`; `frontend/e2e/control.spec.ts::an operator pauses and resumes a lane and cannot reach the danger zone`; `frontend/e2e/control.spec.ts::the header kill switch pauses every lane from the live page` |
+| `pause` | Control > Lanes "Pause" (all lanes or one); a lane card's "Pause"; the Lanes toolbar "Pause all" | operator | `backend/tests/test_control_api.py::test_every_action_for_every_role`; `frontend/e2e/control.spec.ts::an operator pauses and resumes a lane and cannot reach the danger zone`; `frontend/e2e/control.spec.ts::the Lanes toolbar pauses every lane, and the header has no kill switch` |
 | `resume` | Control > Lanes "Resume" | operator | `backend/tests/test_control_api.py::test_every_action_for_every_role`; `frontend/e2e/control.spec.ts::an operator pauses and resumes a lane and cannot reach the danger zone` |
 | `reload` | Control > Lanes "Reload" | operator | `agent/tests/test_wolfbet_commands.py::test_argv`; `backend/tests/test_control_api.py::test_every_action_for_every_role` |
 | `monitor` | Live page: lanes, chart, bet tape, streaks and the system panel, updated over the socket | viewer | `frontend/e2e/live.spec.ts::the header shows live totals and each lane state, and follows ticks`; `frontend/e2e/panels.spec.ts::the system panel shows host, units, drops and history lag` |
@@ -46,7 +46,7 @@ Every control button goes through `POST /{service}/control/<action>`. `test_ever
 | `web` | N/A. The old web was removed; its pages moved to the dashboard (`docs/parity/old-web.md`). `web remove` clears a leftover unit on the host: web terminal | owner | `backend/tests/test_terminal.py::test_the_owner_opens_the_terminal` |
 | `dash` | N/A. It installs and runs this dashboard, so it stays on the host | owner | `backend/tests/test_terminal.py::test_the_owner_opens_the_terminal` |
 | `start-all` | Control > Services "Start all" | operator | `backend/tests/test_control_api.py::test_side_unit_and_all_service_actions_send_their_wolfctl_commands` |
-| `stop-all` | Control > Danger zone "Stop all"; the header kill switch | admin | `agent/tests/test_wolfbet_commands.py::test_argv`; `backend/tests/test_control_api.py::test_every_action_for_every_role` |
+| `stop-all` | Control > Danger zone "Stop all"; the Lanes toolbar "Stop all" | admin | `agent/tests/test_wolfbet_commands.py::test_argv`; `backend/tests/test_control_api.py::test_every_action_for_every_role` |
 | `status-all` | Control > Services "Check" | operator | `backend/tests/test_control_api.py::test_side_unit_and_all_service_actions_send_their_wolfctl_commands`; `frontend/e2e/control.spec.ts::an operator restarts the Telegram bot and checks every service` |
 | `help` | N/A. Prints the command list | | |
 
