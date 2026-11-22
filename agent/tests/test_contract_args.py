@@ -14,6 +14,8 @@ CONTRACT = Path(__file__).resolve().parents[2] / "contracts/schemas/agent-wolfbe
 CONTROL_COMMANDS = (
     "start",
     "stop",
+    "lane_stop",
+    "lane_start",
     "pause",
     "resume",
     "reload",

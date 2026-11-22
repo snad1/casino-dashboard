@@ -28,6 +28,8 @@ ARGS_CONTRACT = Path(__file__).resolve().parents[2] / "contracts/schemas/agent-w
 BODIES: dict[str, dict[str, Any]] = {
     "pause": {"target": "all"},
     "resume": {"target": 2},
+    "lane_stop": {"lane": 2},
+    "lane_start": {"lane": 3},
     "reload": {},
     "config_set": {
         "changes": [
@@ -49,6 +51,8 @@ ALLOWED: dict[Role, set[str]] = {
     Role.OPERATOR: {
         "start",
         "stop",
+        "lane_stop",
+        "lane_start",
         "pause",
         "resume",
         "reload",
@@ -233,6 +237,8 @@ def test_bad_branch_and_lane_count_are_refused(signed_in_as: Any, fake_agent: Fa
     assert _post(client, "update", {"branch": "--upload-pack=x"}).status_code == 422
     assert _post(client, "update", {"branch": "a/../b"}).status_code == 422
     assert _post(client, "lanes", {"count": 11}).status_code == 422
+    for lane in (1, 11, "2"):
+        assert _post(client, "lane_stop", {"lane": lane}).status_code == 422
     assert fake_agent.calls == []
 
 

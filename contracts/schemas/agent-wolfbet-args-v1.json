@@ -222,6 +222,40 @@
     "title": "ExportArgs",
     "type": "object"
   },
+  "lane_start": {
+    "additionalProperties": false,
+    "description": "One lane above lane 1, which is the main service and stops only with every lane.",
+    "properties": {
+      "lane": {
+        "maximum": 10,
+        "minimum": 2,
+        "title": "Lane",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "lane"
+    ],
+    "title": "ExtraLaneArgs",
+    "type": "object"
+  },
+  "lane_stop": {
+    "additionalProperties": false,
+    "description": "One lane above lane 1, which is the main service and stops only with every lane.",
+    "properties": {
+      "lane": {
+        "maximum": 10,
+        "minimum": 2,
+        "title": "Lane",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "lane"
+    ],
+    "title": "ExtraLaneArgs",
+    "type": "object"
+  },
   "lanes": {
     "additionalProperties": false,
     "properties": {

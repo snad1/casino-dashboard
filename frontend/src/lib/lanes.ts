@@ -1,5 +1,6 @@
 import type { ConfigOut } from '#lib/config';
-import type { Lanes } from '#lib/live/protocol';
+import type { ActionBody, ActionName } from '#lib/control';
+import type { Lanes, LaneStatus } from '#lib/live/protocol';
 
 export type Split = 'none' | 'budget' | 'bet' | 'both';
 
@@ -95,4 +96,39 @@ export function parseArchives(text: string): { rows: Archive[]; total: string | 
 		if (sum) total = sum[1] ?? null;
 	}
 	return { rows, total };
+}
+
+export interface LaneAction {
+	name: ActionName;
+	body: ActionBody;
+	label: string;
+	danger?: boolean;
+}
+
+/**
+ * The buttons a lane card offers for its live status. Lane 1 is the main service, so it has no
+ * Stop or Start of its own: the Lanes toolbar's Stop all and the Control page cover it.
+ */
+export function laneActions(n: number, status: LaneStatus): LaneAction[] {
+	const extra = n >= 2;
+	const pause: LaneAction = { name: 'pause', body: { target: n }, label: 'Pause' };
+	const resume: LaneAction = { name: 'resume', body: { target: n }, label: 'Resume' };
+	const stop: LaneAction = { name: 'lane_stop', body: { lane: n }, label: 'Stop', danger: true };
+	const start: LaneAction = { name: 'lane_start', body: { lane: n }, label: 'Start' };
+	const withStop = (actions: LaneAction[]) => (extra ? [...actions, stop] : actions);
+	switch (status) {
+		case 'running':
+			return withStop([pause]);
+		case 'paused':
+			return withStop([resume]);
+		case 'events_off':
+			return withStop([pause, resume]);
+		default:
+			return extra ? [start] : [];
+	}
+}
+
+/** The Config page tab that edits lane `n`: lane 1 is the base config. */
+export function configTab(n: number): string {
+	return n <= 1 ? 'base' : String(n);
 }

@@ -1,8 +1,20 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { formatAmount, formatProfit } from '#lib/format';
+	import { configTab, laneActions } from '#lib/lanes';
 	import type { LaneFields, LaneStatus } from '#lib/live/protocol';
+	import ActionButton from './ActionButton.svelte';
 
-	let { n, lane }: { n: number; lane: LaneFields } = $props();
+	let {
+		n,
+		lane,
+		service
+	}: {
+		n: number;
+		lane: LaneFields;
+		/** Set on a service's own dashboard: the card then controls and configures its lane. */
+		service?: string;
+	} = $props();
 
 	const WORDS: Record<LaneStatus, string> = {
 		running: 'Running',
@@ -61,5 +73,23 @@
 	</dl>
 	{#if lane.stop_reason}
 		<p class="text-xs text-warn">Stopped: {lane.stop_reason}</p>
+	{/if}
+	{#if service}
+		<footer class="flex flex-wrap items-end gap-2 border-t border-line pt-2">
+			{#each laneActions(n, status) as action (action.name)}
+				<ActionButton
+					name={action.name}
+					body={action.body}
+					label={action.label}
+					danger={action.danger}
+					compact
+				/>
+			{/each}
+			<a
+				class="ml-auto text-xs text-muted underline"
+				href="{resolve('/(app)/[service=service]/config', { service })}?tab={configTab(n)}"
+				aria-label="Configure lane {n}">Configure</a
+			>
+		</footer>
 	{/if}
 </article>

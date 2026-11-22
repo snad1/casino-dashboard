@@ -2,7 +2,6 @@
 	import type { Snippet } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import KillSwitch from '#components/KillSwitch';
 	import Ticker from '#components/Ticker';
 	import { liveFor } from '#lib/live/index';
 	import { can } from '#lib/permissions';
@@ -95,9 +94,6 @@
 			<span class="font-semibold">Casino dashboard</span>
 		{/if}
 		<div class="flex items-center gap-3 text-sm">
-			{#if page.params.service}
-				<KillSwitch />
-			{/if}
 			<a href={resolve('/(app)/totp')} class="hidden text-muted underline sm:inline"
 				>{session.me?.email ?? 'Telegram user'}</a
 			>

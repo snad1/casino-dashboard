@@ -65,6 +65,12 @@ class TargetArgs(Args):
     target: LaneTarget = "all"
 
 
+class ExtraLaneArgs(Args):
+    """One lane above lane 1, which is the main service and stops only with every lane."""
+
+    lane: int = Field(ge=2, le=LANES_MAX)
+
+
 class LanesArgs(Args):
     count: Lane
     split: Literal["none", "budget", "bet", "both"] | None = None
@@ -235,6 +241,25 @@ ACTIONS: dict[str, ControlAction] = {
         title="Stop {service}?",
         effect="All lanes stop after their current bet. Open sessions are saved.",
         confirm="Stop",
+    ),
+    "lane_stop": ControlAction(
+        _BASIC,
+        "lane_stop",
+        ExtraLaneArgs,
+        label="Stop",
+        title="Stop lane {lane}?",
+        effect="Lane {lane} stops after its current bet and its session is saved. Other lanes "
+        "keep betting. Start or Restart brings it back.",
+        confirm="Stop lane {lane}",
+    ),
+    "lane_start": ControlAction(
+        _BASIC,
+        "lane_start",
+        ExtraLaneArgs,
+        label="Start",
+        title="Start lane {lane}?",
+        effect="Lane {lane} starts betting again with its saved config.",
+        confirm="Start lane {lane}",
     ),
     "pause": ControlAction(
         _BASIC,

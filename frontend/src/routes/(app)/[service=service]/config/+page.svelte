@@ -69,6 +69,8 @@
 			);
 			config = loaded;
 			loadError = null;
+			const tab = page.url.searchParams.get('tab');
+			if (tab && [BASE, ...laneScopes(loaded)].includes(tab)) scope = tab;
 		} catch (e) {
 			loadError = e instanceof ApiError ? e.detail : String(e);
 		}

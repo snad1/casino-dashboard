@@ -1,8 +1,10 @@
 import type { components } from '#lib/api/schema';
 import { parseEpoch } from '#lib/epochs';
+import { formatAmount } from '#lib/format';
 
 export type AnalyticsOut = components['schemas']['AnalyticsOut'];
 export type Report = AnalyticsOut['report'];
+export type SessionStats = AnalyticsOut['sessions'];
 
 export const LANES = Array.from({ length: 10 }, (_, i) => i + 1);
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -81,4 +83,21 @@ export function formatTime(value: string | null | undefined): string {
 
 export function hourLabel(hour: number): string {
 	return `${String(hour).padStart(2, '0')}:00`;
+}
+
+const avg = (value: number) => value.toFixed(1);
+
+/** The bot's `--stats` totals as Overall rows, worded the way the CLI prints them. */
+export function sessionStatRows(stats: SessionStats): Array<[string, string]> {
+	return [
+		['Best streaks', `W+${stats.best_win_streak} L-${stats.best_loss_streak}`],
+		['Bets/Session', `Max ${formatCount(stats.max_bets)} Avg ${Math.round(stats.avg_bets)}`],
+		['Wins/Session', `Max ${formatCount(stats.max_wins)} Avg ${avg(stats.avg_wins)}`],
+		['Losses/Session', `Max ${formatCount(stats.max_losses)} Avg ${avg(stats.avg_losses)}`],
+		['Peak balance', stats.peak_balance === null ? 'n/a' : formatAmount(stats.peak_balance)],
+		[
+			'Speed',
+			`${avg(stats.avg_bps)} avg/s ${Math.round(stats.avg_bpm)} avg/m Peak: ${Math.round(stats.peak_bps)}/s ${Math.round(stats.peak_bpm)}/m`
+		]
+	];
 }

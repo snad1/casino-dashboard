@@ -220,10 +220,12 @@ test('a busy agent shows its message as a toast', async ({ page }) => {
 	await expect(page.getByText(BUSY)).toBeVisible();
 });
 
-test('the header kill switch pauses every lane from the live page', async ({ page }) => {
+test('the Lanes toolbar pauses every lane, and the header has no kill switch', async ({ page }) => {
 	const sent = await rig(page, operatorMe, { 'POST /wolfbet/control/pause': () => done });
 	await page.goto('/wolfbet');
-	const killSwitch = page.getByRole('group', { name: 'Kill switch' });
+	await expect(page.getByRole('banner').getByRole('button', { name: 'Pause all' })).toHaveCount(0);
+	const killSwitch = page.getByRole('group', { name: 'All lanes' });
+	await expect(killSwitch.getByRole('button', { name: 'Resume all' })).toBeVisible();
 	await expect(killSwitch.getByRole('button', { name: 'Stop all' })).toBeDisabled();
 	await killSwitch.getByRole('button', { name: 'Pause all' }).click();
 	await page
@@ -232,4 +234,38 @@ test('the header kill switch pauses every lane from the live page', async ({ pag
 		.click();
 	await expect(page.getByText('Pause all lanes: done.')).toBeVisible();
 	expect(sent.map((s) => s.body)).toEqual([{ target: 'all' }]);
+});
+
+test('a lane card pauses or stops only its own lane', async ({ page }) => {
+	const sent = await rig(page, operatorMe, {
+		'POST /wolfbet/control/pause': () => done,
+		'POST /wolfbet/control/lane_stop': () => done
+	});
+	await page.goto('/wolfbet');
+	const one = page.getByRole('article', { name: 'Lane 1' });
+	const two = page.getByRole('article', { name: 'Lane 2' });
+	await expect(one.getByRole('button', { name: 'Pause' })).toBeVisible();
+	await expect(one.getByRole('button', { name: 'Stop' })).toHaveCount(0);
+	await expect(two.getByRole('button', { name: 'Resume' })).toBeVisible();
+	await expect(two.getByRole('link', { name: 'Configure lane 2' })).toHaveAttribute(
+		'href',
+		'/wolfbet/config?tab=2'
+	);
+
+	await one.getByRole('button', { name: 'Pause' }).click();
+	await page
+		.getByRole('dialog')
+		.getByRole('button', { name: /^Pause/ })
+		.click();
+	await two.getByRole('button', { name: 'Stop' }).click();
+	await page
+		.getByRole('dialog', { name: 'Stop lane 2?' })
+		.getByRole('button', { name: 'Stop lane 2' })
+		.click();
+	await expect
+		.poll(() => sent.map((s) => [s.path, s.body]))
+		.toEqual([
+			['/wolfbet/control/pause', { target: 1 }],
+			['/wolfbet/control/lane_stop', { lane: 2 }]
+		]);
 });

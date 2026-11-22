@@ -19,7 +19,12 @@ import asyncpg  # type: ignore[import-untyped]  # ships no type hints
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters.wolfbet.analytics import AnalyticsReport, SessionWindow, history_report
+from app.adapters.wolfbet.analytics import (
+    AnalyticsReport,
+    SessionWindow,
+    history_report,
+    session_stats,
+)
 from app.api.analytics import BINS, chart_data
 from app.history.epochs import epoch_view
 from app.ingest.tailer import LIVE_DB
@@ -76,7 +81,7 @@ def remove_db(directory: Path) -> None:
         path.unlink()
 
 
-def run_bot(directory: Path, *window: str) -> dict[str, Any]:
+def run_bot(directory: Path, *window: str, command: str = "--analytics") -> dict[str, Any]:
     """The real CLI, sandboxed: every path it could write points into `directory`."""
     home = directory / "home"
     home.mkdir(exist_ok=True)
@@ -95,7 +100,7 @@ def run_bot(directory: Path, *window: str) -> dict[str, Any]:
     )
     before = digest(directory)
     result = subprocess.run(  # noqa: S603  # nosec B603: fixed interpreter and script, no shell
-        [str(BOT_PYTHON), str(BOT), "--analytics", "--json", *window],
+        [str(BOT_PYTHON), str(BOT), command, "--json", *window],
         capture_output=True,
         text=True,
         env=env,
@@ -221,3 +226,37 @@ async def test_charts_cover_the_same_sessions_and_bets(
     )
     assert sum(b.sessions for b in lane_two.profit_bins) == 3
     assert sum(h.bets for h in lane_two.by_hour) == 3 * BETS_PER_SESSION
+
+
+STATS_KEYS = (
+    "best_win_streak", "best_loss_streak", "max_bets", "avg_bets", "max_wins", "avg_wins",
+    "max_losses", "avg_losses", "peak_balance", "avg_bps", "avg_bpm", "peak_bps", "peak_bpm",
+)  # fmt: skip
+
+
+@pytest.mark.parametrize(("since", "until", "lane"), WINDOWS[:4])
+async def test_session_stats_equal_the_bots_stats_totals(
+    wolfbet: ModuleType,
+    tmp_path: Path,
+    pg: asyncpg.Connection,
+    service: str,
+    db_session: AsyncSession,
+    since: str | None,
+    until: str | None,
+    lane: int | None,
+) -> None:
+    path = tmp_path / LIVE_DB
+    build(wolfbet, path, SESSIONS)
+    bot_db = BotDb(wolfbet, path)
+    bot_db.conn.execute(
+        "UPDATE sessions SET max_win_streak = wins % 7, max_loss_streak = losses % 5,"
+        " highest_balance = 1.0 + id / 8.0, bets_per_second = id * 1.5,"
+        " bets_per_minute = id * 90.0, peak_bps = id * 2.0, peak_bpm = id * 100.0"
+    )
+    bot_db.conn.commit()
+    bot_db.close()
+    totals = run_bot(tmp_path, *flags(since, until, lane), command="--stats")["totals"]
+    await copy_all(pg, service, tmp_path)
+
+    ours = await session_stats(db_session, await window(db_session, service, since, until, lane))
+    assert_same(ours.model_dump(), {key: totals[key] for key in STATS_KEYS}, "stats")

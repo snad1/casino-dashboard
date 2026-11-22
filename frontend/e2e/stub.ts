@@ -84,6 +84,8 @@ export const controlMenu = {
 	actions: [
 		action('start', 'control.basic', 'Start', 'Start {service}?', 'Start'),
 		action('stop', 'control.basic', 'Stop', 'Stop {service}?', 'Stop'),
+		action('lane_stop', 'control.basic', 'Stop', 'Stop lane {lane}?', 'Stop lane {lane}'),
+		action('lane_start', 'control.basic', 'Start', 'Start lane {lane}?', 'Start lane {lane}'),
 		action('pause', 'control.basic', 'Pause', 'Pause {target}?', 'Pause {target}'),
 		action('resume', 'control.basic', 'Resume', 'Resume {target}?', 'Resume {target}'),
 		action('reload', 'control.basic', 'Reload', 'Reload {target}?', 'Reload {target}'),

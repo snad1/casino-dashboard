@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ConfigOut } from './config';
-import { laneShares, parseArchives, restartPlan } from './lanes';
+import { configTab, laneActions, laneShares, parseArchives, restartPlan } from './lanes';
 
 const config = (base_bet: number, lanes: ConfigOut['lanes'] = {}): ConfigOut => ({
 	keys: [],
@@ -92,5 +92,36 @@ describe('parseArchives', () => {
 	it('is empty when there are none', () => {
 		const none = 'No archives found (~/.wolfbet_autobot-*.db).\nCreate one with: wolfctl reset';
 		expect(parseArchives(none)).toEqual({ rows: [], total: null });
+	});
+});
+
+describe('lane card actions', () => {
+	const names = (n: number, status: Parameters<typeof laneActions>[1]) =>
+		laneActions(n, status).map((a) => a.label);
+
+	it('offers pause or resume, and stop on lanes above 1', () => {
+		expect(names(2, 'running')).toEqual(['Pause', 'Stop']);
+		expect(names(2, 'paused')).toEqual(['Resume', 'Stop']);
+		expect(names(1, 'running')).toEqual(['Pause']);
+		expect(names(1, 'paused')).toEqual(['Resume']);
+	});
+
+	it('offers start for a lane that is not betting, never for lane 1', () => {
+		for (const status of ['stopped', 'stale', 'down'] as const) {
+			expect(names(3, status)).toEqual(['Start']);
+			expect(names(1, status)).toEqual([]);
+		}
+	});
+
+	it('targets its own lane only', () => {
+		expect(laneActions(4, 'running')).toEqual([
+			{ name: 'pause', body: { target: 4 }, label: 'Pause' },
+			{ name: 'lane_stop', body: { lane: 4 }, label: 'Stop', danger: true }
+		]);
+	});
+
+	it('opens lane 1 on the base tab', () => {
+		expect(configTab(1)).toBe('base');
+		expect(configTab(3)).toBe('3');
 	});
 });

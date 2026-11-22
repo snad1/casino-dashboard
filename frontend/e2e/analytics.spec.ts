@@ -54,9 +54,24 @@ const CHARTS = {
 	profit_bins: [{ lo: -0.0003, hi: 0.00012345, sessions: 3 }],
 	duration_bins: [{ lo_sec: 60, hi_sec: 3600, sessions: 3 }]
 };
+const SESSIONS = {
+	best_win_streak: 11,
+	best_loss_streak: 12,
+	max_bets: 17,
+	avg_bets: 3.97,
+	max_wins: 12,
+	avg_wins: 1.96,
+	max_losses: 12,
+	avg_losses: 2.01,
+	peak_balance: 3.6491073,
+	avg_bps: 16.7,
+	avg_bpm: 1003.2,
+	peak_bps: 23,
+	peak_bpm: 64
+};
 const answer = (source = 'bot') => ({
 	status: 200,
-	json: { source, report: REPORT, charts: CHARTS }
+	json: { source, report: REPORT, charts: CHARTS, sessions: SESSIONS }
 });
 
 async function rig(page: Page, me: object, analytics: Handler = () => answer()) {
@@ -84,6 +99,11 @@ test('the report shows formatted like the bot and Apply filters by URL', async (
 	await expect(overall.getByText('+0.00012345')).toBeVisible();
 	await expect(overall.getByText('1d 2h 0m 0s')).toBeVisible();
 	await expect(overall.getByText('2026-11-02 10:00:00 to 2026-11-03 12:00:00')).toBeVisible();
+	await expect(overall.getByText('W+11 L-12')).toBeVisible();
+	await expect(overall.getByText('Max 17 Avg 4')).toBeVisible();
+	await expect(overall.getByText('Max 12 Avg 2.0').first()).toBeVisible();
+	await expect(overall.getByText('3.6491073')).toBeVisible();
+	await expect(overall.getByText('16.7 avg/s 1003 avg/m Peak: 23/s 64/m')).toBeVisible();
 	const lanes = page.getByRole('table', { name: 'By lane', exact: true });
 	await expect(lanes.getByRole('row', { name: /Lane 2/ })).toContainText('-0.0003');
 	await expect(page.getByRole('table', { name: 'Top 5 worst sessions' })).toContainText('9');

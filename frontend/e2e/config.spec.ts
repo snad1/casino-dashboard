@@ -309,3 +309,11 @@ test('custom rules are typed in a textarea and sent as one line', async ({ page 
 		changes: [{ key: 'custom_rules_text', value: '[ {"n": 3} ]', lane: null }]
 	});
 });
+
+test('a lane card link opens that lane tab', async ({ page }) => {
+	await rig(page, operatorMe);
+	await page.goto('/wolfbet/config?tab=2');
+	await expect(page.getByRole('tab', { name: 'Lane 2' })).toHaveAttribute('aria-selected', 'true');
+	await page.goto('/wolfbet/config?tab=9');
+	await expect(page.getByRole('tab', { name: 'Base' })).toHaveAttribute('aria-selected', 'true');
+});

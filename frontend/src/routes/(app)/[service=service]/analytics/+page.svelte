@@ -13,6 +13,7 @@
 		hourLabel,
 		LANES,
 		parseFilter,
+		sessionStatRows,
 		winRate,
 		type AnalyticsOut,
 		type Filter
@@ -87,6 +88,7 @@
 
 	const report = $derived(data?.report ?? null);
 	const life = $derived(report?.lifetime ?? null);
+	const stats = $derived(data?.sessions ?? null);
 	const groups = $derived(
 		report
 			? ([
@@ -218,6 +220,12 @@
 					<dd class="font-mono tabular-nums">{signed(life.best_profit)}</dd>
 					<dt class="text-muted">Worst session</dt>
 					<dd class="font-mono tabular-nums">{signed(life.worst_profit)}</dd>
+					{#if stats}
+						{#each sessionStatRows(stats) as [label, value] (label)}
+							<dt class="text-muted">{label}</dt>
+							<dd class="font-mono tabular-nums">{value}</dd>
+						{/each}
+					{/if}
 				</dl>
 			{/if}
 		</section>

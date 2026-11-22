@@ -97,6 +97,9 @@
           "report": {
             "$ref": "#/components/schemas/AnalyticsReport"
           },
+          "sessions": {
+            "$ref": "#/components/schemas/SessionStats"
+          },
           "source": {
             "enum": [
               "bot",
@@ -109,7 +112,8 @@
         "required": [
           "source",
           "report",
-          "charts"
+          "charts",
+          "sessions"
         ],
         "title": "AnalyticsOut",
         "type": "object"
@@ -1659,6 +1663,23 @@
           }
         },
         "title": "ExportArgs",
+        "type": "object"
+      },
+      "ExtraLaneArgs": {
+        "additionalProperties": false,
+        "description": "One lane above lane 1, which is the main service and stops only with every lane.",
+        "properties": {
+          "lane": {
+            "maximum": 10.0,
+            "minimum": 2.0,
+            "title": "Lane",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lane"
+        ],
+        "title": "ExtraLaneArgs",
         "type": "object"
       },
       "FollowArgs": {
@@ -3237,6 +3258,87 @@
           "next_cursor"
         ],
         "title": "SessionPage",
+        "type": "object"
+      },
+      "SessionStats": {
+        "description": "The bot's `--stats` totals over the window's sessions: streaks, per-session sizes, speed.",
+        "properties": {
+          "avg_bets": {
+            "title": "Avg Bets",
+            "type": "number"
+          },
+          "avg_bpm": {
+            "title": "Avg Bpm",
+            "type": "number"
+          },
+          "avg_bps": {
+            "title": "Avg Bps",
+            "type": "number"
+          },
+          "avg_losses": {
+            "title": "Avg Losses",
+            "type": "number"
+          },
+          "avg_wins": {
+            "title": "Avg Wins",
+            "type": "number"
+          },
+          "best_loss_streak": {
+            "title": "Best Loss Streak",
+            "type": "integer"
+          },
+          "best_win_streak": {
+            "title": "Best Win Streak",
+            "type": "integer"
+          },
+          "max_bets": {
+            "title": "Max Bets",
+            "type": "integer"
+          },
+          "max_losses": {
+            "title": "Max Losses",
+            "type": "integer"
+          },
+          "max_wins": {
+            "title": "Max Wins",
+            "type": "integer"
+          },
+          "peak_balance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peak Balance"
+          },
+          "peak_bpm": {
+            "title": "Peak Bpm",
+            "type": "number"
+          },
+          "peak_bps": {
+            "title": "Peak Bps",
+            "type": "number"
+          }
+        },
+        "required": [
+          "best_win_streak",
+          "best_loss_streak",
+          "max_bets",
+          "avg_bets",
+          "max_wins",
+          "avg_wins",
+          "max_losses",
+          "avg_losses",
+          "peak_balance",
+          "avg_bps",
+          "avg_bpm",
+          "peak_bps",
+          "peak_bpm"
+        ],
+        "title": "SessionStats",
         "type": "object"
       },
       "Span": {
@@ -7144,6 +7246,152 @@
           }
         },
         "summary": "Control Export",
+        "tags": [
+          "control"
+        ]
+      }
+    },
+    "/{service}/control/lane_start": {
+      "post": {
+        "operationId": "control_lane_start__service__control_lane_start_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Service",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_-]{16,128}$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtraLaneArgs"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlOut"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Control Lane Start",
+        "tags": [
+          "control"
+        ]
+      }
+    },
+    "/{service}/control/lane_stop": {
+      "post": {
+        "operationId": "control_lane_stop__service__control_lane_stop_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Service",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_-]{16,128}$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtraLaneArgs"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlOut"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Control Lane Stop",
         "tags": [
           "control"
         ]

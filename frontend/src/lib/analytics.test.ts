@@ -7,6 +7,7 @@ import {
 	formatTime,
 	hourLabel,
 	parseFilter,
+	sessionStatRows,
 	winRate
 } from './analytics';
 
@@ -49,5 +50,50 @@ describe('formatting like the bot', () => {
 		expect(formatTime('2026-11-05T10:00:00.75')).toBe('2026-11-05 10:00:00');
 		expect(formatTime(null)).toBe('');
 		expect(hourLabel(7)).toBe('07:00');
+	});
+});
+
+describe('session stats', () => {
+	it("reads like the bot's --stats totals", () => {
+		const rows = sessionStatRows({
+			best_win_streak: 11,
+			best_loss_streak: 12,
+			max_bets: 17,
+			avg_bets: 3.97,
+			max_wins: 12,
+			avg_wins: 1.96,
+			max_losses: 12,
+			avg_losses: 2.01,
+			peak_balance: 3.6491073,
+			avg_bps: 16.66,
+			avg_bpm: 1003.2,
+			peak_bps: 23,
+			peak_bpm: 64
+		});
+		expect(Object.fromEntries(rows)).toEqual({
+			'Best streaks': 'W+11 L-12',
+			'Bets/Session': 'Max 17 Avg 4',
+			'Wins/Session': 'Max 12 Avg 2.0',
+			'Losses/Session': 'Max 12 Avg 2.0',
+			'Peak balance': '3.6491073',
+			Speed: '16.7 avg/s 1003 avg/m Peak: 23/s 64/m'
+		});
+	});
+
+	it('says n/a when no session has a balance', () => {
+		const zero = { best_win_streak: 0, best_loss_streak: 0, max_bets: 0, avg_bets: 0 };
+		const rows = sessionStatRows({
+			...zero,
+			max_wins: 0,
+			avg_wins: 0,
+			max_losses: 0,
+			avg_losses: 0,
+			peak_balance: null,
+			avg_bps: 0,
+			avg_bpm: 0,
+			peak_bps: 0,
+			peak_bpm: 0
+		});
+		expect(Object.fromEntries(rows)['Peak balance']).toBe('n/a');
 	});
 });

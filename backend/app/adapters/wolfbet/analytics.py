@@ -153,6 +153,45 @@ async def _rows(db: AsyncSession, sql: str, params: dict[str, Any]) -> list[dict
     return [dict(row._mapping) for row in (await db.execute(text(sql), params)).all()]
 
 
+class SessionStats(BaseModel):
+    """The bot's `--stats` totals over the window's sessions: streaks, per-session sizes, speed."""
+
+    best_win_streak: int
+    best_loss_streak: int
+    max_bets: int
+    avg_bets: float
+    max_wins: int
+    avg_wins: float
+    max_losses: int
+    avg_losses: float
+    peak_balance: float | None
+    avg_bps: float
+    avg_bpm: float
+    peak_bps: float
+    peak_bpm: float
+
+
+async def session_stats(db: AsyncSession, window: SessionWindow) -> SessionStats:
+    """The same aggregates as the bot's `_stats_data`, over the history `sessions` table."""
+    [row] = await _rows(
+        db,
+        (
+            "SELECT coalesce(max(max_win_streak), 0) AS best_win_streak,"  # noqa: S608  # nosec B608: fixed SQL, values are bound
+            " coalesce(max(max_loss_streak), 0) AS best_loss_streak,"
+            " coalesce(max(total_bets), 0) AS max_bets, coalesce(avg(total_bets), 0) AS avg_bets,"
+            " coalesce(max(wins), 0) AS max_wins, coalesce(avg(wins), 0) AS avg_wins,"
+            " coalesce(max(losses), 0) AS max_losses, coalesce(avg(losses), 0) AS avg_losses,"
+            " max(highest_balance) AS peak_balance,"
+            " coalesce(avg(bets_per_second), 0) AS avg_bps,"
+            " coalesce(avg(bets_per_minute), 0) AS avg_bpm,"
+            " coalesce(max(peak_bps), 0) AS peak_bps, coalesce(max(peak_bpm), 0) AS peak_bpm"
+            f" FROM sessions WHERE {window.in_epochs}"
+        ),
+        window.params,
+    )
+    return SessionStats.model_validate(row)
+
+
 async def history_report(db: AsyncSession, window: SessionWindow) -> AnalyticsReport:
     """The bot's analytics report computed from the history copy of its sessions."""
     where, params = window.in_epochs, window.params

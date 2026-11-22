@@ -1087,6 +1087,40 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/{service}/control/lane_start': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Lane Start */
+		post: operations['control_lane_start__service__control_lane_start_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/lane_stop': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Lane Stop */
+		post: operations['control_lane_stop__service__control_lane_stop_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/{service}/control/lanes': {
 		parameters: {
 			query?: never;
@@ -1666,6 +1700,7 @@ export interface components {
 		AnalyticsOut: {
 			charts: components['schemas']['Charts'];
 			report: components['schemas']['AnalyticsReport'];
+			sessions: components['schemas']['SessionStats'];
 			/**
 			 * Source
 			 * @enum {string}
@@ -2124,6 +2159,14 @@ export interface components {
 			/** Session Id */
 			session_id?: number | null;
 		};
+		/**
+		 * ExtraLaneArgs
+		 * @description One lane above lane 1, which is the main service and stops only with every lane.
+		 */
+		ExtraLaneArgs: {
+			/** Lane */
+			lane: number;
+		};
 		/** FollowArgs */
 		FollowArgs: {
 			/**
@@ -2576,6 +2619,38 @@ export interface components {
 			items: components['schemas']['SessionOut'][];
 			/** Next Cursor */
 			next_cursor: string | null;
+		};
+		/**
+		 * SessionStats
+		 * @description The bot's `--stats` totals over the window's sessions: streaks, per-session sizes, speed.
+		 */
+		SessionStats: {
+			/** Avg Bets */
+			avg_bets: number;
+			/** Avg Bpm */
+			avg_bpm: number;
+			/** Avg Bps */
+			avg_bps: number;
+			/** Avg Losses */
+			avg_losses: number;
+			/** Avg Wins */
+			avg_wins: number;
+			/** Best Loss Streak */
+			best_loss_streak: number;
+			/** Best Win Streak */
+			best_win_streak: number;
+			/** Max Bets */
+			max_bets: number;
+			/** Max Losses */
+			max_losses: number;
+			/** Max Wins */
+			max_wins: number;
+			/** Peak Balance */
+			peak_balance: number | null;
+			/** Peak Bpm */
+			peak_bpm: number;
+			/** Peak Bps */
+			peak_bps: number;
 		};
 		/** Span */
 		Span: {
@@ -4729,6 +4804,98 @@ export interface operations {
 		requestBody: {
 			content: {
 				'application/json': components['schemas']['ExportArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_lane_start__service__control_lane_start_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['ExtraLaneArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_lane_stop__service__control_lane_stop_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['ExtraLaneArgs'];
 			};
 		};
 		responses: {

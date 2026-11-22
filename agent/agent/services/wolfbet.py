@@ -20,6 +20,7 @@ from agent.errors import Busy
 from agent.files import FileStore
 from agent.runner import STDERR_TAIL, STDOUT_TAIL, RunResult, run, tail
 from agent.validators import (
+    LANES_MAX,
     Args,
     Branch,
     InvalidArgs,
@@ -80,6 +81,12 @@ class LaneArgs(Args):
 
 class TargetArgs(Args):
     target: LaneTarget = "all"
+
+
+class ExtraLaneArgs(Args):
+    """One lane above lane 1, which is the main service and stops only with every lane."""
+
+    lane: int = Field(ge=2, le=LANES_MAX)
 
 
 class LanesArgs(Args):
@@ -247,6 +254,12 @@ COMMANDS: dict[str, CommandSpec] = {
         lambda a, p: _bot(p, "--status", "--json", *_opt("--lane", a.lane)),
         30,
         json_output=True,
+    ),
+    "lane_stop": CommandSpec(
+        ExtraLaneArgs, lambda a, p: _ctl(p, "stop", str(a.lane)), 60, mutating=True
+    ),
+    "lane_start": CommandSpec(
+        ExtraLaneArgs, lambda a, p: _ctl(p, "start", str(a.lane)), 60, mutating=True
     ),
     "pause": CommandSpec(TargetArgs, _signal("pause"), 30, mutating=True),
     "resume": CommandSpec(TargetArgs, _signal("resume"), 30, mutating=True),

@@ -28,7 +28,14 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters.wolfbet.analytics import AnalyticsReport, SessionWindow, _rows, history_report
+from app.adapters.wolfbet.analytics import (
+    AnalyticsReport,
+    SessionStats,
+    SessionWindow,
+    _rows,
+    history_report,
+    session_stats,
+)
 from app.adapters.wolfbet.control import LANES_MAX
 from app.agent_client import AgentError
 from app.api.control import CONTROLS, NOT_CONTROLLABLE, ServiceName, agent_or_error
@@ -90,6 +97,7 @@ class AnalyticsOut(BaseModel):
     source: Literal["bot", "history"]
     report: AnalyticsReport
     charts: Charts
+    sessions: SessionStats
 
 
 def _bound(value: str | None) -> str | None:
@@ -250,7 +258,12 @@ async def get_analytics(
     source: Literal["bot", "history"] = "bot" if report is not None else "history"
     if report is None:
         report = await history_report(db, window)
-    out = AnalyticsOut(source=source, report=report, charts=await chart_data(db, window, view))
+    out = AnalyticsOut(
+        source=source,
+        report=report,
+        charts=await chart_data(db, window, view),
+        sessions=await session_stats(db, window),
+    )
     cache.put(key, out, None if source == "bot" else HISTORY_SECONDS)
     return out
 

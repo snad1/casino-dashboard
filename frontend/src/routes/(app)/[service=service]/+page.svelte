@@ -6,6 +6,7 @@
 	import Chart from '#components/Chart';
 	import Comments from '#components/Comments';
 	import EpochPicker from '#components/EpochPicker';
+	import KillSwitch from '#components/KillSwitch';
 	import LaneCard from '#components/LaneCard';
 	import SessionsList from '#components/SessionsList';
 	import Streaks from '#components/Streaks';
@@ -101,12 +102,15 @@
 				</div>
 			{:else if panel.id === 'lanes' && page.params.service}
 				{@const live = liveFor(page.params.service)}
+				<div class="mt-2">
+					<KillSwitch />
+				</div>
 				<div class="mt-2 grid gap-3 sm:grid-cols-2">
 					{#each Object.entries(live.lanes)
 						.map(([n, lane]) => [Number(n), lane] as const)
 						.filter(([n]) => n >= 1 && n <= 10)
 						.sort(([a], [b]) => a - b) as [n, lane] (n)}
-						<LaneCard {n} {lane} />
+						<LaneCard {n} {lane} service={page.params.service} />
 					{:else}
 						<p class="text-sm text-muted">Waiting for live data.</p>
 					{/each}
