@@ -1,6 +1,7 @@
-# GENERATED for Coolify from compose.yml: do not hand-edit.
-# Coolify copies only this directory and never clones the repo, so the images are built on
-# the host (docker compose build) and referenced by tag, and every host path is literal.
+# The Coolify deployment's source of truth; compose.yml is the host-only fallback.
+# Coolify copies only this directory and pulls every image before starting, so the app images
+# come from GHCR (built and pushed by .github/workflows/deploy.yml, tag IMAGE_TAG = commit sha)
+# and every host path is literal: Coolify rejects ${VAR} in volume sources.
 name: ${COMPOSE_PROJECT_NAME:-wolfbet-dashboard}
 
 x-hardening: &hardening
@@ -16,7 +17,7 @@ x-hardening: &hardening
 
 x-app: &app
   <<: *hardening
-  image: casino-dashboard-api:local
+  image: ghcr.io/snad1/casino-dashboard-api:${IMAGE_TAG:-latest}
   user: "10001:10001"
   read_only: true
   tmpfs:
@@ -119,7 +120,7 @@ services:
     group_add:
       - ${AGENT_GID:?set AGENT_GID in deploy/.env}
     volumes:
-      - /run/user/0/casino-agent:/run/casino-agent:ro
+      - /run/casino-agent:/run/casino-agent:ro
     depends_on:
       timescale:
         condition: service_healthy
@@ -205,6 +206,7 @@ services:
   migrate:
     <<: *app
     restart: "no"
+    exclude_from_hc: true
     cpus: 0.5
     mem_limit: 256m
     command: ["alembic", "upgrade", "head"]
@@ -220,11 +222,10 @@ services:
       timescale:
         condition: service_healthy
 
-  # Serves the SPA and proxies /api and /ws. Coolify's proxy routes the domain set on this
-  # service to port 80 and terminates TLS; nothing is published on the host.
+  # Serves the SPA and proxies /api and /ws on loopback only; the host nginx terminates TLS.
   caddy:
     <<: *hardening
-    image: casino-dashboard-caddy:local
+    image: ghcr.io/snad1/casino-dashboard-caddy:${IMAGE_TAG:-latest}
     cpus: 0.25
     mem_limit: 128m
     read_only: true

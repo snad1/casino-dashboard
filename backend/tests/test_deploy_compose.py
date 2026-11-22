@@ -300,11 +300,53 @@ def test_metrics_are_not_served_through_caddy() -> None:
     assert caddyfile.index("respond /api/metrics 404") < caddyfile.index("handle_path /api/*")
 
 
-def test_the_coolify_variant_mounts_the_agent_directory_the_user_unit_creates(
-    compose: dict[str, Any],
-) -> None:
+def test_the_coolify_variant_mounts_the_agent_directory_the_system_unit_creates() -> None:
+    """casino-agent.service is a system unit: RuntimeDirectory= puts its socket in /run."""
     coolify: dict[str, Any] = yaml.safe_load((DEPLOY / "compose.coolify.yml").read_text())
-    [default] = _service(compose, "api")["volumes"]
-    literal = default.replace("${AGENT_RUNTIME_DIR:-", "").replace("}", "", 1)
-    assert _service(coolify, "api")["volumes"] == [literal]
-    assert literal == "/run/user/0/casino-agent:/run/casino-agent:ro"
+    unit = (DEPLOY.parent / "agent" / "systemd" / "casino-agent.service").read_text()
+    assert "RuntimeDirectory=casino-agent" in unit
+    assert _service(coolify, "api")["volumes"] == ["/run/casino-agent:/run/casino-agent:ro"]
+
+
+@pytest.fixture(scope="module")
+def coolify() -> dict[str, Any]:
+    data: dict[str, Any] = yaml.safe_load((DEPLOY / "compose.coolify.yml").read_text())
+    return data
+
+
+def test_the_coolify_variant_runs_the_same_services(coolify: dict[str, Any]) -> None:
+    assert set(coolify["services"]) == set(SERVICES)
+
+
+def test_the_coolify_variant_pulls_every_image_from_a_registry(coolify: dict[str, Any]) -> None:
+    """Coolify pulls before it starts anything and never builds from the repo."""
+    app = re.compile(r"ghcr\.io/snad1/casino-dashboard-(api|caddy):\$\{IMAGE_TAG:-latest\}")
+    upstream = re.compile(r"[a-z0-9/._-]+:\d[\w.-]*")
+    for name, service in coolify["services"].items():
+        assert "build" not in service, name
+        image = service["image"]
+        assert app.fullmatch(image) or upstream.fullmatch(image), f"{name}: {image}"
+        assert not image.endswith(":local"), name
+
+
+def test_the_coolify_variant_binds_only_literal_paths(coolify: dict[str, Any]) -> None:
+    named = set(coolify.get("volumes", {}))
+    for name, service in coolify["services"].items():
+        for mount in service.get("volumes", []):
+            source = mount.split(":", 1)[0]
+            assert "${" not in source, f"{name}: {mount}"
+            assert source in named or source.startswith(("/", "./")), f"{name}: {mount}"
+    for name, secret in coolify["secrets"].items():
+        assert secret["file"].startswith("/opt/wolfbet/secrets/"), name
+
+
+def test_the_coolify_variant_keeps_the_loopback_ports(coolify: dict[str, Any]) -> None:
+    published = {name: s.get("ports") for name, s in coolify["services"].items() if s.get("ports")}
+    assert published == {"redis": ["127.0.0.1:9479:6379"], "caddy": ["127.0.0.1:9441:8080"]}
+
+
+def test_coolify_ignores_the_finished_migration_and_waits_for_it(coolify: dict[str, Any]) -> None:
+    assert _service(coolify, "migrate")["exclude_from_hc"] is True
+    for name in NEEDS_MIGRATION:
+        wait = _service(coolify, name)["depends_on"]["migrate"]
+        assert wait == {"condition": "service_completed_successfully"}, name

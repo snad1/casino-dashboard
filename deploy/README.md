@@ -58,6 +58,32 @@ To send mail through an SMTP relay instead, set `MAIL_BACKEND: smtp` plus `SMTP_
 
 Changing the push key pair later turns push off on every device until each user turns it on again.
 
+## Coolify (system of record, wolfbet)
+
+The live wolfbet dashboard is the Coolify app `hrrxmud5u4rwmjyilbqwryib` (project **Wolfbet**, environment **production**) on https://coolify.snadstudio.com, deployed from `deploy/compose.coolify.yml`. That file is the only description of the Coolify stack; `compose.yml` is the host fallback below.
+
+- **Images:** `ghcr.io/snad1/casino-dashboard-api` (from `backend/`) and `ghcr.io/snad1/casino-dashboard-caddy` (from `frontend/` with `deploy/caddy/Dockerfile`), tagged with the commit sha and `latest`. Both packages are public, so Coolify pulls them without credentials. The Coolify env `IMAGE_TAG` picks the tag.
+- **Deploying:** a push to `feat/casino-dashboard` runs `ci`; when it is green, `.github/workflows/deploy.yml` builds and pushes both images, sets `IMAGE_TAG` to the sha, deploys in Coolify, waits until the app is `running:healthy` and checks `/healthz` and `/health` on the public URL. `migrate` runs once per deploy; if it fails, api, ingest and mailer never start, the app never turns healthy and the run fails. Run it by hand from the Actions tab (**deploy** then **Run workflow**).
+- **Workflow settings:** the secret `COOLIFY_TOKEN` (a Coolify token with deploy and read rights only) and the variables `COOLIFY_URL`, `COOLIFY_APP_UUID` and `PUBLIC_URL`. Images are pushed with the run's own `GITHUB_TOKEN`; no registry token is stored.
+- **Secrets:** one file each in `/opt/wolfbet/secrets` on the host (directory 0755, files 0644, because Redis runs as uid 999 and the api as uid 10001 and neither can enter `/root`). The compose file mounts them from those absolute paths. Never commit them.
+- **Data:** Postgres lives in the Docker volume `hrrxmud5u4rwmjyilbqwryib_pgdata`. The volume `wolfbet-dashboard_pgdata` is the pre-Coolify copy, kept as a backup.
+- **Status, logs, env, history:** Coolify's app page, or the API: `GET /api/v1/applications/<uuid>` (status), `GET /api/v1/applications/<uuid>/envs`, `GET /api/v1/deployments/applications/<uuid>` (history) and `GET /api/v1/deployments/<deployment uuid>` (log, including the `migrate` output).
+- **Rolling back a release:** in Actions, re-run the **deploy** run of the last good commit; it sets `IMAGE_TAG` back to that sha and redeploys. Or set `IMAGE_TAG` in Coolify and press Redeploy.
+
+### Host fallback
+
+`/root/wolfbet-deploy.sh` (cron every 5 minutes) builds and runs `compose.yml` on the host as the project `wolfbet-dashboard`. It does nothing while `/opt/wolfbet/DEPLOYER` says `coolify`, so the two deployers never fight. To fall back when Coolify cannot run the stack:
+
+```bash
+curl -fsS -H "Authorization: Bearer $(cat /root/.coolify_token)" \
+  http://127.0.0.1:8100/api/v1/applications/hrrxmud5u4rwmjyilbqwryib/stop
+cd /root/casino-dashboard
+docker compose -f deploy/compose.yml --env-file /root/.wolfbet.env --project-name wolfbet-dashboard up -d --build
+rm /opt/wolfbet/DEPLOYER    # the cron keeps the host stack up to date from now on
+```
+
+The host stack reads the volume `wolfbet-dashboard_pgdata`. Copy `hrrxmud5u4rwmjyilbqwryib_pgdata` into it first (both stacks stopped) if Coolify has run since the cutover; otherwise the data written under Coolify is not there.
+
 ## Redis users
 
 | User | May do | Used by |
