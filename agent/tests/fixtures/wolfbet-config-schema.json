@@ -49,6 +49,41 @@
       "help": "Seconds between bets (0 = full speed)"
     },
     {
+      "key": "currency",
+      "off_allowed": false,
+      "type": "string",
+      "choices": [
+        "btc",
+        "eth",
+        "ltc",
+        "doge",
+        "trx",
+        "bch",
+        "xrp",
+        "usdt",
+        "bnb",
+        "ada",
+        "matic"
+      ],
+      "aliases": [],
+      "default": "usdt",
+      "live_reload": false,
+      "lane_overridable": false,
+      "help": "Betting currency"
+    },
+    {
+      "key": "custom_rules_text",
+      "off_allowed": true,
+      "type": "string",
+      "format": "rules",
+      "max_length": 4000,
+      "aliases": [],
+      "default": "",
+      "live_reload": true,
+      "lane_overridable": true,
+      "help": "Rule-Based custom rules (JSON per line)"
+    },
+    {
       "key": "db_write_mode",
       "off_allowed": false,
       "type": "string",
@@ -64,6 +99,17 @@
       "live_reload": true,
       "lane_overridable": false,
       "help": "Bet DB writer: async (default, batched) or sync (legacy, per-bet fsync)"
+    },
+    {
+      "key": "delay_martin_threshold",
+      "off_allowed": false,
+      "type": "integer",
+      "min": 1,
+      "aliases": [],
+      "default": 3,
+      "live_reload": false,
+      "lane_overridable": false,
+      "help": "Delay Martingale N-loss threshold"
     },
     {
       "key": "events_enabled",
@@ -451,6 +497,20 @@
       "live_reload": false,
       "lane_overridable": true,
       "help": "New session after a capped loss (needs recurring, hard_cap, max_loss, stop_on_balance)"
+    },
+    {
+      "key": "rule",
+      "off_allowed": false,
+      "type": "string",
+      "choices": [
+        "over",
+        "under"
+      ],
+      "aliases": [],
+      "default": "over",
+      "live_reload": false,
+      "lane_overridable": false,
+      "help": "Dice rule (over / under)"
     },
     {
       "key": "stop_on_balance",

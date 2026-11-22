@@ -48,6 +48,15 @@ const CONFIG: ConfigOut = {
 describe('fields from the schema', () => {
 	it('picks an input per key type', () => {
 		expect(CONFIG.keys.map(fieldKind)).toEqual(['number', 'number', 'select', 'boolean', 'text']);
+		expect(fieldKind(key({ type: 'string', format: 'rules' }))).toBe('long');
+	});
+
+	it('sends a rules textarea as one line', () => {
+		const config = { ...CONFIG, keys: [key({ key: 'custom_rules_text', type: 'string' })] };
+		const edits = { [BASE]: { custom_rules_text: { value: '[\n  {"n": 3}\n]', useBase: false } } };
+		expect(changesFrom(config, edits)).toEqual([
+			{ key: 'custom_rules_text', value: '[ {"n": 3} ]', lane: null }
+		]);
 	});
 
 	it('shows saved values as form text, lanes falling back to the base', () => {
@@ -170,5 +179,15 @@ describe('parsePasted', () => {
 		);
 		expect(out.values).toEqual({ multiplier: '2.5', recurring: 'false', max_loss: '0.01' });
 		expect(out.skipped.map((s) => s.key)).toEqual(['api_key']);
+	});
+
+	it('says where the keys the form leaves out are set', () => {
+		expect(
+			parsePasted('lanes=2\nbet_value=50.49\nstrategy=Martingale', CONFIG.keys).skipped
+		).toEqual([
+			{ key: 'lanes', reason: 'set it on the Lanes page' },
+			{ key: 'bet_value', reason: 'worked out from multiplier and rule' },
+			{ key: 'strategy', reason: 'set by strategy_key' }
+		]);
 	});
 });

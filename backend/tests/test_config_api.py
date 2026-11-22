@@ -149,4 +149,21 @@ def test_bad_changes_are_refused_before_the_agent(signed_in_as: Any, fake_agent:
     assert _preview(client, duplicate).status_code == 422
     assert _preview(client, base_lane).status_code == 422
     assert _preview(client, {"changes": [], "pairs": {}}).status_code == 422
+    long_value = {"changes": [{"key": "max_loss", "value": "1" * 201, "lane": None}]}
+    assert _preview(client, long_value).status_code == 422
+    too_many_rules = {"changes": [{"key": "custom_rules_text", "value": "x" * 4001, "lane": None}]}
+    assert _preview(client, too_many_rules).status_code == 422
     assert fake_agent.calls == []
+
+
+def test_custom_rules_may_be_longer_than_other_values(
+    signed_in_as: Any, fake_agent: FakeAgent
+) -> None:
+    fake_agent.reply = _healthy
+    rules = "[" + ", ".join(['{"n": 3}'] * 300) + "]"
+    response = _preview(
+        signed_in_as(Role.OPERATOR),
+        {"changes": [{"key": "custom_rules_text", "value": rules, "lane": None}]},
+    )
+    assert response.status_code == 200
+    assert fake_agent.calls[0]["args"] == {"pairs": {"custom_rules_text": rules}}

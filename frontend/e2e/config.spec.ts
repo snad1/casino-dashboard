@@ -25,7 +25,8 @@ const CONFIG = {
 			type: 'string',
 			choices: ['session', 'run'],
 			live_reload: false
-		})
+		}),
+		key({ key: 'custom_rules_text', type: 'string', format: 'rules', off_allowed: true })
 	],
 	lane_count: 2,
 	override_lanes: { min: 2, max: 10 },
@@ -36,7 +37,8 @@ const CONFIG = {
 		multiplier: 2.01,
 		game: 'dice',
 		recurring: false,
-		profit_increment_scope: 'session'
+		profit_increment_scope: 'session',
+		custom_rules_text: ''
 	},
 	lanes: { '2': { multiplier: 3 } }
 };
@@ -293,4 +295,17 @@ test('a pasted config fills the form, and only the preview sends it', async ({ p
 	const keys = (sent?.body as { changes: Array<{ key: string }> }).changes.map((c) => c.key);
 	expect(keys.sort()).toEqual(['lane_split', 'max_loss', 'multiplier', 'recurring']);
 	expect(JSON.stringify(sent?.body)).not.toContain('eyJ0eXAi');
+});
+
+test('custom rules are typed in a textarea and sent as one line', async ({ page }) => {
+	const { posts } = await rig(page, operatorMe);
+	await page.goto('/wolfbet/config');
+	const rules = page.getByLabel('custom_rules_text');
+	await expect(rules).toHaveJSProperty('tagName', 'TEXTAREA');
+	await rules.fill('[\n  {"n": 3}\n]');
+	await page.getByRole('button', { name: 'Preview' }).click();
+	await expect(page.getByRole('region', { name: 'Changes' })).toBeVisible();
+	expect(posts[0]?.body).toEqual({
+		changes: [{ key: 'custom_rules_text', value: '[ {"n": 3} ]', lane: null }]
+	});
 });

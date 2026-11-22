@@ -295,6 +295,14 @@
 											<option value="true">yes</option>
 											<option value="false">no</option>
 										</select>
+									{:else if fieldKind(key) === 'long'}
+										<textarea
+											{id}
+											rows="4"
+											spellcheck="false"
+											class="{input} font-mono"
+											disabled={locked}
+											bind:value={edit.value}></textarea>
 									{:else}
 										<input
 											{id}

@@ -332,6 +332,12 @@ async def test_json_and_text_results() -> None:
         ("lane2.multiplier", "3", "lane2.multiplier=3"),
         ("LANE3.maxloss", "0.002", "lane3.max_loss=0.002"),
         ("lane2.multiplier", "default", "lane2.multiplier=default"),
+        ("currency", "btc", "currency=btc"),
+        ("rule", "under", "rule=under"),
+        ("delay_martin_threshold", "4", "delay_martin_threshold=4"),
+        ("custom_rules_text", '[{"n": 3}]', 'custom_rules_text=[{"n": 3}]'),
+        ("custom_rules_text", "x" * 4000, "custom_rules_text=" + "x" * 4000),
+        ("custom_rules_text", "off", "custom_rules_text=off"),
     ],
 )
 def test_config_pairs_accepted(key: str, value: str, item: str) -> None:
@@ -342,7 +348,12 @@ def test_config_pairs_accepted(key: str, value: str, item: str) -> None:
     "key,value",
     [
         ("api_key", "abc"),
-        ("custom_rules_text", "x"),
+        ("custom_rules_text", "x" * 4001),
+        ("custom_rules_text", "[1]\n--json"),
+        ("currency", "eur"),
+        ("rule", "sideways"),
+        ("delay_martin_threshold", "0"),
+        ("lane2.rule", "under"),
         ("nope", "1"),
         ("maxloss", "1;id"),
         ("maxloss", "nan"),

@@ -119,6 +119,10 @@ class ExportArgs(Args):
         return self
 
 
+VALUE_MAX_CHARS = 200
+RULES_MAX_CHARS = 4000
+
+
 class ConfigArgs(Args):
     pairs: dict[str, str] = Field(min_length=1, max_length=MAX_CONFIG_PAIRS)
 
@@ -127,8 +131,14 @@ class ConfigChange(Args):
     """One config edit: `lane` set overrides that lane, and the value `default` drops it."""
 
     key: str = Field(pattern=r"^[a-z][a-z0-9_]{0,39}$")
-    value: str = Field(max_length=200, pattern=r"^[^\x00-\x1f\x7f]*$")
+    value: str = Field(max_length=RULES_MAX_CHARS, pattern=r"^[^\x00-\x1f\x7f]*$")
     lane: int | None = Field(default=None, ge=2, le=LANES_MAX)
+
+    @model_validator(mode="after")
+    def _short_unless_rules(self) -> "ConfigChange":
+        if self.key != "custom_rules_text" and len(self.value) > VALUE_MAX_CHARS:
+            raise ValueError(f"value must be at most {VALUE_MAX_CHARS} characters")
+        return self
 
 
 class ConfigChanges(Args):

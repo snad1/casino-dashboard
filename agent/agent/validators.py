@@ -96,8 +96,9 @@ def parse_args(model: type[Args], raw: dict[str, Any]) -> Any:
 
 def config_value(entry: dict[str, Any], raw: str) -> str:
     """The canonical text of `raw` for config key `entry` (one item of --config-schema keys)."""
-    if not isinstance(raw, str) or len(raw) > 512:
-        raise InvalidValue(entry["key"], "value must be a string up to 512 characters")
+    limit = entry.get("max_length", 512) if entry.get("format") == "rules" else 512
+    if not isinstance(raw, str) or len(raw) > limit:
+        raise InvalidValue(entry["key"], f"value must be a string up to {limit} characters")
     value = raw.strip()
     if entry.get("off_allowed") and value.lower() in _OFF:
         return "off"
@@ -128,6 +129,10 @@ def config_value(entry: dict[str, Any], raw: str) -> str:
         return value
     if entry.get("format") == "url":
         return _url(entry, value)
+    if entry.get("format") == "rules":
+        if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+            raise InvalidValue(entry["key"], "must be one line without control characters")
+        return value
     raise InvalidValue(entry["key"], "this key cannot be set from the dashboard")
 
 

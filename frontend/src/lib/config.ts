@@ -6,7 +6,7 @@ export type ConfigOut = components['schemas']['ConfigOut'];
 export type ConfigChange = components['schemas']['ConfigChange'];
 export type Preview = components['schemas']['PreviewOut'];
 export type DiffRow = components['schemas']['DiffRow'];
-export type FieldKind = 'select' | 'boolean' | 'number' | 'text';
+export type FieldKind = 'select' | 'boolean' | 'number' | 'text' | 'long';
 /** `base`, or a lane number as text ("2"), the way the api keys lane overrides. */
 export type Scope = string;
 export const BASE: Scope = 'base';
@@ -24,6 +24,7 @@ export function fieldKind(key: ConfigKey): FieldKind {
 	if (key.choices?.length) return 'select';
 	if (key.type === 'boolean') return 'boolean';
 	if (key.type === 'number' || key.type === 'integer') return 'number';
+	if (key.format === 'rules') return 'long';
 	return 'text';
 }
 
@@ -75,7 +76,8 @@ export function changesFrom(config: ConfigOut, edits: Edits): ConfigChange[] {
 				if (overridden(config, scope, key)) changes.push({ key, value: 'default', lane });
 				continue;
 			}
-			const value = edit.value.trim();
+			// The bot takes each value as one line; a rules textarea may hold several.
+			const value = edit.value.replace(/\s*[\r\n]+\s*/g, ' ').trim();
 			if (value === current(config, scope, key)) continue;
 			changes.push({ key, value: value === '' && offAllowed.has(key) ? 'off' : value, lane });
 		}
@@ -126,6 +128,13 @@ export interface Pasted {
 }
 
 const NOT_EDITABLE = 'not editable here';
+const LANES_PAGE = 'set it on the Lanes page';
+const FIXED_REASONS: Record<string, string> = {
+	api_key: "secret: stays in the bot's .env",
+	lanes: LANES_PAGE,
+	bet_value: 'worked out from multiplier and rule',
+	strategy: 'set by strategy_key'
+};
 const CUT_OFF = 'value is cut off; type it in';
 const MASKED = 'shown without its password; type it in';
 const NO_PROXY = new Set(['direct', 'none', 'off']);
@@ -147,7 +156,7 @@ export function parsePasted(text: string, keys: ConfigKey[]): Pasted {
 		const lanes = line.match(/^\s*Lanes:\s*\d+.*?\bsplit:\s*([a-z]+)/i);
 		if (lanes) {
 			raw.set(LANE_SPLIT, lanes[1] ?? '');
-			skipped.push({ key: 'lanes', reason: 'set it on the Lanes page' });
+			skipped.push({ key: 'lanes', reason: LANES_PAGE });
 			continue;
 		}
 		const cells = line.includes('│') || line.trim().startsWith('|') ? line.split(/[│|]/) : null;
@@ -168,7 +177,8 @@ export function parsePasted(text: string, keys: ConfigKey[]): Pasted {
 	const values: Record<string, string> = {};
 	for (const [name, rawValue] of raw) {
 		const value = rawValue.replace(/\s+\(live\b.*\)$/, '').trim();
-		if (name === 'api_key') skipped.push({ key: name, reason: "secret: stays in the bot's .env" });
+		const fixed = FIXED_REASONS[name];
+		if (fixed) skipped.push({ key: name, reason: fixed });
 		else if (wrapped.has(name) || value.endsWith('...'))
 			skipped.push({ key: name, reason: CUT_OFF });
 		else if (name === LANE_SPLIT) values[name] = value;

@@ -1076,7 +1076,7 @@
             "title": "Lane"
           },
           "value": {
-            "maxLength": 200,
+            "maxLength": 4000,
             "pattern": "^[^\\x00-\\x1f\\x7f]*$",
             "title": "Value",
             "type": "string"
