@@ -432,6 +432,7 @@ async def series(
     lane_filter = " AND lane = :lane" if lane is not None else ""
     params: dict[str, Any] = {"service": service, "start": start, "end": end}
     if epochs is not None:
+        # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
         statement = text(
             f"{_EPOCH_SERIES_SQL}{lane_filter} GROUP BY 1, lane ORDER BY lane, t"  # nosec B608: fixed SQL
         )
