@@ -1,15 +1,27 @@
 name: images
 
-# Release images for wolfbet-dashboard. On a push to feat/casino-dashboard: wait for this
-# commit's ci run and stop unless it passed, then build the api, caddy and redis images and
-# push them to GHCR as <sha> and latest. Coolify deploys on its own GitHub webhook and pulls
-# :latest, so a deploy runs the newest images that finished building (workflow_run would only
-# fire from the default branch, which never carries dashboard work).
+# Release images for wolfbet-dashboard, then deploy exactly the commit that was built.
+#
+# On a push to feat/casino-dashboard or main: wait for this commit's ci run and stop unless it
+# passed, build the api, caddy and redis images, push them to GHCR as <sha> and latest, then pin
+# the Coolify app to this sha (its IMAGE_TAG env var) and trigger the deploy. Pinning first is
+# what makes the deploy run THIS commit's images instead of whatever :latest was moments ago.
+#
+# The repo's GitHub push webhook also points at Coolify, so a push triggers a deploy directly as
+# well; it reads the same IMAGE_TAG, so both paths end up on the same images.
+#
+# Needs two repository secrets: COOLIFY_URL (e.g. https://coolify.snadstudio.com) and
+# COOLIFY_TOKEN (an API token with deploy permission). Neither is a registry token: the GHCR
+# packages are public.
 
 on:
   push:
-    branches: [feat/casino-dashboard]
+    branches: [feat/casino-dashboard, main]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit sha to build and deploy (defaults to the branch head)
+        required: false
 
 permissions:
   contents: read
@@ -17,12 +29,13 @@ permissions:
   actions: read
 
 concurrency:
-  group: images-wolfbet-dashboard
+  group: images-wolfbet-dashboard-${{ github.ref_name }}
   cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io/snad1
-  SHA: ${{ github.sha }}
+  SHA: ${{ github.event.inputs.ref || github.sha }}
+  COOLIFY_APP: hrrxmud5u4rwmjyilbqwryib
 
 jobs:
   ci-passed:
@@ -84,3 +97,65 @@ jobs:
             --label "org.opencontainers.image.revision=$SHA" \
             -t "$REGISTRY/casino-dashboard-redis:$SHA" -t "$REGISTRY/casino-dashboard-redis:latest" \
             deploy/redis
+
+      - name: Pin IMAGE_TAG to this commit
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          # production row only (is_preview=false). PATCH takes key, value and is_preview; sending
+          # the env uuid is rejected with a validation error.
+          code=$(curl -sS -o /tmp/pin.json -w '%{http_code}' -X PATCH \
+            "$COOLIFY_URL/api/v1/applications/$COOLIFY_APP/envs" \
+            -H "Authorization: Bearer $COOLIFY_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d "{\"key\":\"IMAGE_TAG\",\"value\":\"$SHA\",\"is_preview\":false,\"is_buildtime\":false}")
+          echo "PATCH envs -> $code"; cat /tmp/pin.json; echo
+          [ "$code" = "201" ] || [ "$code" = "200" ] || { echo "could not pin IMAGE_TAG"; exit 1; }
+
+          got=$(curl -sS "$COOLIFY_URL/api/v1/applications/$COOLIFY_APP/envs" \
+            -H "Authorization: Bearer $COOLIFY_TOKEN" \
+            | jq -r '[.[] | select(.key=="IMAGE_TAG" and (.is_preview|not))] | .[0].value')
+          echo "IMAGE_TAG now: $got"
+          [ "$got" = "$SHA" ] || { echo "IMAGE_TAG did not stick"; exit 1; }
+
+      - name: Deploy this commit through Coolify
+        id: deploy
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          resp=$(curl -sS -X POST "$COOLIFY_URL/api/v1/deploy?uuid=$COOLIFY_APP" \
+            -H "Authorization: Bearer $COOLIFY_TOKEN")
+          echo "$resp"
+          dep=$(echo "$resp" | jq -r '.deployments[0].deployment_uuid // empty')
+          [ -n "$dep" ] || { echo "no deployment_uuid returned"; exit 1; }
+          echo "deployment_uuid=$dep" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for the deploy to finish
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          dep="${{ steps.deploy.outputs.deployment_uuid }}"
+          for _ in $(seq 60); do
+            sleep 10
+            status=$(curl -sS "$COOLIFY_URL/api/v1/deployments/$dep" \
+              -H "Authorization: Bearer $COOLIFY_TOKEN" | jq -r '.status // "unknown"')
+            echo "deploy $dep: $status"
+            case "$status" in
+              finished) exit 0 ;;
+              failed|cancelled) echo "deploy $status"; exit 1 ;;
+            esac
+          done
+          echo "deploy did not finish in 10 minutes"; exit 1
+
+      - name: Verify the public site
+        run: |
+          for i in $(seq 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://casino.snadstudio.com/health)
+            echo "health -> $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 10
+          done
+          echo "health did not return 200"; exit 1
