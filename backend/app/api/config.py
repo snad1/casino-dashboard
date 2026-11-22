@@ -84,7 +84,8 @@ def _document(data: dict[str, Any]) -> dict[str, Any] | None:
 def _agent_failed(error: AgentError) -> HTTPException:
     log.warning("config call failed at the agent", code=error.code)
     if error.code == "bad_request":
-        return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, INVALID_VALUE)
+        detail = f"{error.key}: {INVALID_VALUE}" if error.key else INVALID_VALUE
+        return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail)
     return HTTPException(status.HTTP_502_BAD_GATEWAY, AGENT_DOWN)
 
 

@@ -37,8 +37,8 @@ def ok(request: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
     return {"id": request["id"], "ok": True, "data": data}
 
 
-def fail(request: dict[str, Any], code: str) -> dict[str, Any]:
-    return {"id": request["id"], "ok": False, "error": {"code": code}}
+def fail(request: dict[str, Any], code: str, **error: str) -> dict[str, Any]:
+    return {"id": request["id"], "ok": False, "error": {"code": code, **error}}
 
 
 def job_summary(status: str = "running", exit_code: int | None = None) -> dict[str, Any]:

@@ -123,6 +123,12 @@ def test_a_refused_value_shows_the_bots_message(signed_in_as: Any, fake_agent: F
     fake_agent.reply = lambda request: [fail(request, "bad_request")]
     unknown = _preview(client, {"changes": [{"key": "nope", "value": "1", "lane": None}]})
     assert (unknown.status_code, unknown.json()) == (422, {"detail": INVALID_VALUE})
+    fake_agent.reply = lambda request: [fail(request, "bad_request", key="proxy")]
+    proxy = _preview(client, {"changes": [{"key": "proxy", "value": "direct", "lane": None}]})
+    assert proxy.json() == {"detail": f"proxy: {INVALID_VALUE}"}
+    fake_agent.reply = lambda request: [fail(request, "bad_request", key="<b>x</b>")]
+    odd = _preview(client, {"changes": [{"key": "proxy", "value": "direct", "lane": None}]})
+    assert odd.json() == {"detail": INVALID_VALUE}
 
 
 def test_an_agent_failure_is_a_generic_502(signed_in_as: Any, fake_agent: FakeAgent) -> None:

@@ -23,6 +23,7 @@ from agent.validators import (
     Args,
     Branch,
     InvalidArgs,
+    InvalidValue,
     IsoDate,
     Lane,
     LaneTarget,
@@ -535,7 +536,7 @@ def config_pair(schema: dict[str, Any], key: str, value: str) -> str:
         raise InvalidArgs("unknown config key")
     if lane_prefix:
         if not entry["lane_overridable"]:
-            raise InvalidArgs(f"{entry['key']} cannot differ per lane")
+            raise InvalidValue(entry["key"], "cannot differ per lane")
         if value.strip().lower() in lanes["unset_values"]:
             return f"{lane_prefix}{entry['key']}=default"
     return f"{lane_prefix}{entry['key']}={config_value(entry, value)}"

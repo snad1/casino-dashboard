@@ -127,6 +127,8 @@ export interface Pasted {
 
 const NOT_EDITABLE = 'not editable here';
 const CUT_OFF = 'value is cut off; type it in';
+const MASKED = 'shown without its password; type it in';
+const NO_PROXY = new Set(['direct', 'none', 'off']);
 const TRUE_WORDS = new Set(['on', 'yes', 'true']);
 const FALSE_WORDS = new Set(['off', 'no', 'false']);
 
@@ -173,6 +175,8 @@ export function parsePasted(text: string, keys: ConfigKey[]): Pasted {
 		else {
 			const key = byName.get(name);
 			if (!key) skipped.push({ key: name, reason: NOT_EDITABLE });
+			else if (name === 'proxy' && !NO_PROXY.has(value.toLowerCase()))
+				skipped.push({ key: name, reason: MASKED });
 			else values[name] = formValue(key, value);
 		}
 	}
@@ -185,6 +189,6 @@ function formValue(key: ConfigKey, value: string): string {
 		if (TRUE_WORDS.has(word)) return 'true';
 		if (FALSE_WORDS.has(word)) return 'false';
 	}
-	if (word === 'off' && key.off_allowed) return '';
+	if (key.off_allowed && (word === 'off' || (key.key === 'proxy' && NO_PROXY.has(word)))) return '';
 	return value;
 }

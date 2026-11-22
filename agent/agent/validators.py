@@ -28,6 +28,14 @@ class InvalidArgs(ValueError):
     """The request's arguments failed validation; nothing was run."""
 
 
+class InvalidValue(InvalidArgs):
+    """A config value the schema refuses; `key` is the schema's name for it, safe to show."""
+
+    def __init__(self, key: str, reason: str) -> None:
+        super().__init__(f"{key}: {reason}")
+        self.key = key
+
+
 class Args(BaseModel):
     """Base for every command's arguments: closed, strictly typed, immutable."""
 
@@ -89,7 +97,7 @@ def parse_args(model: type[Args], raw: dict[str, Any]) -> Any:
 def config_value(entry: dict[str, Any], raw: str) -> str:
     """The canonical text of `raw` for config key `entry` (one item of --config-schema keys)."""
     if not isinstance(raw, str) or len(raw) > 512:
-        raise InvalidArgs(f"{entry['key']}: value must be a string up to 512 characters")
+        raise InvalidValue(entry["key"], "value must be a string up to 512 characters")
     value = raw.strip()
     if entry.get("off_allowed") and value.lower() in _OFF:
         return "off"
@@ -99,48 +107,48 @@ def config_value(entry: dict[str, Any], raw: str) -> str:
             return "on"
         if value.lower() in _OFF_WORDS:
             return "off"
-        raise InvalidArgs(f"{entry['key']}: must be on or off")
+        raise InvalidValue(entry["key"], "must be on or off")
     if "choices" in entry:
         if value not in entry["choices"]:
-            raise InvalidArgs(f"{entry['key']}: must be one of the listed choices")
+            raise InvalidValue(entry["key"], "must be one of the listed choices")
         return value
     if kind == "integer":
         if not _INT.fullmatch(value):
-            raise InvalidArgs(f"{entry['key']}: must be a whole number")
+            raise InvalidValue(entry["key"], "must be a whole number")
         _check_range(entry, int(value))
         return str(int(value))
     if kind == "number":
         if not _NUMBER.fullmatch(value) or not math.isfinite(float(value)):
-            raise InvalidArgs(f"{entry['key']}: must be a number")
+            raise InvalidValue(entry["key"], "must be a number")
         _check_range(entry, float(value))
         return value
     if entry.get("format") == "N:X":
         if not _STREAK.fullmatch(value):
-            raise InvalidArgs(f"{entry['key']}: must be N:X")
+            raise InvalidValue(entry["key"], "must be N:X")
         return value
     if entry.get("format") == "url":
         return _url(entry, value)
-    raise InvalidArgs(f"{entry['key']}: this key cannot be set from the dashboard")
+    raise InvalidValue(entry["key"], "this key cannot be set from the dashboard")
 
 
 def _check_range(entry: dict[str, Any], number: float) -> None:
     if entry.get("clamps"):
         return
     if "min" in entry and number < entry["min"]:
-        raise InvalidArgs(f"{entry['key']}: below the minimum")
+        raise InvalidValue(entry["key"], "below the minimum")
     if "max" in entry and number > entry["max"]:
-        raise InvalidArgs(f"{entry['key']}: above the maximum")
+        raise InvalidValue(entry["key"], "above the maximum")
 
 
 def _url(entry: dict[str, Any], value: str) -> str:
     if any(ch.isspace() or ord(ch) < 32 or ord(ch) == 127 for ch in value):
-        raise InvalidArgs(f"{entry['key']}: must be a URL without spaces or control characters")
+        raise InvalidValue(entry["key"], "must be a URL without spaces or control characters")
     try:
         parts = urlsplit(value)
         port_ok = parts.port is None or 0 < parts.port < 65536
     except ValueError:
-        raise InvalidArgs(f"{entry['key']}: is not a valid URL") from None
+        raise InvalidValue(entry["key"], "is not a valid URL") from None
     target = parts.path if parts.scheme == "unix" else parts.hostname
     if parts.scheme not in entry.get("schemes", ()) or not target or not port_ok:
-        raise InvalidArgs(f"{entry['key']}: must be a URL with an allowed scheme and a host")
+        raise InvalidValue(entry["key"], "must be a URL with an allowed scheme and a host")
     return value

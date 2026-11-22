@@ -46,10 +46,14 @@ class Error(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     code: ErrorCode
+    key: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_.]{0,47}$")
 
 
 class Response(BaseModel):
-    """The agent's answer: data when ok, otherwise a generic error code and nothing else."""
+    """The agent's answer: data when ok, otherwise a generic error code.
+
+    A refused config value also names its schema key, never the value or the reason.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -60,7 +64,9 @@ class Response(BaseModel):
 
     def line(self) -> bytes:
         """One JSON line: id always (null when the request could not be read), data or error."""
-        drop = {k for k in ("data", "error") if getattr(self, k) is None}
+        drop: dict[str, Any] = {k: True for k in ("data", "error") if getattr(self, k) is None}
+        if self.error is not None and self.error.key is None:
+            drop["error"] = {"key"}
         return self.model_dump_json(exclude=drop).encode() + b"\n"
 
 

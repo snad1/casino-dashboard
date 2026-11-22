@@ -153,6 +153,16 @@ describe('parsePasted', () => {
 		expect(parsePasted(row, keys).values).toEqual({ base_bet: '0.00000388' });
 	});
 
+	it('clears a direct proxy and skips a shown one, whose password is masked', () => {
+		const keys = [key({ key: 'proxy', type: 'string', format: 'url', off_allowed: true })];
+		expect(parsePasted('│ proxy │ direct │ Proxy URL │', keys).values).toEqual({ proxy: '' });
+		const shown = parsePasted('proxy=socks5://host:1080', keys);
+		expect(shown).toEqual({
+			values: {},
+			skipped: [{ key: 'proxy', reason: 'shown without its password; type it in' }]
+		});
+	});
+
 	it('reads key=value and key: value lines', () => {
 		const out = parsePasted(
 			'multiplier=2.5\nrecurring: no\nmax_loss = 0.01\napi_key=x',

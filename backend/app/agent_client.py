@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import hmac
 import json
+import re
 import secrets
 import time
 from collections.abc import AsyncIterator
@@ -19,14 +20,15 @@ from typing import Any
 
 PROTO_VERSION = 1
 MAX_REPLY_BYTES = 1 << 20
+_CONFIG_KEY = re.compile(r"[a-z][a-z0-9_.]{0,47}")
 
 
 class AgentError(Exception):
     """The agent could not be reached, refused the request or answered with an error."""
 
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, key: str | None = None) -> None:
         super().__init__(code)
-        self.code = code
+        self.code, self.key = code, key
 
 
 @dataclass(frozen=True)
@@ -53,8 +55,12 @@ def _parse(line: bytes) -> dict[str, Any]:
 def _data(reply: dict[str, Any]) -> dict[str, Any]:
     if not reply.get("ok"):
         error = reply.get("error")
-        code = error.get("code") if isinstance(error, dict) else None
-        raise AgentError(code if isinstance(code, str) else "bad_reply")
+        error = error if isinstance(error, dict) else {}
+        code, key = error.get("code"), error.get("key")
+        raise AgentError(
+            code if isinstance(code, str) else "bad_reply",
+            key if isinstance(key, str) and _CONFIG_KEY.fullmatch(key) else None,
+        )
     data = reply.get("data")
     return data if isinstance(data, dict) else {}
 

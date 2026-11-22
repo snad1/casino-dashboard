@@ -545,3 +545,24 @@ async def test_commands_through_the_agent(bin_dir: Path) -> None:
         assert slow == {"id": "a4", "ok": False, "error": {"code": "timeout"}}
     finally:
         await server.close()
+
+
+async def test_a_refused_config_value_names_its_key_and_nothing_else(bin_dir: Path) -> None:
+    service = WolfBetService(PATHS, FakeRunner())
+    config = AgentConfig(
+        socket_path=bin_dir / "a.sock",
+        token=TOKEN,
+        allow_uids=frozenset({os.getuid()}),
+        allow_gids=frozenset(),
+    )
+    server = AgentServer(config, handlers=service.handlers())
+    await server.start()
+    try:
+        proxy = await _ask(server, "wolfbet.config_dry_run", {"pairs": {"proxy": "direct"}}, "c1")
+        assert proxy["error"] == {"code": "bad_request", "key": "proxy"}
+        alias = await _ask(server, "wolfbet.config_dry_run", {"pairs": {"maxloss": "x"}}, "c2")
+        assert alias["error"] == {"code": "bad_request", "key": "max_loss"}
+        unknown = await _ask(server, "wolfbet.config_dry_run", {"pairs": {"nope": "1"}}, "c3")
+        assert unknown["error"] == {"code": "bad_request"}
+    finally:
+        await server.close()
