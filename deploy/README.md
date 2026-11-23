@@ -66,7 +66,7 @@ The live wolfbet dashboard is the Coolify app `hrrxmud5u4rwmjyilbqwryib` (projec
 - **Deploying:** a push to `feat/casino-dashboard` sends GitHub's push webhook to Coolify (`/webhooks/source/github/events/manual`, signed with the app's manual webhook secret), and Coolify deploys at once, pulling `:latest`. In parallel, `.github/workflows/images.yml` waits for that commit's `ci` run, stops unless it passed, then builds and pushes the three images. A push therefore deploys the newest images that finished building, which is normally the previous commit's: to run a commit's own images, press **Redeploy** in Coolify once its `images` run is green. `migrate` runs once per deploy; if it fails, api, ingest and mailer never start and Coolify shows the app unhealthy.
 - **Credentials:** images are pushed with the run's own `GITHUB_TOKEN`; GitHub holds no Coolify token and no registry token. The webhook secret lives in Coolify (app, **Webhooks**) and in the repository's webhook settings.
 - **Secrets:** one file each in `/opt/wolfbet/secrets` on the host (directory 0755, files 0644, because Redis runs as uid 999 and the api as uid 10001 and neither can enter `/root`). The compose file mounts them from those absolute paths. Never commit them.
-- **Data:** Postgres lives in the Docker volume `hrrxmud5u4rwmjyilbqwryib_pgdata`. The volume `wolfbet-dashboard_pgdata` is the pre-Coolify copy, kept as a backup.
+- **Data:** Postgres lives in the Docker volume `hrrxmud5u4rwmjyilbqwryib_pgdata`.
 - **Status, logs, env, history:** Coolify's app page, or the API: `GET /api/v1/applications/<uuid>` (status), `GET /api/v1/applications/<uuid>/envs`, `GET /api/v1/deployments/applications/<uuid>` (history) and `GET /api/v1/deployments/<deployment uuid>` (log, including the `migrate` output).
 - **Rolling back a release:** set `IMAGE_TAG` in Coolify to the last good commit's full sha and press **Redeploy**. Set it back to `latest` once the fix is pushed and built.
 
@@ -82,7 +82,12 @@ docker compose -f deploy/compose.yml --env-file /root/.wolfbet.env --project-nam
 rm /opt/wolfbet/DEPLOYER    # the cron keeps the host stack up to date from now on
 ```
 
-The host stack reads the volume `wolfbet-dashboard_pgdata`. Copy `hrrxmud5u4rwmjyilbqwryib_pgdata` into it first (both stacks stopped) if Coolify has run since the cutover; otherwise the data written under Coolify is not there.
+The host stack reads the volume `wolfbet-dashboard_pgdata`, which no longer exists, so it would start on an empty database. Before the `up` above, with both stacks stopped, copy the live data into it:
+
+```bash
+docker volume create wolfbet-dashboard_pgdata
+docker run --rm -v hrrxmud5u4rwmjyilbqwryib_pgdata:/from:ro -v wolfbet-dashboard_pgdata:/to alpine cp -a /from/. /to/
+```
 
 ## Redis users
 
