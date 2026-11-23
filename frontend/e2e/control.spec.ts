@@ -245,7 +245,8 @@ test('a lane card pauses or stops only its own lane', async ({ page }) => {
 	const one = page.getByRole('article', { name: 'Lane 1' });
 	const two = page.getByRole('article', { name: 'Lane 2' });
 	await expect(one.getByRole('button', { name: 'Pause' })).toBeVisible();
-	await expect(one.getByRole('button', { name: 'Stop' })).toHaveCount(0);
+	await expect(one.getByRole('button', { name: 'Stop' })).toBeVisible();
+	await expect(one.getByRole('button', { name: 'Restart' })).toBeVisible();
 	await expect(two.getByRole('button', { name: 'Resume' })).toBeVisible();
 	await expect(two.getByRole('link', { name: 'Configure lane 2' })).toHaveAttribute(
 		'href',

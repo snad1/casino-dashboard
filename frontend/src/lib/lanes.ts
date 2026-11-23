@@ -102,27 +102,45 @@ export interface LaneAction {
 	danger?: boolean;
 }
 
-/**
- * The buttons a lane card offers for its live status. Lane 1 is the main service, so it has no
- * Stop or Start of its own: the Lanes toolbar's Stop all and the Control page cover it.
- */
+/** The buttons a lane card offers for its live status; every lane, lane 1 included, has its own. */
 export function laneActions(n: number, status: LaneStatus): LaneAction[] {
-	const extra = n >= 2;
 	const pause: LaneAction = { name: 'pause', body: { target: n }, label: 'Pause' };
 	const resume: LaneAction = { name: 'resume', body: { target: n }, label: 'Resume' };
+	const restart: LaneAction = { name: 'lane_restart', body: { lane: n }, label: 'Restart' };
 	const stop: LaneAction = { name: 'lane_stop', body: { lane: n }, label: 'Stop', danger: true };
 	const start: LaneAction = { name: 'lane_start', body: { lane: n }, label: 'Start' };
-	const withStop = (actions: LaneAction[]) => (extra ? [...actions, stop] : actions);
 	switch (status) {
 		case 'running':
-			return withStop([pause]);
+			return [pause, restart, stop];
 		case 'paused':
-			return withStop([resume]);
+			return [resume, restart, stop];
 		case 'events_off':
-			return withStop([pause, resume]);
+			return [pause, resume, stop];
 		default:
-			return extra ? [start] : [];
+			return [start];
 	}
+}
+
+export const LANE_STATUS_WORDS: Record<LaneStatus, string> = {
+	running: 'Running',
+	paused: 'Paused',
+	stopped: 'Stopped',
+	stale: 'Stale',
+	down: 'Down',
+	events_off: 'Events off'
+};
+
+/** `Lane 3 · friend-A` once the lane has its own name, else `Lane 3`. */
+export function laneTitle(n: number, name?: string | null): string {
+	return name ? `Lane ${n} · ${name}` : `Lane ${n}`;
+}
+
+const LANE_NAME = /^[A-Za-z0-9_]([A-Za-z0-9 _-]{0,30}[A-Za-z0-9_-])?$/;
+export const LANE_NAME_HELP = '1-32 letters, digits, space, _ or -, not starting with - or a space';
+
+/** Why `name` can't be a lane name, or null when it can: the rule the bot and the API check. */
+export function laneNameError(name: string): string | null {
+	return LANE_NAME.test(name) ? null : LANE_NAME_HELP;
 }
 
 /** The Config page tab that edits lane `n`: lane 1 is the base config. */

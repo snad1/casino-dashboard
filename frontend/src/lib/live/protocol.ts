@@ -14,6 +14,8 @@ export interface LaneFields {
 	base_bet?: number | null;
 	current_bet?: number | null;
 	lane_split?: string | null;
+	/** The lane's own name; null while it is still `Lane K`. */
+	name?: string | null;
 	run_profit?: number | null;
 	stop_reason?: string | null;
 	last_reload?: { ts_ms: number; keys: string[] } | null;

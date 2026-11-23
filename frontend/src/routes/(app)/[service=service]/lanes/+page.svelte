@@ -6,7 +6,15 @@
 	import type { ConfigChange, ConfigOut, Preview } from '#lib/config';
 	import { control } from '#lib/control.svelte';
 	import { formatAmount } from '#lib/format';
-	import { lanePlan, laneShares, parseArchives, type Split } from '#lib/lanes';
+	import {
+		LANE_STATUS_WORDS,
+		laneNameError,
+		lanePlan,
+		laneShares,
+		laneTitle,
+		parseArchives,
+		type Split
+	} from '#lib/lanes';
 	import { liveFor } from '#lib/live/index';
 	import { topicFor } from '#lib/live/protocol';
 	import { can, denialReason } from '#lib/permissions';
@@ -30,6 +38,9 @@
 	let archivesText = $state<string | null>(null);
 	let loadingArchives = $state(false);
 	let handledJob: string | null = null;
+	let newName = $state('');
+	let copyFrom = $state('');
+	let renames = $state<Record<number, string>>({});
 
 	const changes = $derived.by(() => {
 		const out: ConfigChange[] = [];
@@ -47,6 +58,16 @@
 	const plan = $derived(config ? lanePlan(live.lanes, config.lane_count, count) : null);
 	const archives = $derived(archivesText === null ? null : parseArchives(archivesText));
 	const configReason = $derived(denialReason(session.me, 'config.write', service));
+	const laneRows = $derived(
+		Object.entries(live.lanes)
+			.map(([n, lane]) => ({ n: Number(n), lane }))
+			.sort((a, b) => a.n - b.n)
+	);
+	const newNameError = $derived(newName === '' ? null : laneNameError(newName));
+	const addBody = $derived(
+		copyFrom === '' ? { name: newName } : { name: newName, copy_from: Number(copyFrom) }
+	);
+	const renameTo = (n: number, current: string | null | undefined) => renames[n] ?? current ?? '';
 
 	async function load() {
 		try {
@@ -193,6 +214,108 @@
 						</tbody>
 					</table>
 				</div>
+			{/if}
+		{/if}
+	</section>
+
+	<section class={section} aria-labelledby="each-title">
+		<h2 id="each-title" class="mb-3 font-semibold">Each lane</h2>
+		{#if configReason}
+			<p class="text-sm text-muted">{configReason}</p>
+		{:else}
+			<form
+				class="mb-4 flex flex-wrap items-end gap-3"
+				aria-labelledby="add-title"
+				onsubmit={(e) => e.preventDefault()}
+			>
+				<h3 id="add-title" class="w-full text-sm font-semibold">Add a lane</h3>
+				<label class="flex flex-col gap-1 text-sm font-medium">
+					Name
+					<input
+						class="{input} w-48"
+						maxlength="32"
+						autocomplete="off"
+						aria-invalid={newNameError !== null}
+						aria-describedby="new-name-help"
+						bind:value={newName}
+					/>
+				</label>
+				<label class="flex flex-col gap-1 text-sm font-medium">
+					Copy settings from
+					<select class={input} bind:value={copyFrom}>
+						<option value="">Base config</option>
+						{#each laneRows as row (row.n)}
+							{#if row.n > 1}
+								<option value={String(row.n)}>{laneTitle(row.n, row.lane.name)}</option>
+							{/if}
+						{/each}
+					</select>
+				</label>
+				{#if newName !== '' && newNameError === null}
+					<ActionButton name="lane_add" body={addBody} label="Add lane" />
+				{:else}
+					<Button variant="secondary" disabled>Add lane</Button>
+				{/if}
+				<p id="new-name-help" class="w-full text-xs {newNameError ? 'text-loss' : 'text-muted'}">
+					{newNameError ??
+						'The new lane starts betting with its own number. It shows here once it reports.'}
+				</p>
+			</form>
+
+			{#if laneRows.length === 0}
+				<p class="text-sm text-muted">No lane has reported yet.</p>
+			{:else}
+				<ul class="flex flex-col divide-y divide-line" aria-label="Lane controls">
+					{#each laneRows as row (row.n)}
+						{@const value = renameTo(row.n, row.lane.name)}
+						{@const error = laneNameError(value)}
+						<li
+							class="flex flex-wrap items-end gap-3 py-3"
+							aria-label={laneTitle(row.n, row.lane.name)}
+						>
+							<div class="flex min-w-40 flex-col">
+								<span class="font-medium break-all">{laneTitle(row.n, row.lane.name)}</span>
+								<span class="text-xs text-muted"
+									>{LANE_STATUS_WORDS[row.lane.status ?? 'stale']}</span
+								>
+							</div>
+							<label class="flex flex-col gap-1 text-sm font-medium">
+								New name
+								<input
+									class="{input} w-44"
+									maxlength="32"
+									autocomplete="off"
+									aria-invalid={value !== '' && error !== null}
+									{value}
+									oninput={(e) => (renames[row.n] = e.currentTarget.value)}
+								/>
+							</label>
+							{#if error === null && value !== (row.lane.name ?? '')}
+								<ActionButton
+									name="lane_rename"
+									body={{ lane: row.n, name: value }}
+									label="Rename"
+									compact
+								/>
+							{:else}
+								<Button variant="secondary" disabled>Rename</Button>
+							{/if}
+							<ActionButton name="lane_restart" body={{ lane: row.n }} label="Restart" compact />
+							{#if row.n > 1}
+								<ActionButton
+									name="lane_remove"
+									body={{ lane: row.n }}
+									label="Remove"
+									danger
+									compact
+								/>
+							{/if}
+							{#if value !== '' && error}
+								<p class="w-full text-xs text-loss">{error}</p>
+							{/if}
+						</li>
+					{/each}
+				</ul>
 			{/if}
 		{/if}
 	</section>

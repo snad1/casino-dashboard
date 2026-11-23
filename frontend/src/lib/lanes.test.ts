@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { ConfigOut } from './config';
-import { configTab, lanePlan, laneActions, laneShares, parseArchives } from './lanes';
+import {
+	configTab,
+	LANE_NAME_HELP,
+	laneActions,
+	laneNameError,
+	lanePlan,
+	laneShares,
+	laneTitle,
+	parseArchives
+} from './lanes';
 
 const config = (base_bet: number, lanes: ConfigOut['lanes'] = {}): ConfigOut => ({
 	keys: [],
@@ -104,23 +113,24 @@ describe('lane card actions', () => {
 	const names = (n: number, status: Parameters<typeof laneActions>[1]) =>
 		laneActions(n, status).map((a) => a.label);
 
-	it('offers pause or resume, and stop on lanes above 1', () => {
-		expect(names(2, 'running')).toEqual(['Pause', 'Stop']);
-		expect(names(2, 'paused')).toEqual(['Resume', 'Stop']);
-		expect(names(1, 'running')).toEqual(['Pause']);
-		expect(names(1, 'paused')).toEqual(['Resume']);
+	it('offers pause or resume, restart and stop on every lane', () => {
+		expect(names(2, 'running')).toEqual(['Pause', 'Restart', 'Stop']);
+		expect(names(2, 'paused')).toEqual(['Resume', 'Restart', 'Stop']);
+		expect(names(1, 'running')).toEqual(['Pause', 'Restart', 'Stop']);
+		expect(names(1, 'events_off')).toEqual(['Pause', 'Resume', 'Stop']);
 	});
 
-	it('offers start for a lane that is not betting, never for lane 1', () => {
+	it('offers start for a lane that is not betting, lane 1 included', () => {
 		for (const status of ['stopped', 'stale', 'down'] as const) {
 			expect(names(3, status)).toEqual(['Start']);
-			expect(names(1, status)).toEqual([]);
+			expect(names(1, status)).toEqual(['Start']);
 		}
 	});
 
 	it('targets its own lane only', () => {
 		expect(laneActions(4, 'running')).toEqual([
 			{ name: 'pause', body: { target: 4 }, label: 'Pause' },
+			{ name: 'lane_restart', body: { lane: 4 }, label: 'Restart' },
 			{ name: 'lane_stop', body: { lane: 4 }, label: 'Stop', danger: true }
 		]);
 	});
@@ -128,5 +138,22 @@ describe('lane card actions', () => {
 	it('opens lane 1 on the base tab', () => {
 		expect(configTab(1)).toBe('base');
 		expect(configTab(3)).toBe('3');
+	});
+});
+
+describe('lane names', () => {
+	it('titles a lane with its own name only', () => {
+		expect(laneTitle(3, 'friend-A')).toBe('Lane 3 · friend-A');
+		expect(laneTitle(3, null)).toBe('Lane 3');
+		expect(laneTitle(1)).toBe('Lane 1');
+	});
+
+	it('takes the names the bot takes', () => {
+		for (const name of ['friend-A', 'night run', 'x', '_a', 'a-', 'a'.repeat(32)]) {
+			expect(laneNameError(name)).toBeNull();
+		}
+		for (const name of ['', '-x', ' x', 'x ', 'a;b', '%(asctime)s', 'a'.repeat(33)]) {
+			expect(laneNameError(name)).toBe(LANE_NAME_HELP);
+		}
 	});
 });

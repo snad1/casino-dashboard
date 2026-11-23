@@ -36,6 +36,7 @@ EWMA_ALPHA = 0.3
 MIN_HZ, MAX_HZ, DEFAULT_HZ = 4, 10, 5
 FLOAT_TOLERANCE = 1e-9
 STOP_REASON_MAX = 120
+LANE_NAME_MAX = 32
 MAX_RELOAD_KEYS = 64
 
 log = structlog.get_logger("app.live.aggregator")
@@ -108,6 +109,7 @@ class Lane:
     base_bet: float | None = None
     current_bet: float | None = None
     lane_split: str | None = None
+    name: str | None = None
     run_profit: float | None = None
     stop_reason: str | None = None
     last_reload: dict[str, Any] | None = None
@@ -305,6 +307,10 @@ class Aggregator:
                 setattr(lane, key, float(state[key]))
         if isinstance(state.get("lane_split"), str):
             lane.lane_split = state["lane_split"]
+        if "lane_name" in state:
+            name = state["lane_name"]
+            if name is None or (isinstance(name, str) and 0 < len(name) <= LANE_NAME_MAX):
+                lane.name = name
         run_total = state.get("run_profit_total")
         per_run = state.get("profit_increment_scope") == "run"
         lane.run_profit = (
@@ -384,6 +390,7 @@ class Aggregator:
             "base_bet": lane.base_bet,
             "current_bet": lane.current_bet,
             "lane_split": lane.lane_split,
+            "name": lane.name,
             "run_profit": lane.run_profit,
             "stop_reason": lane.stop_reason,
             "last_reload": lane.last_reload,

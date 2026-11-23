@@ -282,6 +282,18 @@ class TestReconcile:
         )
         assert aggregator.tick().snapshot_diff[1]["run_profit"] is None
 
+    def test_the_lane_name_comes_from_state(self) -> None:
+        aggregator = Aggregator("wolfbet", clock=Clock())
+        aggregator.apply(state(lane=3, session_id=1, lane_name="friend-A"))
+        assert aggregator.tick().snapshot_diff[3]["name"] == "friend-A"
+        for bad in ("x" * 33, "", 7):
+            aggregator.apply(state(lane=3, session_id=1, lane_name=bad))
+            assert aggregator.lanes[3].name == "friend-A"
+        aggregator.apply(state(lane=3, session_id=1))
+        assert aggregator.lanes[3].name == "friend-A"
+        aggregator.apply(state(lane=3, session_id=1, lane_name=None))
+        assert aggregator.tick().snapshot_diff[3]["name"] is None
+
     def test_stop_reason_is_kept_until_the_lane_starts_again(self) -> None:
         aggregator = Aggregator("wolfbet", clock=Clock())
         aggregator.apply(lifecycle("stop", data={"reason": "Max profit reached" + "x" * 300}))

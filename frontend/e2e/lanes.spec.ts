@@ -30,7 +30,7 @@ const SNAPSHOT = {
 	topic: 'svc:wolfbet',
 	lanes: {
 		1: { status: 'running', balance: 1 },
-		2: { status: 'running', balance: 1 },
+		2: { status: 'running', balance: 1, name: 'friend-A' },
 		3: { status: 'stopped', balance: 1 }
 	},
 	tape: []
@@ -149,6 +149,74 @@ test('a preview shows the diff, each lane share and which lanes stop, then the c
 		count: 2,
 		split: 'both'
 	});
+});
+
+test('a lane is added with a name and the settings of another lane', async ({ page }) => {
+	const { posts } = await rig(page, operatorMe, { 'POST /wolfbet/control/lane_add': () => done() });
+	await page.goto('/wolfbet/lanes');
+	const each = page.getByRole('region', { name: 'Each lane' });
+	await each.getByRole('textbox', { name: 'Name', exact: true }).fill('night run');
+	await each.getByRole('combobox', { name: 'Copy settings from' }).selectOption('2');
+	await each.getByRole('button', { name: 'Add lane' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Add the lane night run?' });
+	await dialog.getByRole('button', { name: 'Add lane' }).click();
+	await expect.poll(() => posts.some((p) => p.path === '/wolfbet/control/lane_add')).toBe(true);
+	expect(posts.find((p) => p.path === '/wolfbet/control/lane_add')?.body).toEqual({
+		name: 'night run',
+		copy_from: 2
+	});
+});
+
+test('a bad lane name keeps Add lane and Rename disabled', async ({ page }) => {
+	await rig(page, operatorMe);
+	await page.goto('/wolfbet/lanes');
+	const each = page.getByRole('region', { name: 'Each lane' });
+	await each.getByRole('textbox', { name: 'Name', exact: true }).fill('-x');
+	await expect(each.getByRole('button', { name: 'Add lane' })).toBeDisabled();
+	await expect(each.getByText('not starting with - or a space').first()).toBeVisible();
+	const two = each.getByRole('listitem', { name: 'Lane 2 · friend-A' });
+	await two.getByRole('textbox', { name: 'New name' }).fill('a;b');
+	await expect(two.getByRole('button', { name: 'Rename' })).toBeDisabled();
+});
+
+test('each lane is renamed, restarted or removed on its own; lane 1 has no Remove', async ({
+	page
+}) => {
+	const { posts } = await rig(page, operatorMe, {
+		'POST /wolfbet/control/lane_rename': () => done(),
+		'POST /wolfbet/control/lane_remove': () => done()
+	});
+	await page.goto('/wolfbet/lanes');
+	const list = page.getByRole('list', { name: 'Lane controls' });
+	await expect(list.getByRole('listitem')).toHaveCount(3);
+	const one = list.getByRole('listitem', { name: 'Lane 1' });
+	await expect(one.getByRole('button', { name: 'Restart' })).toBeVisible();
+	await expect(one.getByRole('button', { name: 'Remove' })).toHaveCount(0);
+
+	const two = list.getByRole('listitem', { name: 'Lane 2 · friend-A' });
+	await expect(two.getByRole('button', { name: 'Rename' })).toBeDisabled();
+	await two.getByRole('textbox', { name: 'New name' }).fill('night-run');
+	await two.getByRole('button', { name: 'Rename' }).click();
+	await page
+		.getByRole('dialog', { name: 'Rename lane 2 to night-run?' })
+		.getByRole('button', { name: 'Rename' })
+		.click();
+	await expect.poll(() => posts.some((p) => p.path === '/wolfbet/control/lane_rename')).toBe(true);
+
+	await list
+		.getByRole('listitem', { name: 'Lane 3' })
+		.getByRole('button', { name: 'Remove' })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Remove lane 3?' })
+		.getByRole('button', { name: 'Remove lane 3' })
+		.click();
+	await expect.poll(() => posts.some((p) => p.path === '/wolfbet/control/lane_remove')).toBe(true);
+	expect(posts.find((p) => p.path === '/wolfbet/control/lane_rename')?.body).toEqual({
+		lane: 2,
+		name: 'night-run'
+	});
+	expect(posts.find((p) => p.path === '/wolfbet/control/lane_remove')?.body).toEqual({ lane: 3 });
 });
 
 test('archives are listed and resets stay admin-only', async ({ page }) => {

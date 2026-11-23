@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { formatAmount, formatProfit } from '#lib/format';
-	import { configTab, laneActions } from '#lib/lanes';
+	import { configTab, LANE_STATUS_WORDS as WORDS, laneActions, laneTitle } from '#lib/lanes';
 	import type { LaneFields, LaneStatus } from '#lib/live/protocol';
 	import ActionButton from './ActionButton.svelte';
 
@@ -16,14 +16,6 @@
 		service?: string;
 	} = $props();
 
-	const WORDS: Record<LaneStatus, string> = {
-		running: 'Running',
-		paused: 'Paused',
-		stopped: 'Stopped',
-		stale: 'Stale',
-		down: 'Down',
-		events_off: 'Events off'
-	};
 	const GOOD = new Set<LaneStatus>(['running', 'paused']);
 
 	const status = $derived(lane.status ?? 'stale');
@@ -49,7 +41,7 @@
 	aria-labelledby="lane-{n}-title"
 >
 	<header class="flex items-center justify-between">
-		<h3 id="lane-{n}-title" class="font-semibold">Lane {n}</h3>
+		<h3 id="lane-{n}-title" class="font-semibold break-all">{laneTitle(n, lane.name)}</h3>
 		<span
 			class="rounded-sm border px-2 py-0.5 text-xs {GOOD.has(status)
 				? 'border-line text-muted'

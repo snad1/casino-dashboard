@@ -86,6 +86,16 @@ export const controlMenu = {
 		action('stop', 'control.basic', 'Stop', 'Stop {service}?', 'Stop'),
 		action('lane_stop', 'control.basic', 'Stop', 'Stop lane {lane}?', 'Stop lane {lane}'),
 		action('lane_start', 'control.basic', 'Start', 'Start lane {lane}?', 'Start lane {lane}'),
+		action(
+			'lane_restart',
+			'control.basic',
+			'Restart',
+			'Restart lane {lane}?',
+			'Restart lane {lane}'
+		),
+		action('lane_add', 'config.write', 'Add lane', 'Add the lane {name}?', 'Add lane'),
+		action('lane_remove', 'config.write', 'Remove', 'Remove lane {lane}?', 'Remove lane {lane}'),
+		action('lane_rename', 'config.write', 'Rename', 'Rename lane {lane} to {name}?', 'Rename'),
 		action('pause', 'control.basic', 'Pause', 'Pause {target}?', 'Pause {target}'),
 		action('resume', 'control.basic', 'Resume', 'Resume {target}?', 'Resume {target}'),
 		action('reload', 'control.basic', 'Reload', 'Reload {target}?', 'Reload {target}'),
