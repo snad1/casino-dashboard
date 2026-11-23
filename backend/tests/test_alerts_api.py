@@ -109,7 +109,7 @@ def test_params_are_filled_in_and_checked_like_the_engine(owner: TestClient) -> 
         assert response.json()["detail"] == INVALID_SETTINGS
     for invalid in (
         {"kind": "terminal_opened"},
-        {"lane": 11},
+        {"lane": 100},
         {"name": ""},
         {"name": "x" * 81},
         {"name": "bad\nname"},

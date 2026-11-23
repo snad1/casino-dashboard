@@ -20,13 +20,14 @@ from agent.errors import Busy
 from agent.files import FileStore
 from agent.runner import STDERR_TAIL, STDOUT_TAIL, RunResult, run, tail
 from agent.validators import (
-    LANES_MAX,
+    LANE_ID_MAX,
     Args,
     Branch,
     InvalidArgs,
     InvalidValue,
     IsoDate,
     Lane,
+    LaneName,
     LaneTarget,
     Name,
     PositiveFloat,
@@ -83,10 +84,24 @@ class TargetArgs(Args):
     target: LaneTarget = "all"
 
 
-class ExtraLaneArgs(Args):
-    """One lane above lane 1, which is the main service and stops only with every lane."""
+class LaneIdArgs(Args):
+    lane: Lane
 
-    lane: int = Field(ge=2, le=LANES_MAX)
+
+class RemovableLaneArgs(Args):
+    """Any lane but lane 1, which holds the base config."""
+
+    lane: int = Field(ge=2, le=LANE_ID_MAX)
+
+
+class LaneAddArgs(Args):
+    name: LaneName
+    copy_from: Lane | None = None
+
+
+class LaneRenameArgs(Args):
+    lane: Lane
+    name: LaneName
 
 
 class LanesArgs(Args):
@@ -256,10 +271,28 @@ COMMANDS: dict[str, CommandSpec] = {
         json_output=True,
     ),
     "lane_stop": CommandSpec(
-        ExtraLaneArgs, lambda a, p: _ctl(p, "stop", str(a.lane)), 60, mutating=True
+        LaneIdArgs, lambda a, p: _ctl(p, "stop", str(a.lane)), 60, mutating=True
     ),
     "lane_start": CommandSpec(
-        ExtraLaneArgs, lambda a, p: _ctl(p, "start", str(a.lane)), 60, mutating=True
+        LaneIdArgs, lambda a, p: _ctl(p, "start", str(a.lane)), 60, mutating=True
+    ),
+    "lane_restart": CommandSpec(
+        LaneIdArgs, lambda a, p: _ctl(p, "restart", str(a.lane)), 60, mutating=True
+    ),
+    "lane_add": CommandSpec(
+        LaneAddArgs,
+        lambda a, p: _ctl(p, "lane", "add", a.name, *_opt("--from", a.copy_from)),
+        60,
+        mutating=True,
+    ),
+    "lane_remove": CommandSpec(
+        RemovableLaneArgs, lambda a, p: _ctl(p, "lane", "remove", str(a.lane)), 60, mutating=True
+    ),
+    "lane_rename": CommandSpec(
+        LaneRenameArgs,
+        lambda a, p: _ctl(p, "lane", "rename", str(a.lane), a.name),
+        60,
+        mutating=True,
     ),
     "pause": CommandSpec(TargetArgs, _signal("pause"), 30, mutating=True),
     "resume": CommandSpec(TargetArgs, _signal("resume"), 30, mutating=True),

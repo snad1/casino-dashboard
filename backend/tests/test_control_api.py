@@ -30,6 +30,10 @@ BODIES: dict[str, dict[str, Any]] = {
     "resume": {"target": 2},
     "lane_stop": {"lane": 2},
     "lane_start": {"lane": 3},
+    "lane_restart": {"lane": 1},
+    "lane_add": {"name": "friend-A", "copy_from": 2},
+    "lane_remove": {"lane": 3},
+    "lane_rename": {"lane": 15, "name": "night run"},
     "reload": {},
     "config_set": {
         "changes": [
@@ -53,6 +57,10 @@ ALLOWED: dict[Role, set[str]] = {
         "stop",
         "lane_stop",
         "lane_start",
+        "lane_restart",
+        "lane_add",
+        "lane_remove",
+        "lane_rename",
         "pause",
         "resume",
         "reload",
@@ -236,10 +244,47 @@ def test_bad_branch_and_lane_count_are_refused(signed_in_as: Any, fake_agent: Fa
     client = signed_in_as(Role.ADMIN)
     assert _post(client, "update", {"branch": "--upload-pack=x"}).status_code == 422
     assert _post(client, "update", {"branch": "a/../b"}).status_code == 422
-    assert _post(client, "lanes", {"count": 11}).status_code == 422
-    for lane in (1, 11, "2"):
+    assert _post(client, "lanes", {"count": 100}).status_code == 422
+    for lane in (0, 100, "2"):
         assert _post(client, "lane_stop", {"lane": lane}).status_code == 422
+    assert _post(client, "lane_remove", {"lane": 1}).status_code == 422
+    for name in ("-x", "a;b", " x", "x ", "a" * 33, "%(asctime)s"):
+        assert _post(client, "lane_add", {"name": name}).status_code == 422, name
+        assert _post(client, "lane_rename", {"lane": 2, "name": name}).status_code == 422, name
+    assert _post(client, "lane_add", {"name": "x", "from": 2}).status_code == 422
     assert fake_agent.calls == []
+
+
+def test_lane_changes_reach_the_agent_with_their_args(
+    signed_in_as: Any, control_settings: Settings, account: Account, fake_agent: FakeAgent
+) -> None:
+    client = signed_in_as(Role.OPERATOR)
+    assert _post(client, "lane_add").json()["status"] == "succeeded"
+    assert _post(client, "lane_rename").status_code == 200
+    assert _post(client, "lane_restart", {"lane": 15}).status_code == 200
+    sent = [(c["cmd"], c["args"]) for c in fake_agent.calls]
+    assert sent == [
+        ("wolfbet.lane_add", {"name": "friend-A", "copy_from": 2}),
+        ("wolfbet.lane_rename", {"lane": 15, "name": "night run"}),
+        ("wolfbet.lane_restart", {"lane": 15}),
+    ]
+    assert _audit_results(control_settings, account.email, "lane_add") == [
+        "requested",
+        "succeeded",
+    ]
+
+
+def test_lane_config_changes_need_a_recent_step_up(
+    signed_in_as: Any, control_settings: Settings, account: Account, fake_agent: FakeAgent
+) -> None:
+    client = signed_in_as(Role.OPERATOR)
+    _expire_step_up(control_settings, account.id)
+    for action in ("lane_add", "lane_remove", "lane_rename"):
+        response = _post(client, action)
+        assert response.status_code == 403, action
+        assert response.json() == {"detail": STEP_UP_NEEDED, "step_up_required": True}, action
+    assert _post(client, "lane_restart").status_code == 200
+    assert [c["cmd"] for c in fake_agent.calls] == ["wolfbet.lane_restart"]
 
 
 def test_a_busy_agent_is_a_conflict(signed_in_as: Any, fake_agent: FakeAgent) -> None:

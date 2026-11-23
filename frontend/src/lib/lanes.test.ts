@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ConfigOut } from './config';
-import { configTab, laneActions, laneShares, parseArchives, restartPlan } from './lanes';
+import { configTab, lanePlan, laneActions, laneShares, parseArchives } from './lanes';
 
 const config = (base_bet: number, lanes: ConfigOut['lanes'] = {}): ConfigOut => ({
 	keys: [],
@@ -48,17 +48,22 @@ describe('laneShares', () => {
 	});
 });
 
-describe('restartPlan', () => {
+describe('lanePlan', () => {
 	const live = {
 		1: { status: 'running' as const },
 		2: { status: 'paused' as const },
-		3: { status: 'stopped' as const }
+		3: { status: 'stopped' as const },
+		7: { status: 'running' as const }
 	};
 
-	it('restarts running lanes, starts new ones and stops the rest', () => {
-		expect(restartPlan(live, 3, 5)).toEqual({ restart: [1, 2], start: [4, 5], stop: [] });
-		expect(restartPlan(live, 3, 1)).toEqual({ restart: [1], start: [], stop: [2, 3] });
-		expect(restartPlan(live, 3, 3)).toEqual({ restart: [1, 2], start: [], stop: [] });
+	it('starts only the new lanes and stops only the highest ones', () => {
+		expect(lanePlan(live, 4, 6)).toEqual({ start: 2, stop: [] });
+		expect(lanePlan(live, 4, 2)).toEqual({ start: 0, stop: [3, 7] });
+		expect(lanePlan(live, 4, 4)).toEqual({ start: 0, stop: [] });
+	});
+
+	it('names nothing to stop when no lane reports yet', () => {
+		expect(lanePlan({}, 3, 1)).toEqual({ start: 0, stop: [] });
 	});
 });
 

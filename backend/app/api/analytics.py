@@ -36,7 +36,7 @@ from app.adapters.wolfbet.analytics import (
     history_report,
     session_stats,
 )
-from app.adapters.wolfbet.control import LANES_MAX
+from app.adapters.wolfbet.control import LANE_ID_MAX
 from app.agent_client import AgentError
 from app.api.control import CONTROLS, NOT_CONTROLLABLE, ServiceName, agent_or_error
 from app.api.history import SessionDetail, _cache, _session_out
@@ -237,7 +237,7 @@ async def get_analytics(
     db: Db,
     since: Bound = None,
     until: Bound = None,
-    lane: Annotated[int | None, Query(ge=1, le=LANES_MAX)] = None,
+    lane: Annotated[int | None, Query(ge=1, le=LANE_ID_MAX)] = None,
     epoch: Annotated[int | None, Query(ge=1)] = None,
 ) -> BaseModel:
     """The report for sessions started in the window (a bare `until` date counts whole), from
@@ -293,7 +293,7 @@ async def export_analytics(
     db: Db,
     since: Bound = None,
     until: Bound = None,
-    lane: Annotated[int | None, Query(ge=1, le=LANES_MAX)] = None,
+    lane: Annotated[int | None, Query(ge=1, le=LANE_ID_MAX)] = None,
     file_format: Annotated[Literal["csv", "json"], Query(alias="format")] = "csv",
     epoch: Annotated[int | None, Query(ge=1)] = None,
 ) -> Response:

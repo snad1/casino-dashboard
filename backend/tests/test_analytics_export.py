@@ -107,4 +107,4 @@ def test_only_operators_get_a_file_and_bad_input_is_refused(
     assert bad.status_code == 422
     assert bad.json()["detail"] == INVALID_WINDOW
     assert operator.get(f"{URL}?format=xml").status_code == 422
-    assert operator.get(f"{URL}?lane=11").status_code == 422
+    assert operator.get(f"{URL}?lane=100").status_code == 422

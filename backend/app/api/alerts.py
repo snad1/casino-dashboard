@@ -17,7 +17,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters.wolfbet.control import LANES_MAX
+from app.adapters.wolfbet.control import LANE_ID_MAX
 from app.alerts.channels import LINK_TTL, issue_link_code
 from app.alerts.digest import DIGEST_KIND
 from app.alerts.models import (
@@ -63,7 +63,7 @@ class _Body(BaseModel):
 class RuleIn(_Body):
     name: Annotated[str, Field(min_length=1, max_length=NAME_MAX)]
     kind: Kind
-    lane: Annotated[int, Field(ge=1, le=LANES_MAX)] | None = None
+    lane: Annotated[int, Field(ge=1, le=LANE_ID_MAX)] | None = None
     params: dict[str, Any] = Field(default_factory=dict)
     cooldown_s: Annotated[int, Field(ge=0, le=86400)] = 600
     enabled: bool = False

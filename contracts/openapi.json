@@ -428,7 +428,7 @@
           "lanes": {
             "anyOf": [
               {
-                "maximum": 10.0,
+                "maximum": 99.0,
                 "minimum": 1.0,
                 "type": "integer"
               },
@@ -1069,7 +1069,7 @@
           "lane": {
             "anyOf": [
               {
-                "maximum": 10.0,
+                "maximum": 99.0,
                 "minimum": 2.0,
                 "type": "integer"
               },
@@ -1675,23 +1675,6 @@
         "title": "ExportArgs",
         "type": "object"
       },
-      "ExtraLaneArgs": {
-        "additionalProperties": false,
-        "description": "One lane above lane 1, which is the main service and stops only with every lane.",
-        "properties": {
-          "lane": {
-            "maximum": 10.0,
-            "minimum": 2.0,
-            "title": "Lane",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "lane"
-        ],
-        "title": "ExtraLaneArgs",
-        "type": "object"
-      },
       "FollowArgs": {
         "additionalProperties": false,
         "properties": {
@@ -1937,6 +1920,49 @@
         "title": "Kind",
         "type": "string"
       },
+      "LaneAddArgs": {
+        "additionalProperties": false,
+        "properties": {
+          "copy_from": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Copy From"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "LaneAddArgs",
+        "type": "object"
+      },
+      "LaneIdArgs": {
+        "additionalProperties": false,
+        "properties": {
+          "lane": {
+            "maximum": 99.0,
+            "minimum": 1.0,
+            "title": "Lane",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lane"
+        ],
+        "title": "LaneIdArgs",
+        "type": "object"
+      },
       "LaneRange": {
         "properties": {
           "max": {
@@ -1953,6 +1979,27 @@
           "max"
         ],
         "title": "LaneRange",
+        "type": "object"
+      },
+      "LaneRenameArgs": {
+        "additionalProperties": false,
+        "properties": {
+          "lane": {
+            "maximum": 99.0,
+            "minimum": 1.0,
+            "title": "Lane",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lane",
+          "name"
+        ],
+        "title": "LaneRenameArgs",
         "type": "object"
       },
       "LaneRow": {
@@ -2042,7 +2089,7 @@
         "additionalProperties": false,
         "properties": {
           "count": {
-            "maximum": 10.0,
+            "maximum": 99.0,
             "minimum": 1.0,
             "title": "Count",
             "type": "integer"
@@ -2544,6 +2591,23 @@
         "title": "RecoveryCodes",
         "type": "object"
       },
+      "RemovableLaneArgs": {
+        "additionalProperties": false,
+        "description": "Any lane but lane 1, which holds the base config.",
+        "properties": {
+          "lane": {
+            "maximum": 99.0,
+            "minimum": 2.0,
+            "title": "Lane",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lane"
+        ],
+        "title": "RemovableLaneArgs",
+        "type": "object"
+      },
       "ResetIn": {
         "properties": {
           "email": {
@@ -2658,7 +2722,7 @@
           "lane": {
             "anyOf": [
               {
-                "maximum": 10.0,
+                "maximum": 99.0,
                 "minimum": 1.0,
                 "type": "integer"
               },
@@ -3610,7 +3674,7 @@
           "target": {
             "anyOf": [
               {
-                "maximum": 10.0,
+                "maximum": 99.0,
                 "minimum": 1.0,
                 "type": "integer"
               },
@@ -6115,7 +6179,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "maximum": 10,
+                  "maximum": 99,
                   "minimum": 1,
                   "type": "integer"
                 },
@@ -6228,7 +6292,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "maximum": 10,
+                  "maximum": 99,
                   "minimum": 1,
                   "type": "integer"
                 },
@@ -7390,6 +7454,298 @@
         ]
       }
     },
+    "/{service}/control/lane_add": {
+      "post": {
+        "operationId": "control_lane_add__service__control_lane_add_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Service",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_-]{16,128}$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LaneAddArgs"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlOut"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Control Lane Add",
+        "tags": [
+          "control"
+        ]
+      }
+    },
+    "/{service}/control/lane_remove": {
+      "post": {
+        "operationId": "control_lane_remove__service__control_lane_remove_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Service",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_-]{16,128}$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemovableLaneArgs"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlOut"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Control Lane Remove",
+        "tags": [
+          "control"
+        ]
+      }
+    },
+    "/{service}/control/lane_rename": {
+      "post": {
+        "operationId": "control_lane_rename__service__control_lane_rename_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Service",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_-]{16,128}$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LaneRenameArgs"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlOut"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Control Lane Rename",
+        "tags": [
+          "control"
+        ]
+      }
+    },
+    "/{service}/control/lane_restart": {
+      "post": {
+        "operationId": "control_lane_restart__service__control_lane_restart_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Service",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_-]{16,128}$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LaneIdArgs"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlOut"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Control Lane Restart",
+        "tags": [
+          "control"
+        ]
+      }
+    },
     "/{service}/control/lane_start": {
       "post": {
         "operationId": "control_lane_start__service__control_lane_start_post",
@@ -7419,7 +7775,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ExtraLaneArgs"
+                "$ref": "#/components/schemas/LaneIdArgs"
               }
             }
           },
@@ -7492,7 +7848,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ExtraLaneArgs"
+                "$ref": "#/components/schemas/LaneIdArgs"
               }
             }
           },
@@ -9390,7 +9746,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "maximum": 64,
+                  "maximum": 99,
                   "minimum": 1,
                   "type": "integer"
                 },
@@ -9468,7 +9824,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "maximum": 64,
+                  "maximum": 99,
                   "minimum": 1,
                   "type": "integer"
                 },

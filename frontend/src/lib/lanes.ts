@@ -46,27 +46,24 @@ function shareOf(balance: number | null, split: boolean, count: number): number 
 	return split ? round8(balance / count) : balance;
 }
 
-export interface RestartPlan {
-	restart: number[];
-	start: number[];
+export interface LanePlan {
+	/** How many new lanes start; the bot picks their numbers. */
+	start: number;
+	/** The lanes that stop: the highest numbers go first. */
 	stop: number[];
 }
 
 /**
- * What `wolfctl lanes` does to go from `current` to `next` lanes: every running lane
- * restarts (its open session is saved and ended), new lanes start, lanes above `next` stop.
+ * What `wolfctl lanes` does to go from `current` to `next` lanes: only the difference starts or
+ * stops, and every other lane keeps betting.
  */
-export function restartPlan(lanes: Lanes, current: number, next: number): RestartPlan {
-	const running = Object.entries(lanes)
-		.filter(([, f]) => f.status === 'running' || f.status === 'paused')
-		.map(([lane]) => Number(lane))
+export function lanePlan(lanes: Lanes, current: number, next: number): LanePlan {
+	const known = Object.keys(lanes)
+		.map(Number)
 		.sort((a, b) => a - b);
-	const range = (from: number, to: number) =>
-		Array.from({ length: Math.max(0, to - from + 1) }, (_, i) => from + i);
 	return {
-		restart: running.filter((lane) => lane <= next),
-		start: range(current + 1, next),
-		stop: range(next + 1, current)
+		start: Math.max(0, next - current),
+		stop: known.slice(next, Math.max(next, current))
 	};
 }
 

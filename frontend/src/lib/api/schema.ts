@@ -1087,6 +1087,74 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/{service}/control/lane_add': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Lane Add */
+		post: operations['control_lane_add__service__control_lane_add_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/lane_remove': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Lane Remove */
+		post: operations['control_lane_remove__service__control_lane_remove_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/lane_rename': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Lane Rename */
+		post: operations['control_lane_rename__service__control_lane_rename_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/lane_restart': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Lane Restart */
+		post: operations['control_lane_restart__service__control_lane_restart_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/{service}/control/lane_start': {
 		parameters: {
 			query?: never;
@@ -2160,14 +2228,6 @@ export interface components {
 			/** Session Id */
 			session_id?: number | null;
 		};
-		/**
-		 * ExtraLaneArgs
-		 * @description One lane above lane 1, which is the main service and stops only with every lane.
-		 */
-		ExtraLaneArgs: {
-			/** Lane */
-			lane: number;
-		};
 		/** FollowArgs */
 		FollowArgs: {
 			/**
@@ -2269,12 +2329,31 @@ export interface components {
 			| 'publisher_dropped'
 			| 'ingest_lag'
 			| 'reconcile_mismatch';
+		/** LaneAddArgs */
+		LaneAddArgs: {
+			/** Copy From */
+			copy_from?: number | null;
+			/** Name */
+			name: string;
+		};
+		/** LaneIdArgs */
+		LaneIdArgs: {
+			/** Lane */
+			lane: number;
+		};
 		/** LaneRange */
 		LaneRange: {
 			/** Max */
 			max: number;
 			/** Min */
 			min: number;
+		};
+		/** LaneRenameArgs */
+		LaneRenameArgs: {
+			/** Lane */
+			lane: number;
+			/** Name */
+			name: string;
 		};
 		/** LaneRow */
 		LaneRow: {
@@ -2451,6 +2530,14 @@ export interface components {
 		RecoveryCodes: {
 			/** Recovery Codes */
 			recovery_codes: string[];
+		};
+		/**
+		 * RemovableLaneArgs
+		 * @description Any lane but lane 1, which holds the base config.
+		 */
+		RemovableLaneArgs: {
+			/** Lane */
+			lane: number;
 		};
 		/** ResetIn */
 		ResetIn: {
@@ -4877,6 +4964,190 @@ export interface operations {
 			};
 		};
 	};
+	control_lane_add__service__control_lane_add_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['LaneAddArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_lane_remove__service__control_lane_remove_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['RemovableLaneArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_lane_rename__service__control_lane_rename_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['LaneRenameArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_lane_restart__service__control_lane_restart_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['LaneIdArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
 	control_lane_start__service__control_lane_start_post: {
 		parameters: {
 			query?: never;
@@ -4890,7 +5161,7 @@ export interface operations {
 		};
 		requestBody: {
 			content: {
-				'application/json': components['schemas']['ExtraLaneArgs'];
+				'application/json': components['schemas']['LaneIdArgs'];
 			};
 		};
 		responses: {
@@ -4936,7 +5207,7 @@ export interface operations {
 		};
 		requestBody: {
 			content: {
-				'application/json': components['schemas']['ExtraLaneArgs'];
+				'application/json': components['schemas']['LaneIdArgs'];
 			};
 		};
 		responses: {

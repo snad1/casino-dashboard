@@ -13,8 +13,9 @@ from urllib.parse import urlsplit
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
-LANES_MAX = 10
+LANE_ID_MAX = 99
 _NAME = re.compile(r"[A-Za-z0-9_.-]{1,64}")
+_LANE_NAME = re.compile(r"[A-Za-z0-9_]([A-Za-z0-9 _-]{0,30}[A-Za-z0-9_-])?")
 _BRANCH = re.compile(r"[A-Za-z0-9._/-]{1,100}")
 _INT = re.compile(r"-?[0-9]{1,15}")
 _NUMBER = re.compile(r"-?[0-9]{1,15}(\.[0-9]{1,15})?([eE]-?[0-9]{1,3})?")
@@ -56,6 +57,14 @@ def _name(value: str) -> str:
     return value
 
 
+def _lane_name(value: str) -> str:
+    if not _LANE_NAME.fullmatch(value):
+        raise ValueError(
+            "must be 1-32 letters, digits, space, '_' or '-', not starting with - or a space"
+        )
+    return value
+
+
 def _branch(value: str) -> str:
     if (
         not _BRANCH.fullmatch(value)
@@ -75,10 +84,11 @@ def _finite(value: float) -> float:
     return value
 
 
-Lane = Annotated[int, Field(ge=1, le=LANES_MAX)]
+Lane = Annotated[int, Field(ge=1, le=LANE_ID_MAX)]
 LaneTarget = Lane | Literal["all"]
 IsoDate = Annotated[str, Field(max_length=19), AfterValidator(_iso_date)]
 Name = Annotated[str, AfterValidator(_name)]
+LaneName = Annotated[str, AfterValidator(_lane_name)]
 Branch = Annotated[str, AfterValidator(_branch)]
 PositiveFloat = Annotated[float, Field(gt=0, le=1e12), AfterValidator(_finite)]
 

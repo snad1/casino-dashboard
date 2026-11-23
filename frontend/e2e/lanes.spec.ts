@@ -97,7 +97,7 @@ async function rig(page: Page, me: object, handlers: Record<string, Handler> = {
 	};
 }
 
-test('a preview shows the diff, each lane share and what restarts, then the change runs', async ({
+test('a preview shows the diff, each lane share and which lanes stop, then the change runs', async ({
 	page
 }) => {
 	const { posts, subscribes } = await rig(page, operatorMe, {
@@ -129,7 +129,7 @@ test('a preview shows the diff, each lane share and what restarts, then the chan
 	const shares = page.getByRole('table', { name: 'Lane shares' });
 	await expect(shares.getByRole('row', { name: 'Lane 1 0.0001 0.50' })).toBeVisible();
 	await expect(shares.getByRole('row', { name: 'Lane 2 0.0001 0.50' })).toBeVisible();
-	await expect(page.getByText('Every running lane restarts (lane 1, lane 2)')).toBeVisible();
+	await expect(page.getByText('Running lanes keep betting.')).toBeVisible();
 	await expect(page.getByText('lane 3 stops.')).toBeVisible();
 
 	await page.getByRole('button', { name: 'Change lanes' }).click();

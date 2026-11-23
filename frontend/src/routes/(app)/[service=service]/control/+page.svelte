@@ -88,7 +88,7 @@
 				<a class="underline" href={resolve('/(app)/[service=service]/lanes', { service })}
 					>Change lanes and split</a
 				>
-				<span class="text-muted">with a preview of each lane's share and what restarts.</span>
+				<span class="text-muted">with a preview of each lane's share and which lanes stop.</span>
 			</p>
 		</section>
 

@@ -6,7 +6,7 @@
 	import type { ConfigChange, ConfigOut, Preview } from '#lib/config';
 	import { control } from '#lib/control.svelte';
 	import { formatAmount } from '#lib/format';
-	import { laneShares, parseArchives, restartPlan, type Split } from '#lib/lanes';
+	import { lanePlan, laneShares, parseArchives, type Split } from '#lib/lanes';
 	import { liveFor } from '#lib/live/index';
 	import { topicFor } from '#lib/live/protocol';
 	import { can, denialReason } from '#lib/permissions';
@@ -44,7 +44,7 @@
 		Object.values(live.lanes).find((lane) => typeof lane.balance === 'number')?.balance ?? null
 	);
 	const shares = $derived(config ? laneShares(config, count, split, balance) : []);
-	const plan = $derived(config ? restartPlan(live.lanes, config.lane_count, count) : null);
+	const plan = $derived(config ? lanePlan(live.lanes, config.lane_count, count) : null);
 	const archives = $derived(archivesText === null ? null : parseArchives(archivesText));
 	const configReason = $derived(denialReason(session.me, 'config.write', service));
 
@@ -162,13 +162,14 @@
 					<ConfigDiff {preview} />
 					{#if plan}
 						<Notice>
-							{#if plan.restart.length}
-								Every running lane restarts ({list(plan.restart)}); open sessions are saved and
-								ended.
-							{:else}
-								No lane is running, so nothing restarts now.
+							Running lanes keep betting.
+							{#if plan.start}
+								<span class="block"
+									>{plan.start} new lane{plan.start === 1 ? '' : 's'} start{plan.start === 1
+										? 's'
+										: ''}.</span
+								>
 							{/if}
-							{#if plan.start.length}<span class="block">Starts {list(plan.start)}.</span>{/if}
 							{#if plan.stop.length}
 								<span class="block">{list(plan.stop)} stop{plan.stop.length === 1 ? 's' : ''}.</span
 								>

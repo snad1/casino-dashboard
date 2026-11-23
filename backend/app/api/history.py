@@ -21,6 +21,7 @@ from sqlalchemy import Select, func, select, text, tuple_
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.wolfbet.control import LANE_ID_MAX
 from app.auth.models import User
 from app.auth.permissions import Perm, require
 from app.db.engine import get_session
@@ -197,7 +198,7 @@ async def list_sessions(
     request: Request,
     _: Viewer,
     db: Db,
-    lane: Annotated[int | None, Query(ge=1, le=64)] = None,
+    lane: Annotated[int | None, Query(ge=1, le=LANE_ID_MAX)] = None,
     since: datetime | None = None,
     until: datetime | None = None,
     session_status: Annotated[Literal["running", "ended"] | None, Query(alias="status")] = None,
@@ -408,7 +409,7 @@ async def get_series(
     res: Resolution | None = None,
     since: Annotated[datetime | None, Query(alias="from")] = None,
     until: Annotated[datetime | None, Query(alias="to")] = None,
-    lane: Annotated[int | None, Query(ge=1, le=64)] = None,
+    lane: Annotated[int | None, Query(ge=1, le=LANE_ID_MAX)] = None,
     epoch: Annotated[int | None, Query(ge=1)] = None,
 ) -> BaseModel:
     """Per-lane points `[t, value]`: profit summed per bucket, or the bucket's last balance,

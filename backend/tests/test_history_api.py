@@ -179,6 +179,15 @@ def test_sessions_filter_by_lane_and_status(viewer: TestClient, seed: Seed) -> N
     assert bad.status_code == 422
 
 
+def test_sessions_filter_takes_lane_ids_up_to_99(viewer: TestClient, seed: Seed) -> None:
+    epoch = seed.epoch()
+    seed.session(epoch, 1, lane=15)
+    seed.session(epoch, 2, lane=1)
+    lane_15 = viewer.get(f"/{seed.service}/sessions", params={"lane": 15}).json()["items"]
+    assert [s["id"] for s in lane_15] == [1]
+    assert viewer.get(f"/{seed.service}/sessions", params={"lane": 100}).status_code == 422
+
+
 def test_first_page_counts_every_matching_session_and_later_pages_do_not(
     viewer: TestClient, seed: Seed
 ) -> None:

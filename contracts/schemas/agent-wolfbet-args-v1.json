@@ -120,7 +120,7 @@
       "lanes": {
         "anyOf": [
           {
-            "maximum": 10,
+            "maximum": 99,
             "minimum": 1,
             "type": "integer"
           },
@@ -222,12 +222,40 @@
     "title": "ExportArgs",
     "type": "object"
   },
-  "lane_start": {
+  "lane_add": {
     "additionalProperties": false,
-    "description": "One lane above lane 1, which is the main service and stops only with every lane.",
+    "properties": {
+      "copy_from": {
+        "anyOf": [
+          {
+            "maximum": 99,
+            "minimum": 1,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Copy From"
+      },
+      "name": {
+        "title": "Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "title": "LaneAddArgs",
+    "type": "object"
+  },
+  "lane_remove": {
+    "additionalProperties": false,
+    "description": "Any lane but lane 1, which holds the base config.",
     "properties": {
       "lane": {
-        "maximum": 10,
+        "maximum": 99,
         "minimum": 2,
         "title": "Lane",
         "type": "integer"
@@ -236,16 +264,68 @@
     "required": [
       "lane"
     ],
-    "title": "ExtraLaneArgs",
+    "title": "RemovableLaneArgs",
+    "type": "object"
+  },
+  "lane_rename": {
+    "additionalProperties": false,
+    "properties": {
+      "lane": {
+        "maximum": 99,
+        "minimum": 1,
+        "title": "Lane",
+        "type": "integer"
+      },
+      "name": {
+        "title": "Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "lane",
+      "name"
+    ],
+    "title": "LaneRenameArgs",
+    "type": "object"
+  },
+  "lane_restart": {
+    "additionalProperties": false,
+    "properties": {
+      "lane": {
+        "maximum": 99,
+        "minimum": 1,
+        "title": "Lane",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "lane"
+    ],
+    "title": "LaneIdArgs",
+    "type": "object"
+  },
+  "lane_start": {
+    "additionalProperties": false,
+    "properties": {
+      "lane": {
+        "maximum": 99,
+        "minimum": 1,
+        "title": "Lane",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "lane"
+    ],
+    "title": "LaneIdArgs",
     "type": "object"
   },
   "lane_stop": {
     "additionalProperties": false,
-    "description": "One lane above lane 1, which is the main service and stops only with every lane.",
     "properties": {
       "lane": {
-        "maximum": 10,
-        "minimum": 2,
+        "maximum": 99,
+        "minimum": 1,
         "title": "Lane",
         "type": "integer"
       }
@@ -253,14 +333,14 @@
     "required": [
       "lane"
     ],
-    "title": "ExtraLaneArgs",
+    "title": "LaneIdArgs",
     "type": "object"
   },
   "lanes": {
     "additionalProperties": false,
     "properties": {
       "count": {
-        "maximum": 10,
+        "maximum": 99,
         "minimum": 1,
         "title": "Count",
         "type": "integer"
@@ -335,7 +415,7 @@
       "target": {
         "anyOf": [
           {
-            "maximum": 10,
+            "maximum": 99,
             "minimum": 1,
             "type": "integer"
           },
@@ -357,7 +437,7 @@
       "target": {
         "anyOf": [
           {
-            "maximum": 10,
+            "maximum": 99,
             "minimum": 1,
             "type": "integer"
           },
@@ -391,7 +471,7 @@
       "target": {
         "anyOf": [
           {
-            "maximum": 10,
+            "maximum": 99,
             "minimum": 1,
             "type": "integer"
           },

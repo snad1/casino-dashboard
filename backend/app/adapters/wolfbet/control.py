@@ -15,10 +15,11 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validat
 from app.adapters.base import ControlAction
 from app.auth.permissions import Perm
 
-LANES_MAX = 10
+LANE_ID_MAX = 99
 MAX_CONFIG_PAIRS = 32
 _BRANCH = re.compile(r"[A-Za-z0-9._/-]{1,100}")
 _NAME = re.compile(r"[A-Za-z0-9_.-]{1,64}")
+_LANE_NAME = re.compile(r"[A-Za-z0-9_]([A-Za-z0-9 _-]{0,30}[A-Za-z0-9_-])?")
 
 
 def _branch(value: str) -> str:
@@ -40,16 +41,25 @@ def _name(value: str) -> str:
     return value
 
 
+def _lane_name(value: str) -> str:
+    if not _LANE_NAME.fullmatch(value):
+        raise ValueError(
+            "must be 1-32 letters, digits, space, '_' or '-', not starting with - or a space"
+        )
+    return value
+
+
 def _finite(value: float) -> float:
     if not math.isfinite(value):
         raise ValueError("must be a finite number")
     return value
 
 
-Lane = Annotated[int, Field(ge=1, le=LANES_MAX)]
+Lane = Annotated[int, Field(ge=1, le=LANE_ID_MAX)]
 LaneTarget = Lane | Literal["all"]
 Branch = Annotated[str, AfterValidator(_branch)]
 Name = Annotated[str, AfterValidator(_name)]
+LaneName = Annotated[str, AfterValidator(_lane_name)]
 PositiveFloat = Annotated[float, Field(gt=0, le=1e12), AfterValidator(_finite)]
 
 
@@ -65,10 +75,24 @@ class TargetArgs(Args):
     target: LaneTarget = "all"
 
 
-class ExtraLaneArgs(Args):
-    """One lane above lane 1, which is the main service and stops only with every lane."""
+class LaneIdArgs(Args):
+    lane: Lane
 
-    lane: int = Field(ge=2, le=LANES_MAX)
+
+class RemovableLaneArgs(Args):
+    """Any lane but lane 1, which holds the base config."""
+
+    lane: int = Field(ge=2, le=LANE_ID_MAX)
+
+
+class LaneAddArgs(Args):
+    name: LaneName
+    copy_from: Lane | None = None
+
+
+class LaneRenameArgs(Args):
+    lane: Lane
+    name: LaneName
 
 
 class LanesArgs(Args):
@@ -138,7 +162,7 @@ class ConfigChange(Args):
 
     key: str = Field(pattern=r"^[a-z][a-z0-9_]{0,39}$")
     value: str = Field(max_length=RULES_MAX_CHARS, pattern=r"^[^\x00-\x1f\x7f]*$")
-    lane: int | None = Field(default=None, ge=2, le=LANES_MAX)
+    lane: int | None = Field(default=None, ge=2, le=LANE_ID_MAX)
 
     @model_validator(mode="after")
     def _short_unless_rules(self) -> "ConfigChange":
@@ -245,21 +269,63 @@ ACTIONS: dict[str, ControlAction] = {
     "lane_stop": ControlAction(
         _BASIC,
         "lane_stop",
-        ExtraLaneArgs,
+        LaneIdArgs,
         label="Stop",
         title="Stop lane {lane}?",
         effect="Lane {lane} stops after its current bet and its session is saved. Other lanes "
-        "keep betting. Start or Restart brings it back.",
+        "keep betting. Start brings it back.",
         confirm="Stop lane {lane}",
     ),
     "lane_start": ControlAction(
         _BASIC,
         "lane_start",
-        ExtraLaneArgs,
+        LaneIdArgs,
         label="Start",
         title="Start lane {lane}?",
         effect="Lane {lane} starts betting again with its saved config.",
         confirm="Start lane {lane}",
+    ),
+    "lane_restart": ControlAction(
+        _BASIC,
+        "lane_restart",
+        LaneIdArgs,
+        label="Restart",
+        title="Restart lane {lane}?",
+        effect="Lane {lane} saves its session, stops and starts again with its saved config. "
+        "Other lanes keep betting.",
+        confirm="Restart lane {lane}",
+    ),
+    "lane_add": ControlAction(
+        _CONFIG,
+        "lane_add",
+        LaneAddArgs,
+        label="Add lane",
+        title="Add the lane {name}?",
+        effect="A new lane named {name} is added and starts betting. Other lanes keep betting.",
+        confirm="Add lane",
+        fresh=True,
+    ),
+    "lane_remove": ControlAction(
+        _CONFIG,
+        "lane_remove",
+        RemovableLaneArgs,
+        label="Remove",
+        title="Remove lane {lane}?",
+        effect="Lane {lane} stops now and its session is saved. It leaves the config with its "
+        "overrides, and its number is not used again. Its history stays. Other lanes keep "
+        "betting.",
+        confirm="Remove lane {lane}",
+        fresh=True,
+    ),
+    "lane_rename": ControlAction(
+        _CONFIG,
+        "lane_rename",
+        LaneRenameArgs,
+        label="Rename",
+        title="Rename lane {lane} to {name}?",
+        effect="Only the name changes. Lane {lane} keeps betting.",
+        confirm="Rename",
+        fresh=True,
     ),
     "pause": ControlAction(
         _BASIC,
@@ -315,8 +381,8 @@ ACTIONS: dict[str, ControlAction] = {
         LanesArgs,
         label="Apply",
         title="Change lanes to {count}?",
-        effect="The bot restarts with {count} lanes and the {split} split. Lanes above {count} "
-        "stop and their sessions end.",
+        effect="Lanes are added or stopped to reach {count} with the {split} split. The other "
+        "lanes keep betting.",
         confirm="Change lanes",
         fresh=True,
         job=True,

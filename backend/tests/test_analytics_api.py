@@ -116,7 +116,7 @@ def test_bad_input_is_refused_before_the_agent_is_asked(
         response = viewer.get(f"/wolfbet/analytics?{query}")
         assert response.status_code == 422
         assert response.json()["detail"] == INVALID_WINDOW
-    for query in ("lane=0", "lane=11", "since=" + "9" * 40):
+    for query in ("lane=0", "lane=100", "since=" + "9" * 40):
         assert viewer.get(f"/wolfbet/analytics?{query}").status_code == 422
     assert fake_agent.calls == []
 
