@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "svc": "goated",
+  "lane": 2,
+  "pid": 4242,
+  "seq": 18,
+  "ts_ms": 1794945626200,
+  "type": "state",
+  "payload": {
+    "pid": 4242,
+    "session_id": 168,
+    "running": true,
+    "paused": false,
+    "currency": "usdt",
+    "game": "limbo",
+    "strategy": "Flat Bet",
+    "total_bets": 4,
+    "profit": 0.002,
+    "current_balance": 12.345,
+    "bets_per_second": 6.2
+  }
+}

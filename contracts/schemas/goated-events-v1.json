@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "goated-events-v1.json",
+  "title": "Goated daemon event, version 1",
+  "description": "The JSON held in the `data` field of each entry in the goated:bets, goated:state and goated:lifecycle Redis streams. seq rises by one per event within a process, so a missing seq for a (pid, lane) pair means events were dropped.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "v",
+    "svc",
+    "lane",
+    "pid",
+    "seq",
+    "ts_ms",
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "svc": {
+      "const": "goated"
+    },
+    "lane": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "pid": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ts_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "type": {
+      "enum": [
+        "bet",
+        "state",
+        "lifecycle"
+      ]
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "bet"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/bet"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "lifecycle"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/lifecycle"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "bet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "game",
+        "amount",
+        "multiplier_target",
+        "result_value",
+        "result_display",
+        "state",
+        "profit",
+        "balance_after",
+        "session_profit",
+        "total_bets",
+        "current_streak",
+        "api_ms"
+      ],
+      "properties": {
+        "session_id": {
+          "type": "integer"
+        },
+        "game": {
+          "enum": [
+            "limbo",
+            "dice"
+          ]
+        },
+        "amount": {
+          "type": "number"
+        },
+        "multiplier_target": {
+          "type": "number"
+        },
+        "result_value": {
+          "type": "number"
+        },
+        "result_display": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "win",
+            "loss"
+          ]
+        },
+        "profit": {
+          "type": "number"
+        },
+        "balance_after": {
+          "type": "number"
+        },
+        "session_profit": {
+          "type": "number"
+        },
+        "total_bets": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "current_streak": {
+          "type": "integer"
+        },
+        "api_ms": {
+          "type": "number"
+        }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "data"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "start",
+            "stop",
+            "pause",
+            "resume",
+            "reload",
+            "cycle",
+            "session_open",
+            "session_close",
+            "error"
+          ]
+        },
+        "data": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

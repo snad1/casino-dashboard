@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "svc": "goated",
+  "lane": 2,
+  "pid": 4242,
+  "seq": 17,
+  "ts_ms": 1794945626123,
+  "type": "bet",
+  "payload": {
+    "session_id": 168,
+    "game": "limbo",
+    "amount": 0.001,
+    "multiplier_target": 2.0,
+    "result_value": 2.31,
+    "result_display": "2.31x",
+    "state": "win",
+    "profit": 0.001,
+    "balance_after": 12.345,
+    "session_profit": 0.002,
+    "total_bets": 4,
+    "current_streak": 1,
+    "api_ms": 38.4
+  }
+}
