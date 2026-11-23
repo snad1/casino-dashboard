@@ -35,6 +35,11 @@
 			show: true
 		},
 		{
+			href: resolve('/(app)/[service=service]/sessions', { service }),
+			label: 'Sessions',
+			show: true
+		},
+		{
 			href: resolve('/(app)/[service=service]/control', { service }),
 			label: 'Control',
 			show: true
@@ -68,7 +73,7 @@
 	const links = $derived(tgUid === null ? serviceLinks.filter((l) => l.show) : tgLinks);
 	const serviceTabs = $derived([
 		{ href: resolve('/(app)/[service=service]', { service }), label: 'Live' },
-		{ href: resolve('/(app)/[service=service]', { service }) + '#sessions', label: 'Sessions' },
+		{ href: resolve('/(app)/[service=service]/sessions', { service }), label: 'Sessions' },
 		{ href: resolve('/(app)/[service=service]/control', { service }), label: 'Control' },
 		{ href: resolve('/(app)/alerts'), label: 'Alerts' }
 	]);

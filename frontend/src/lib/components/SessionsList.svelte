@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import type { components } from '#lib/api/schema';
 	import { formatProfit } from '#lib/format';
-	import { serviceSource, type HistorySource } from '#lib/history-source';
+	import { serviceSource, type HistorySource, type SessionsQuery } from '#lib/history-source';
 	import type { LiveStore } from '#lib/live/store.svelte';
 	import Button from '#ui/Button';
 	import Notice from '#ui/Notice';
@@ -19,14 +19,30 @@
 		profit: number;
 		currency: string | null;
 		started: string | null;
+		game: string | null;
+		strategy: string | null;
 	};
+	type Filters = Omit<SessionsQuery, 'limit' | 'cursor'>;
 
 	let {
 		live,
 		service,
 		source = serviceSource(service),
-		empty = 'No sessions yet.'
-	}: { live: LiveStore; service: string; source?: HistorySource; empty?: string } = $props();
+		empty = 'No sessions yet.',
+		filters = {},
+		ontotal
+	}: {
+		live: LiveStore;
+		service: string;
+		source?: HistorySource;
+		empty?: string;
+		filters?: Filters;
+		ontotal?: (total: number) => void;
+	} = $props();
+
+	const showsLive = $derived(
+		source.live && filters.status !== 'ended' && !filters.since && !filters.until
+	);
 
 	const ROW = 44;
 	const MAX_ROWS = 2000;
@@ -38,8 +54,9 @@
 	let error = $state<string | null>(null);
 
 	const liveRows = $derived(
-		Object.entries(source.live ? live.lanes : {})
+		Object.entries(showsLive ? live.lanes : {})
 			.filter(([, lane]) => typeof lane.session_id === 'number')
+			.filter(([n]) => filters.lane === undefined || Number(n) === filters.lane)
 			.map(([n, lane]): Row => {
 				const id = lane.session_id as number;
 				const stored = history.find((s) => s.id === id && s.lane === Number(n) && !s.ended_at);
@@ -52,7 +69,9 @@
 					bets: lane.total_bets ?? 0,
 					profit: lane.profit ?? 0,
 					currency: lane.currency ?? null,
-					started: stored?.started_at ?? null
+					started: stored?.started_at ?? null,
+					game: stored?.game ?? null,
+					strategy: stored?.strategy ?? null
 				};
 			})
 			.sort((a, b) => a.lane - b.lane)
@@ -70,7 +89,9 @@
 				bets: s.total_bets ?? 0,
 				profit: s.profit ?? 0,
 				currency: s.currency,
-				started: s.started_at
+				started: s.started_at,
+				game: s.game,
+				strategy: s.strategy
 			}))
 	]);
 
@@ -79,7 +100,8 @@
 		busy = true;
 		error = null;
 		try {
-			const page = await source.sessions({ limit: 50, ...(cursor ? { cursor } : {}) });
+			const page = await source.sessions({ limit: 50, ...filters, ...(cursor ? { cursor } : {}) });
+			if (!cursor && typeof page.total === 'number') ontotal?.(page.total);
 			history = [...history, ...page.items].slice(0, MAX_ROWS);
 			cursor = page.next_cursor ?? null;
 			done = cursor === null || history.length >= MAX_ROWS;
@@ -89,6 +111,27 @@
 			busy = false;
 		}
 	}
+
+	/** Re-reads the newest page so a session that ended since the page loaded stays listed. */
+	async function refreshHead() {
+		try {
+			const page = await source.sessions({ limit: 50, ...filters });
+			if (typeof page.total === 'number') ontotal?.(page.total);
+			const fresh = new Set(page.items.map((s) => `${s.epoch_id}-${s.id}`));
+			const older = history.filter((s) => !fresh.has(`${s.epoch_id}-${s.id}`));
+			history = [...page.items, ...older].slice(0, MAX_ROWS);
+		} catch {
+			error = LOAD_FAILED;
+		}
+	}
+
+	const liveIds = $derived(liveRows.map((r) => `${r.lane}:${r.id}`).join(','));
+	let seenIds = '';
+	$effect(() => {
+		const ids = liveIds;
+		if (seenIds && ids !== seenIds) void refreshHead();
+		seenIds = ids;
+	});
 
 	onMount(more);
 
@@ -121,7 +164,9 @@
 							<span>#{s.id} · Lane {s.lane}</span>
 						{/if}
 						<span class="text-xs text-muted"
-							>{s.live ? 'Live' : when(s.started)} · {s.bets} bets</span
+							>{[s.live ? 'Live' : when(s.started), `${s.bets} bets`, s.game, s.strategy]
+								.filter(Boolean)
+								.join(' · ')}</span
 						>
 					</span>
 					<span

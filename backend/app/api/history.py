@@ -56,6 +56,7 @@ class SessionOut(BaseModel):
     started_at: datetime | None
     ended_at: datetime | None
     currency: str | None
+    game: str | None
     strategy: str | None
     total_bets: int | None
     wins: int | None
@@ -69,7 +70,6 @@ class SessionOut(BaseModel):
 
 
 class SessionDetail(SessionOut):
-    game: str | None
     base_bet: float | None
     multiplier: float | None
     highest_balance: float | None
@@ -87,6 +87,7 @@ class SessionDetail(SessionOut):
 class SessionPage(BaseModel):
     items: list[SessionOut]
     next_cursor: str | None
+    total: int | None = None
 
 
 class BetOut(BaseModel):
@@ -210,7 +211,16 @@ async def list_sessions(
         return hit
     view = await epoch_view(db, service, epoch)
     page = await session_page(
-        db, service, view.ids, lane, since, until, session_status, cursor, limit
+        db,
+        service,
+        view.ids,
+        lane,
+        since,
+        until,
+        session_status,
+        cursor,
+        limit,
+        with_total=cursor is None,
     )
     cache.put(key, page)
     return page
@@ -226,26 +236,31 @@ async def session_page(
     session_status: Literal["running", "ended"] | None,
     cursor: str | None,
     limit: int,
+    with_total: bool = False,
 ) -> SessionPage:
-    """One page of sessions, newest first; `epochs` limits it to those databases."""
+    """One page of sessions, newest first; `epochs` limits it to those databases.
+
+    With `with_total`, the page also carries how many sessions match the filters.
+    """
+    filters: list[Any] = [HistorySession.service == service]
+    if epochs is not None:
+        filters.append(HistorySession.epoch_id.in_(epochs))
+    if lane is not None:
+        filters.append(HistorySession.lane == lane)
+    if since is not None:
+        filters.append(HistorySession.started_at >= since)
+    if until is not None:
+        filters.append(HistorySession.started_at < until)
+    if session_status == "running":
+        filters.append(HistorySession.ended_at.is_(None))
+    elif session_status == "ended":
+        filters.append(HistorySession.ended_at.is_not(None))
     query = (
         select(HistorySession)
-        .where(HistorySession.service == service)
+        .where(*filters)
         .order_by(HistorySession.epoch_id.desc(), HistorySession.src_id.desc())
         .limit(limit + 1)
     )
-    if epochs is not None:
-        query = query.where(HistorySession.epoch_id.in_(epochs))
-    if lane is not None:
-        query = query.where(HistorySession.lane == lane)
-    if since is not None:
-        query = query.where(HistorySession.started_at >= since)
-    if until is not None:
-        query = query.where(HistorySession.started_at < until)
-    if session_status == "running":
-        query = query.where(HistorySession.ended_at.is_(None))
-    elif session_status == "ended":
-        query = query.where(HistorySession.ended_at.is_not(None))
     if cursor is not None:
         epoch_id, src_id = (int(part) for part in cursor.split(":"))
         query = query.where(
@@ -254,9 +269,15 @@ async def session_page(
     rows = list(await db.scalars(query))
     more = len(rows) > limit
     rows = rows[:limit]
+    total = (
+        await db.scalar(select(func.count()).select_from(HistorySession).where(*filters))
+        if with_total
+        else None
+    )
     return SessionPage(
         items=[_session_out(SessionOut, row) for row in rows],
         next_cursor=f"{rows[-1].epoch_id}:{rows[-1].src_id}" if more else None,
+        total=total,
     )
 
 

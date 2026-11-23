@@ -65,8 +65,8 @@ class Seed:
     ) -> None:
         self._run(
             "INSERT INTO sessions (service, epoch_id, src_id, lane, started_at, ended_at,"
-            " currency, total_bets, profit)"
-            " VALUES (:s, :e, :id, :lane, :start, :end, 'btc', 10, :p)",
+            " currency, game, total_bets, profit)"
+            " VALUES (:s, :e, :id, :lane, :start, :end, 'btc', 'dice', 10, :p)",
             {
                 "s": self.service,
                 "e": epoch_id,
@@ -177,6 +177,23 @@ def test_sessions_filter_by_lane_and_status(viewer: TestClient, seed: Seed) -> N
     assert [s["id"] for s in running["items"]] == [3]
     bad = viewer.get(f"/{seed.service}/sessions", params={"cursor": "not-a-cursor"})
     assert bad.status_code == 422
+
+
+def test_first_page_counts_every_matching_session_and_later_pages_do_not(
+    viewer: TestClient, seed: Seed
+) -> None:
+    epoch = seed.epoch()
+    for src_id in range(1, 6):
+        seed.session(epoch, src_id, lane=1 if src_id % 2 else 2)
+    first = viewer.get(f"/{seed.service}/sessions", params={"limit": 2}).json()
+    assert first["total"] == 5
+    assert first["items"][0]["game"] == "dice"
+    lane_one = viewer.get(f"/{seed.service}/sessions", params={"lane": 1, "limit": 1}).json()
+    assert lane_one["total"] == 3
+    later = viewer.get(
+        f"/{seed.service}/sessions", params={"limit": 2, "cursor": first["next_cursor"]}
+    ).json()
+    assert later["total"] is None
 
 
 def test_session_detail_and_unknown_session(viewer: TestClient, seed: Seed) -> None:

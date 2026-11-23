@@ -35,6 +35,26 @@ describe('history sources', () => {
 		expect(source.live).toBe(true);
 	});
 
+	it('passes the status and date filters through to the service', async () => {
+		await serviceSource('wolfbet').sessions({
+			limit: 50,
+			status: 'ended',
+			since: '2026-11-01T00:00:00Z',
+			until: '2026-11-02T00:00:00Z'
+		});
+		expect(calls[0]?.options).toEqual({
+			params: {
+				path: { service: 'wolfbet' },
+				query: {
+					limit: 50,
+					status: 'ended',
+					since: '2026-11-01T00:00:00Z',
+					until: '2026-11-02T00:00:00Z'
+				}
+			}
+		});
+	});
+
 	it('reads a database a reset archived, without live ticks', async () => {
 		const source = serviceSource('wolfbet', 1);
 		await source.sessions({ limit: 50 });

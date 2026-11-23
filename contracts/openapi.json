@@ -3140,6 +3140,7 @@
           "started_at",
           "ended_at",
           "currency",
+          "game",
           "strategy",
           "total_bets",
           "wins",
@@ -3150,7 +3151,6 @@
           "end_balance",
           "max_win_streak",
           "max_loss_streak",
-          "game",
           "base_bet",
           "multiplier",
           "highest_balance",
@@ -3206,6 +3206,17 @@
           "epoch_id": {
             "title": "Epoch Id",
             "type": "integer"
+          },
+          "game": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Game"
           },
           "id": {
             "title": "Id",
@@ -3334,6 +3345,7 @@
           "started_at",
           "ended_at",
           "currency",
+          "game",
           "strategy",
           "total_bets",
           "wins",
@@ -3367,6 +3379,17 @@
               }
             ],
             "title": "Next Cursor"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
           }
         },
         "required": [

@@ -6,7 +6,14 @@ import { api } from '#lib/session.svelte';
 type SessionPage = components['schemas']['SessionPage'];
 
 export type SeriesQuery = { metric: 'profit' | 'balance'; from: string; to: string; lane?: number };
-export type SessionsQuery = { limit: number; since?: string; cursor?: string; lane?: number };
+export type SessionsQuery = {
+	limit: number;
+	since?: string;
+	until?: string;
+	status?: 'running' | 'ended';
+	cursor?: string;
+	lane?: number;
+};
 
 const serviceSeries = (service: string, query: SeriesQuery & { epoch?: number }) =>
 	unwrap(api.GET('/{service}/series', { params: { path: { service }, query } }));
@@ -51,8 +58,12 @@ export function tgSource(uid: number): HistorySource {
 		live: true,
 		series: ({ metric, from, to }) =>
 			unwrap(api.GET('/tg/{uid}/series', { params: { path, query: { metric, from, to } } })),
-		sessions: ({ limit, since, cursor }) =>
-			unwrap(api.GET('/tg/{uid}/sessions', { params: { path, query: { limit, since, cursor } } })),
+		sessions: ({ limit, since, until, status, cursor }) =>
+			unwrap(
+				api.GET('/tg/{uid}/sessions', {
+					params: { path, query: { limit, since, until, status, cursor } }
+				})
+			),
 		sessionHref: (epoch, id) =>
 			resolve('/(app)/tg/[uid=uid]/sessions/[epoch]/[id]', {
 				uid: String(uid),

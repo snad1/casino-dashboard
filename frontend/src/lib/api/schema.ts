@@ -2625,6 +2625,8 @@ export interface components {
 			ended_at: string | null;
 			/** Epoch Id */
 			epoch_id: number;
+			/** Game */
+			game: string | null;
 			/** Id */
 			id: number;
 			/** Lane */
@@ -2656,6 +2658,8 @@ export interface components {
 			items: components['schemas']['SessionOut'][];
 			/** Next Cursor */
 			next_cursor: string | null;
+			/** Total */
+			total?: number | null;
 		};
 		/**
 		 * SessionStats
