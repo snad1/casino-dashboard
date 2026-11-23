@@ -5,7 +5,7 @@ name: ci
 
 on:
   push:
-    branches: [main, feat/casino-dashboard]
+    branches: [main]
   pull_request:
     branches: [main]
 

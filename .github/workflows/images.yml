@@ -2,7 +2,7 @@ name: images
 
 # Release images for wolfbet-dashboard, then deploy exactly the commit that was built.
 #
-# On a push to feat/casino-dashboard or main: wait for this commit's ci run and stop unless it
+# On a push to main: wait for this commit's ci run and stop unless it
 # passed, build the api, caddy and redis images, push them to GHCR as <sha> and latest, then pin
 # the Coolify app to this sha (its IMAGE_TAG env var) and trigger the deploy. Pinning first is
 # what makes the deploy run THIS commit's images instead of whatever :latest was moments ago.
@@ -16,7 +16,7 @@ name: images
 
 on:
   push:
-    branches: [feat/casino-dashboard, main]
+    branches: [main]
   workflow_dispatch:
     inputs:
       ref:
