@@ -12,7 +12,9 @@
 		hasLiveChange,
 		initialEdits,
 		LANE_SPLIT,
+		costLabel,
 		needsRestart,
+		restartPlan,
 		parsePasted,
 		RELOAD_WAIT_MS,
 		reloadMarks,
@@ -156,7 +158,16 @@
 		waitForReload(before, !hasLiveChange(shown));
 		preview = null;
 		await load();
-		if (thenRestart) await control.ask('restart');
+		if (!thenRestart) return;
+		const plan = restartPlan(shown);
+		if (plan.service) {
+			await control.ask('restart');
+			return;
+		}
+		for (const lane of plan.lanes) {
+			const done = await control.ask('lane_restart', { lane });
+			if (!done || done.status === 'failed') return;
+		}
 	}
 
 	function waitForReload(before: Record<number, number | null>, onlyRestart: boolean) {
@@ -307,7 +318,7 @@
 								<div class="pt-3">
 									<label for={id} class="text-sm font-medium">{key.key}</label>
 									<span class="ml-2 {badgeClass(key.live_reload ? 'live' : 'restart')}"
-										>{key.live_reload ? 'live' : 'restart required'}</span
+										>{costLabel(key.live_reload ? 'live' : 'restart', scope)}</span
 									>
 								</div>
 								<div class="flex flex-col gap-1">
@@ -405,7 +416,7 @@
 			{/if}
 
 			{#if preview && previewFresh}
-				<ConfigDiff {preview} />
+				<ConfigDiff {preview} costs />
 			{/if}
 		{/if}
 	</div>

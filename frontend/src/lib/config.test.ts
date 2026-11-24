@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
 	appliedSince,
 	BASE,
+	costLabel,
 	changesFrom,
 	current,
 	display,
 	fieldKind,
 	initialEdits,
 	needsRestart,
+	restartPlan,
 	parsePasted,
 	reloadMarks,
 	type ConfigKey,
@@ -113,6 +115,29 @@ describe('preview and reload', () => {
 		const preview: Preview = { base: [row('live')], lanes: {}, warnings: [] };
 		expect(needsRestart(preview)).toBe(false);
 		expect(needsRestart({ ...preview, lanes: { '2': [row('restart')] } })).toBe(true);
+	});
+
+	it('names what each change costs', () => {
+		expect(costLabel('live', BASE)).toBe('Applies live');
+		expect(costLabel('live', '3')).toBe('Applies live');
+		expect(costLabel('restart', '3')).toBe('Restarts lane 3');
+		expect(costLabel('restart', BASE)).toBe('Restarts the service');
+	});
+
+	it('restarts only the lanes a lane change needs, and the service for a base change', () => {
+		const lanes = { '3': [row('restart')], '2': [row('restart')], '4': [row('live')] };
+		expect(restartPlan({ base: [row('live')], lanes, warnings: [] })).toEqual({
+			service: false,
+			lanes: [2, 3]
+		});
+		expect(restartPlan({ base: [row('restart')], lanes, warnings: [] })).toEqual({
+			service: true,
+			lanes: []
+		});
+		expect(restartPlan({ base: [row('live')], lanes: {}, warnings: [] })).toEqual({
+			service: false,
+			lanes: []
+		});
 	});
 
 	it('reports only reloads that came after the save', () => {

@@ -92,6 +92,26 @@ export function needsRestart(preview: Preview): boolean {
 	);
 }
 
+/** What a change costs once saved: applied by a reload, or a restart of its lane or of every lane. */
+export function costLabel(apply: string, scope: Scope): string {
+	if (apply === 'live') return 'Applies live';
+	return scope === BASE ? 'Restarts the service' : `Restarts lane ${scope}`;
+}
+
+/**
+ * What Save + restart must restart: the service when a restart-only change is on the base,
+ * else each lane with one, so the other lanes keep betting.
+ */
+export function restartPlan(preview: Preview): { service: boolean; lanes: number[] } {
+	const restarts = (rows: DiffRow[]) => rows.some((row) => row.apply === 'restart');
+	if (restarts(preview.base)) return { service: true, lanes: [] };
+	const lanes = Object.entries(preview.lanes)
+		.filter(([, rows]) => restarts(rows))
+		.map(([lane]) => Number(lane))
+		.sort((a, b) => a - b);
+	return { service: false, lanes };
+}
+
 export function hasLiveChange(preview: Preview): boolean {
 	return [...preview.base, ...Object.values(preview.lanes).flat()].some(
 		(row) => row.apply === 'live'

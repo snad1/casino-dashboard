@@ -150,11 +150,14 @@ test('the form is built from the schema, with lane tabs that can use the base', 
 	await expect(page.getByLabel('lane_split')).toHaveValue('none');
 	await expect(page.getByText('min 1.01, max 9900')).toBeVisible();
 	const multiplierRow = page.getByRole('listitem').filter({ has: page.getByLabel('multiplier') });
-	await expect(multiplierRow.getByText('restart required')).toBeVisible();
+	await expect(multiplierRow.getByText('Restarts the service')).toBeVisible();
+	const maxLossRow = page.getByRole('listitem').filter({ has: page.getByLabel('max_loss') });
+	await expect(maxLossRow.getByText('Applies live')).toBeVisible();
 
 	await page.getByRole('tab', { name: 'Lane 2' }).click();
 	await expect(page.getByLabel('game')).toHaveCount(0);
 	const laneMultiplier = page.getByRole('listitem').filter({ has: page.getByLabel('multiplier') });
+	await expect(laneMultiplier.getByText('Restarts lane 2')).toBeVisible();
 	await expect(laneMultiplier.getByLabel('Use base')).not.toBeChecked();
 	await expect(page.getByLabel('multiplier')).toHaveValue('3');
 	await expect(page.getByLabel('max_loss')).toBeDisabled();
@@ -173,7 +176,7 @@ test('a change is previewed before it can be saved, then saved and confirmed by 
 
 	await page.getByRole('button', { name: 'Preview' }).click();
 	const diff = page.getByRole('region', { name: 'Changes' });
-	await expect(diff.getByRole('row').nth(1)).toContainText('max_loss0.020.01live');
+	await expect(diff.getByRole('row').nth(1)).toContainText('max_loss0.020.01Applies live');
 	await expect(save).toBeEnabled();
 	await expect(page.getByRole('button', { name: 'Save + restart' })).toHaveCount(0);
 
@@ -219,11 +222,43 @@ test('no reload within 10 s shows a warning', async ({ page }) => {
 	await expect(page.getByText("No reload seen after 10 s. Check the bot's logs.")).toBeVisible();
 });
 
-test('a restart-required change offers save and restart as a separate confirmed step', async ({
-	page
-}) => {
+test('a restart-only lane change restarts only that lane after the save', async ({ page }) => {
 	const { posts } = await rig(page, adminMe, {
 		'POST /wolfbet/config/preview': () => ({ status: 200, json: RESTART_DIFF }),
+		'POST /wolfbet/control/lane_restart': () => saved
+	});
+	await page.goto('/wolfbet/config');
+	await page.getByRole('tab', { name: 'Lane 2' }).click();
+	await page.getByLabel('multiplier').fill('4');
+	await page.getByRole('button', { name: 'Preview' }).click();
+	await expect(page.getByRole('region', { name: 'Changes' })).toContainText('Restarts lane 2');
+	await expect(page.getByText('multiplier applies after a restart')).toBeVisible();
+	await page.getByRole('button', { name: 'Save + restart' }).click();
+	await page
+		.getByRole('dialog', { name: 'Save config?' })
+		.getByRole('button', { name: 'Save config' })
+		.click();
+	const restart = page.getByRole('dialog', { name: 'Restart lane 2?' });
+	await expect(restart).toBeVisible();
+	await restart.getByRole('button', { name: 'Restart lane 2' }).click();
+	await expect(page.getByText('Saved. These changes apply after a restart.')).toBeVisible();
+	await expect
+		.poll(() => posts.map((p) => p.path))
+		.toEqual([
+			'/wolfbet/config/preview',
+			'/wolfbet/control/config_set',
+			'/wolfbet/control/lane_restart'
+		]);
+	expect(posts[1]?.body).toEqual({ changes: [{ key: 'multiplier', value: '4', lane: 2 }] });
+	expect(posts[2]?.body).toEqual({ lane: 2 });
+});
+
+test('a restart-only base change restarts the service after the save', async ({ page }) => {
+	const { posts } = await rig(page, adminMe, {
+		'POST /wolfbet/config/preview': () => ({
+			status: 200,
+			json: { base: [row('multiplier', 3, 4, 'restart')], lanes: {}, warnings: [] }
+		}),
 		'POST /wolfbet/control/restart': () => ({
 			status: 202,
 			json: { status: 'running', exit_code: null, job_id: 'ab'.repeat(16) }
@@ -241,27 +276,22 @@ test('a restart-required change offers save and restart as a separate confirmed 
 		})
 	});
 	await page.goto('/wolfbet/config');
-	await page.getByRole('tab', { name: 'Lane 2' }).click();
 	await page.getByLabel('multiplier').fill('4');
 	await page.getByRole('button', { name: 'Preview' }).click();
-	await expect(page.getByRole('region', { name: 'Changes' })).toContainText('restart required');
-	await expect(page.getByText('multiplier applies after a restart')).toBeVisible();
+	await expect(page.getByRole('region', { name: 'Changes' })).toContainText('Restarts the service');
 	await page.getByRole('button', { name: 'Save + restart' }).click();
 	await page
 		.getByRole('dialog', { name: 'Save config?' })
 		.getByRole('button', { name: 'Save config' })
 		.click();
 	const restart = page.getByRole('dialog', { name: 'Restart wolfbet?' });
-	await expect(restart).toBeVisible();
 	await restart.getByRole('button', { name: 'Restart' }).click();
 	await expect(page.getByText('Restart: started.')).toBeVisible();
-	await expect(page.getByText('Saved. These changes apply after a restart.')).toBeVisible();
 	expect(posts.map((p) => p.path)).toEqual([
 		'/wolfbet/config/preview',
 		'/wolfbet/control/config_set',
 		'/wolfbet/control/restart'
 	]);
-	expect(posts[1]?.body).toEqual({ changes: [{ key: 'multiplier', value: '4', lane: 2 }] });
 });
 
 test('a refused value shows the bot message and nothing is saved', async ({ page }) => {

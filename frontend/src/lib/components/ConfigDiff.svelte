@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { badgeClass, display, type Preview } from '#lib/config';
+	import { BASE, badgeClass, costLabel, display, type Preview } from '#lib/config';
 
-	let { preview }: { preview: Preview } = $props();
+	/** With `costs`, each row says what it restarts; otherwise only live or restart. */
+	let { preview, costs = false }: { preview: Preview; costs?: boolean } = $props();
 </script>
 
 <section class="rounded-lg border border-line bg-surface p-4" aria-labelledby="diff-title">
@@ -20,7 +21,11 @@
 						<td class="font-mono">{row.removed ? 'base value' : display(row.new)}</td>
 						<td>
 							<span class={badgeClass(row.apply)}
-								>{row.apply === 'live' ? 'live' : 'restart required'}</span
+								>{costs
+									? costLabel(row.apply, where === 'base' ? BASE : where)
+									: row.apply === 'live'
+										? 'live'
+										: 'restart required'}</span
 							>
 						</td>
 					</tr>
