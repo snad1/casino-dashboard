@@ -9,7 +9,7 @@ delete one in use.
 """
 
 import re
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
@@ -45,6 +45,7 @@ KeyId = Annotated[str, Path(pattern=KEY_ID_PATTERN)]
 class KeyOut(BaseModel):
     id: str
     label: str
+    kind: Literal["key", "proxy"]
     last4: str
     owner_user_id: int | None
     created_at: str
@@ -77,7 +78,10 @@ class RotateIn(BaseModel):
 
 
 class KeyIn(RotateIn):
+    """A new vault entry: a casino `key`, or a `proxy` URL that carries a password."""
+
     label: str = Field(min_length=1, max_length=64)
+    kind: Literal["key", "proxy"] = "key"
 
     @field_validator("label")
     @classmethod
@@ -152,6 +156,7 @@ async def add_key(
         "label": body.label,
         "secret": body.secret,
         "owner_user_id": user.id,
+        "kind": body.kind,
     }
     return _written(await _call(request, service, "key_put", args))
 

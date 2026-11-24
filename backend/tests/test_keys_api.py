@@ -23,6 +23,7 @@ def _row(key_id: str = "friend-a", **extra: Any) -> dict[str, Any]:
     return {
         "id": key_id,
         "label": "Friend A",
+        "kind": "key",
         "last4": "7777",
         "owner_user_id": None,
         "created_at": "2026-11-23T10:00:00+00:00",
@@ -61,6 +62,7 @@ def test_an_admin_adds_a_key_that_never_comes_back(
         "label": "Friend A",
         "secret": SECRET,
         "owner_user_id": account.id,
+        "kind": "key",
     }
 
 
@@ -217,3 +219,13 @@ def test_other_services_have_no_keys(signed_in_as: Any, fake_agent: FakeAgent) -
 )
 def test_labels_become_vault_ids(label: str, key_id: str) -> None:
     assert key_id_for(label) == key_id
+
+
+def test_a_proxy_entry_is_sent_with_its_kind(signed_in_as: Any, fake_agent: FakeAgent) -> None:
+    client = signed_in_as(Role.ADMIN)
+    fake_agent.reply = _bot({"v": 1, "key": _row("friend-proxy", kind="proxy"), "note": None})
+    body = {"label": "Friend proxy", "secret": "socks5://u:p@10.0.0.9:1080", "kind": "proxy"}
+    response = _add(client, body)
+    assert response.status_code == 201 and response.json()["key"]["kind"] == "proxy"
+    assert fake_agent.calls[-1]["args"]["kind"] == "proxy"
+    assert _add(client, {**body, "kind": "cookie"}).status_code == 422

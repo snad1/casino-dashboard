@@ -105,12 +105,35 @@ ARGV_CASES: list[tuple[str, dict[str, Any], list[str]]] = [
     (
         "key_put",
         {"key_id": "friend-a", "label": "Friend A", "secret": KEY_SECRET, "owner_user_id": 7},
-        [PY, BOT, "--key-put", "friend-a", "--key-label=Friend A", "--key-owner", "7", "--json"],
+        [
+            PY,
+            BOT,
+            "--key-put",
+            "friend-a",
+            "--key-label=Friend A",
+            "--key-kind=key",
+            "--key-owner",
+            "7",
+            "--json",
+        ],
     ),
     (
         "key_put",
         {"key_id": "spare", "label": "-starts with dash", "secret": KEY_SECRET},
-        [PY, BOT, "--key-put", "spare", "--key-label=-starts with dash", "--json"],
+        [
+            PY,
+            BOT,
+            "--key-put",
+            "spare",
+            "--key-label=-starts with dash",
+            "--key-kind=key",
+            "--json",
+        ],
+    ),
+    (
+        "key_put",
+        {"key_id": "fp", "label": "Proxy", "secret": "socks5://u:p@10.0.0.9:1080", "kind": "proxy"},
+        [PY, BOT, "--key-put", "fp", "--key-label=Proxy", "--key-kind=proxy", "--json"],
     ),
     (
         "key_rotate",
@@ -275,6 +298,7 @@ async def test_argv(name: str, args: dict[str, Any], argv: list[str]) -> None:
         ("key_put", {"key_id": "a", "label": "x", "secret": KEY_SECRET, "owner_user_id": 0}),
         ("key_put", {"key_id": "a", "label": "x", "secret": KEY_SECRET, "extra": 1}),
         ("key_rotate", {"key_id": "a"}),
+        ("key_put", {"key_id": "a", "label": "x", "secret": KEY_SECRET, "kind": "cookie"}),
         ("key_delete", {"key_id": ""}),
         ("lane_start", {}),
         ("lane_start", {"lane": "2"}),
@@ -666,3 +690,19 @@ async def test_a_refused_config_value_names_its_key_and_nothing_else(bin_dir: Pa
         assert unknown["error"] == {"code": "bad_request"}
     finally:
         await server.close()
+
+
+@pytest.mark.parametrize(
+    "value,ok",
+    [("friend-a", True), ("default", True), ("Friend", False), ("../x", False), ("a b", False)],
+)
+def test_vault_ids_in_config(value: str, ok: bool) -> None:
+    from agent.validators import InvalidValue, config_value
+
+    entry = {"key": "key_ref", "type": "string", "format": "vault_id"}
+    if ok:
+        assert config_value(entry, value) == value
+    else:
+        with pytest.raises(InvalidValue):
+            config_value(entry, value)
+    assert config_value({**entry, "off_allowed": True}, "off") == "off"

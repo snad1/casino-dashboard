@@ -1907,7 +1907,17 @@
       "JsonValue": {},
       "KeyIn": {
         "additionalProperties": false,
+        "description": "A new vault entry: a casino `key`, or a `proxy` URL that carries a password.",
         "properties": {
+          "kind": {
+            "default": "key",
+            "enum": [
+              "key",
+              "proxy"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
           "label": {
             "maxLength": 64,
             "minLength": 1,
@@ -1936,6 +1946,14 @@
           },
           "id": {
             "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "key",
+              "proxy"
+            ],
+            "title": "Kind",
             "type": "string"
           },
           "label": {
@@ -1979,6 +1997,7 @@
         "required": [
           "id",
           "label",
+          "kind",
           "last4",
           "owner_user_id",
           "created_at",

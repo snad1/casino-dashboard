@@ -163,6 +163,10 @@ def config_value(entry: dict[str, Any], raw: str) -> str:
         return value
     if entry.get("format") == "url":
         return _url(entry, value)
+    if entry.get("format") == "vault_id":
+        if not _KEY_ID.fullmatch(value):
+            raise InvalidValue(entry["key"], "must be a vault key id")
+        return value
     if entry.get("format") == "rules":
         if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
             raise InvalidValue(entry["key"], "must be one line without control characters")

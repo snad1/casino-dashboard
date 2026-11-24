@@ -116,6 +116,7 @@ class KeyPutArgs(Args):
     label: KeyLabel
     secret: KeySecret
     owner_user_id: int | None = Field(default=None, ge=1)
+    kind: Literal["key", "proxy"] = "key"
 
 
 class KeyRotateArgs(Args):
@@ -324,6 +325,7 @@ COMMANDS: dict[str, CommandSpec] = {
             "--key-put",
             a.key_id,
             f"--key-label={a.label}",
+            f"--key-kind={a.kind}",
             *_opt("--key-owner", a.owner_user_id),
             "--json",
         ),

@@ -2379,8 +2379,17 @@ export interface components {
 			status: 'running' | 'succeeded' | 'failed' | 'cancelled' | 'timeout';
 		};
 		JsonValue: unknown;
-		/** KeyIn */
+		/**
+		 * KeyIn
+		 * @description A new vault entry: a casino `key`, or a `proxy` URL that carries a password.
+		 */
 		KeyIn: {
+			/**
+			 * Kind
+			 * @default key
+			 * @enum {string}
+			 */
+			kind: 'key' | 'proxy';
 			/** Label */
 			label: string;
 			/** Secret */
@@ -2392,6 +2401,11 @@ export interface components {
 			created_at: string;
 			/** Id */
 			id: string;
+			/**
+			 * Kind
+			 * @enum {string}
+			 */
+			kind: 'key' | 'proxy';
 			/** Label */
 			label: string;
 			/** Last4 */
