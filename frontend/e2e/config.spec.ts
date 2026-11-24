@@ -398,3 +398,62 @@ test('a lane card link opens that lane tab', async ({ page }) => {
 	await page.goto('/wolfbet/config?tab=9');
 	await expect(page.getByRole('tab', { name: 'Base' })).toHaveAttribute('aria-selected', 'true');
 });
+
+const WITH_REFS = {
+	...CONFIG,
+	keys: [
+		...CONFIG.keys,
+		key({ key: 'key_ref', type: 'string', format: 'vault_id', live_reload: false }),
+		key({
+			key: 'proxy_ref',
+			type: 'string',
+			format: 'vault_id',
+			off_allowed: true,
+			live_reload: false
+		})
+	],
+	base: { ...CONFIG.base, key_ref: 'default', proxy_ref: null }
+};
+const vaultRow = (id: string, kind: string) => ({
+	id,
+	label: id,
+	kind,
+	last4: '0000',
+	owner_user_id: null,
+	created_at: '2026-11-24T10:00:00+00:00',
+	rotated_at: null,
+	used_by_lanes: []
+});
+
+test('a lane picks its key and proxy from the vault when the user manages keys', async ({
+	page
+}) => {
+	await rig(page, adminMe, {
+		'GET /wolfbet/config': () => ({ status: 200, json: WITH_REFS }),
+		'GET /wolfbet/keys': () => ({
+			status: 200,
+			json: {
+				keys: [
+					vaultRow('default', 'key'),
+					vaultRow('friend-a', 'key'),
+					vaultRow('friend-proxy', 'proxy')
+				]
+			}
+		})
+	});
+	await page.goto('/wolfbet/config');
+	await page.getByRole('tab', { name: 'Lane 2' }).click();
+	await expect(page.getByLabel('key_ref').getByRole('option')).toHaveText(['default', 'friend-a']);
+	await expect(page.getByLabel('proxy_ref').getByRole('option')).toHaveText([
+		'off',
+		'friend-proxy'
+	]);
+});
+
+test('without key rights the refs stay text fields', async ({ page }) => {
+	await rig(page, operatorMe, {
+		'GET /wolfbet/config': () => ({ status: 200, json: WITH_REFS })
+	});
+	await page.goto('/wolfbet/config');
+	await expect(page.getByRole('textbox', { name: 'key_ref' })).toHaveValue('default');
+});

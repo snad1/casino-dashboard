@@ -56,6 +56,11 @@
 			show: true
 		},
 		{
+			href: resolve('/(app)/[service=service]/keys', { service }),
+			label: 'Keys',
+			show: can(session.me, 'keys.manage', service)
+		},
+		{
 			href: resolve('/(app)/[service=service]/terminal', { service }),
 			label: 'Terminal',
 			show: true

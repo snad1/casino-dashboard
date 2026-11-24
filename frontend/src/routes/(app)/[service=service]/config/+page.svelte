@@ -26,6 +26,7 @@
 	} from '#lib/config';
 	import ConfigDiff from '#components/ConfigDiff';
 	import RulesBuilder from '#components/RulesBuilder';
+	import { withVaultChoices, type VaultKey } from '#lib/keys';
 	import { BAD_JSON, parseRules } from '#lib/rules';
 	import { control } from '#lib/control.svelte';
 	import { liveFor } from '#lib/live/index';
@@ -53,11 +54,14 @@
 	let waitTimer: ReturnType<typeof setTimeout> | null = null;
 	let pasteText = $state('');
 	let pasted = $state<{ filled: number; skipped: Pasted['skipped'] } | null>(null);
+	let vault = $state<VaultKey[] | null>(null);
 
 	const scopes = $derived(config ? [BASE, ...laneScopes(config)] : [BASE]);
-	const keys = $derived(
-		config ? config.keys.filter((k) => scope === BASE || k.lane_overridable) : []
-	);
+	const keys = $derived.by(() => {
+		if (!config) return [];
+		const fields = config.keys.filter((k) => scope === BASE || k.lane_overridable);
+		return vault ? withVaultChoices(fields, vault) : fields;
+	});
 	const changes: ConfigChange[] = $derived(config ? changesFrom(config, edits) : []);
 	const changesKey = $derived(JSON.stringify(changes));
 	const brokenRules = $derived(
@@ -103,6 +107,19 @@
 
 	$effect(() => {
 		if (service && can(session.me, 'config.write', service)) void load();
+	});
+
+	async function loadVault() {
+		try {
+			const out = await unwrap(api.GET('/{service}/keys', { params: { path: { service } } }));
+			vault = out.keys;
+		} catch {
+			vault = null;
+		}
+	}
+
+	$effect(() => {
+		if (service && can(session.me, 'keys.manage', service)) void loadVault();
 	});
 
 	async function runPreview() {
