@@ -65,6 +65,21 @@ export function can(me: Me | null, perm: Perm, service: string | null = null): b
 	});
 }
 
+/**
+ * The lanes of `service` where the signed-in user may use `perm`, mirroring the api's lane
+ * scope: null when a service-wide role grants it, else the lanes whose lane role does
+ * (empty when none). Lane roles are viewer or operator, which need no 2FA.
+ */
+export function laneScope(me: Me | null, perm: Perm, service: string): number[] | null {
+	if (can(me, perm, service)) return null;
+	const lanes = new Set<number>();
+	for (const { role, service: scope, lane } of me?.roles ?? []) {
+		if (lane === null || lane === undefined || scope !== service) continue;
+		if ((ROLE_PERMS[role] ?? []).includes(perm)) lanes.add(lane);
+	}
+	return [...lanes].sort((a, b) => a - b);
+}
+
 const ROLE_NAMES: Partial<Record<Perm, string>> = {
 	'control.basic': 'operator',
 	'config.write': 'operator',
@@ -83,8 +98,10 @@ export function denialReason(
 ): string | null {
 	if (can(me, perm, service)) return null;
 	const granting = (me?.roles ?? []).some(
-		({ role, service: scope }) =>
-			(scope === null || scope === service) && (ROLE_PERMS[role] ?? []).includes(perm)
+		({ role, service: scope, lane }) =>
+			(lane === null || lane === undefined) &&
+			(scope === null || scope === service) &&
+			(ROLE_PERMS[role] ?? []).includes(perm)
 	);
 	if (granting) return 'Turn on two-factor authentication to use this.';
 	return `Needs ${ROLE_NAMES[perm] ?? 'a different'} role`;

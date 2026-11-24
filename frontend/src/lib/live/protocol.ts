@@ -133,6 +133,11 @@ export function topicFor(service: string): string {
 	return `svc:${service}`;
 }
 
+/** One lane's live topic: its card, candles and bets only. */
+export function laneTopicFor(service: string, lane: number): string {
+	return `svc:${service}:lane:${lane}`;
+}
+
 /** One Telegram user's live topic on a bot that runs an engine per user. */
 export function userTopicFor(service: string, uid: number): string {
 	return `svc:${service}:user:${uid}`;

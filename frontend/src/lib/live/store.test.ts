@@ -212,6 +212,42 @@ describe('live store', () => {
 		expect(store.tape.map((r) => r.seq)).toEqual([9]);
 	});
 
+	it('keeps the lanes and bets of each lane topic it follows', async () => {
+		const { store, socket, flush, settle } = rig();
+		store.start('svc:wolfbet:lane:3');
+		store.start('svc:wolfbet:lane:12');
+		await settle();
+		const bet = (lane: number, ts: number) => ({
+			lane,
+			seq: ts,
+			ts_ms: ts,
+			amount: 1,
+			multiplier: 2,
+			result: 60,
+			state: 'win',
+			profit: 1,
+			balance: 9
+		});
+		socket(0).receive({
+			op: 'snapshot',
+			topic: 'svc:wolfbet:lane:3',
+			lanes: { 3: { profit: 3 } },
+			tape: [bet(3, 10), bet(3, 30)]
+		});
+		socket(0).receive({
+			op: 'snapshot',
+			topic: 'svc:wolfbet:lane:12',
+			lanes: { 12: { profit: 12 } },
+			tape: [bet(12, 20)]
+		});
+		flush();
+		expect(Object.keys(store.lanes).map(Number)).toEqual([3, 12]);
+		expect(store.tape.map((r) => r.ts_ms)).toEqual([30, 20, 10]);
+		socket(0).receive({ ...snapshot, tape: [] });
+		flush();
+		expect(Object.keys(store.lanes).map(Number)).toEqual([1, 2]);
+	});
+
 	it('keeps the latest system sample and a minute of drop counts', async () => {
 		const { store, socket, flush, advance, settle } = rig();
 		store.start('svc:wolfbet');

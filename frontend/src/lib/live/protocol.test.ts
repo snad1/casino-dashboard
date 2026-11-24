@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { jobTopicFor, parseMessage, userTopicFor } from './protocol';
+import { jobTopicFor, laneTopicFor, parseMessage, userTopicFor } from './protocol';
 
 describe('parseMessage', () => {
 	it('reads the frames the server sends', () => {
@@ -107,5 +107,11 @@ describe('parseMessage', () => {
 describe('userTopicFor', () => {
 	it("names one Telegram user's live topic", () => {
 		expect(userTopicFor('wolfbet-tg', 42)).toBe('svc:wolfbet-tg:user:42');
+	});
+});
+
+describe('laneTopicFor', () => {
+	it("names one lane's live topic", () => {
+		expect(laneTopicFor('wolfbet', 12)).toBe('svc:wolfbet:lane:12');
 	});
 });

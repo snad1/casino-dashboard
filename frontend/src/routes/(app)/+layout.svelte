@@ -4,7 +4,7 @@
 	import { page } from '$app/state';
 	import Ticker from '#components/Ticker';
 	import { liveFor } from '#lib/live/index';
-	import { can } from '#lib/permissions';
+	import { can, laneScope } from '#lib/permissions';
 	import { DEFAULT_SERVICE, session, signOut } from '#lib/session.svelte';
 	import Toasts from '#ui/Toasts';
 
@@ -12,6 +12,8 @@
 
 	const service = $derived(page.params.service ?? DEFAULT_SERVICE);
 	const tgUid = $derived(session.me?.tg_uid ?? null);
+	const laneOnly = $derived(laneScope(session.me, 'view', service) !== null);
+	const LANE_PAGES = new Set(['Live', 'Analytics', 'Sessions']);
 	const tgLinks = $derived(
 		tgUid === null
 			? []
@@ -75,14 +77,24 @@
 			show: can(session.me, 'users.manage')
 		}
 	]);
-	const links = $derived(tgUid === null ? serviceLinks.filter((l) => l.show) : tgLinks);
+	const links = $derived(
+		tgUid !== null
+			? tgLinks
+			: serviceLinks.filter((l) => l.show && (!laneOnly || LANE_PAGES.has(l.label)))
+	);
 	const serviceTabs = $derived([
 		{ href: resolve('/(app)/[service=service]', { service }), label: 'Live' },
 		{ href: resolve('/(app)/[service=service]/sessions', { service }), label: 'Sessions' },
 		{ href: resolve('/(app)/[service=service]/control', { service }), label: 'Control' },
 		{ href: resolve('/(app)/alerts'), label: 'Alerts' }
 	]);
-	const tabs = $derived(tgUid === null ? serviceTabs : tgLinks);
+	const tabs = $derived(
+		tgUid !== null
+			? tgLinks
+			: laneOnly
+				? serviceTabs.filter((t) => LANE_PAGES.has(t.label))
+				: serviceTabs
+	);
 
 	function current(href: string): 'page' | undefined {
 		return page.url.pathname === href ? 'page' : undefined;
@@ -138,7 +150,13 @@
 		aria-label="Tabs"
 		class="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-surface md:hidden"
 	>
-		<ul class="grid {tabs.length === 3 ? 'grid-cols-3' : 'grid-cols-4'}">
+		<ul
+			class="grid {tabs.length === 2
+				? 'grid-cols-2'
+				: tabs.length === 3
+					? 'grid-cols-3'
+					: 'grid-cols-4'}"
+		>
 			<!-- eslint-disable svelte/no-navigation-without-resolve -- tab hrefs are built with resolve() above -->
 			{#each tabs as tab (tab.href)}
 				<li>

@@ -15,8 +15,10 @@
 	import { parseEpoch } from '#lib/epochs';
 	import { serviceSource } from '#lib/history-source';
 	import { liveFor } from '#lib/live/index';
+	import { laneScope } from '#lib/permissions';
+	import { session } from '#lib/session.svelte';
 
-	const panels = [
+	const allPanels = [
 		{ id: 'sessions', title: 'Sessions', area: 'lg:col-span-3 lg:row-span-3' },
 		{ id: 'chart', title: 'Chart', area: 'lg:col-span-6' },
 		{ id: 'tape', title: 'Bet tape', area: 'lg:col-span-3 lg:row-span-3' },
@@ -24,6 +26,9 @@
 		{ id: 'streaks', title: 'Streaks', area: 'lg:col-span-6' },
 		{ id: 'system', title: 'System', area: 'lg:col-span-12' }
 	];
+
+	const laneOnly = $derived(laneScope(session.me, 'view', page.params.service ?? '') !== null);
+	const panels = $derived(allPanels.filter((p) => !laneOnly || p.id !== 'system'));
 
 	let chartRange = $state<{ from: string; to: string } | null>(null);
 	let noteAt = $state<string | null>(null);
@@ -74,7 +79,7 @@
 						/>
 					{/key}
 				</div>
-				{#if chartRange}
+				{#if chartRange && !laneOnly}
 					<div class="mt-4">
 						<Comments
 							service={page.params.service}
@@ -102,15 +107,17 @@
 				</div>
 			{:else if panel.id === 'lanes' && page.params.service}
 				{@const live = liveFor(page.params.service)}
-				<div class="mt-2">
-					<KillSwitch />
-				</div>
+				{#if !laneOnly}
+					<div class="mt-2">
+						<KillSwitch />
+					</div>
+				{/if}
 				<div class="mt-2 grid gap-3 sm:grid-cols-2">
 					{#each Object.entries(live.lanes)
 						.map(([n, lane]) => [Number(n), lane] as const)
-						.filter(([n]) => n >= 1 && n <= 10)
+						.filter(([n]) => n >= 1)
 						.sort(([a], [b]) => a - b) as [n, lane] (n)}
-						<LaneCard {n} {lane} service={page.params.service} />
+						<LaneCard {n} {lane} service={laneOnly ? undefined : page.params.service} />
 					{:else}
 						<p class="text-sm text-muted">Waiting for live data.</p>
 					{/each}

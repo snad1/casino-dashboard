@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { can, denialReason, type Me } from './permissions';
+import { can, denialReason, laneScope, type Me } from './permissions';
 
 function me(role: string, service: string | null = null, totp = true): Me {
 	return {
@@ -92,5 +92,42 @@ describe('denialReason', () => {
 	it('is null when allowed', () => {
 		expect(denialReason(me('operator'), 'control.basic')).toBeNull();
 		expect(denialReason(me('admin'), 'control.destructive', 'wolfbet')).toBeNull();
+	});
+});
+
+describe('laneScope', () => {
+	const laneUser = (roles: Me['roles'], totp = false): Me => ({
+		email: 'friend@y.test',
+		tg_uid: null,
+		csrf_token: 't',
+		totp_enabled: totp,
+		roles
+	});
+
+	it('is every lane for a service role and the granted lanes otherwise', () => {
+		expect(laneScope(me('viewer'), 'view', 'wolfbet')).toBeNull();
+		expect(laneScope(me('viewer', 'wolfbet'), 'view', 'wolfbet')).toBeNull();
+		const friend = laneUser([
+			{ role: 'viewer', service: 'wolfbet', lane: 12 },
+			{ role: 'operator', service: 'wolfbet', lane: 3 },
+			{ role: 'viewer', service: 'other', lane: 5 }
+		]);
+		expect(laneScope(friend, 'view', 'wolfbet')).toEqual([3, 12]);
+		expect(laneScope(friend, 'control.basic', 'wolfbet')).toEqual([3]);
+		expect(laneScope(friend, 'users.manage', 'wolfbet')).toEqual([]);
+		expect(
+			laneScope(
+				laneUser([{ role: 'lane_manager', service: 'wolfbet', lane: null }]),
+				'view',
+				'wolfbet'
+			)
+		).toEqual([]);
+		expect(laneScope(null, 'view', 'wolfbet')).toEqual([]);
+	});
+
+	it('keeps the denial text in step with can for a lane role', () => {
+		const friend = laneUser([{ role: 'operator', service: 'wolfbet', lane: 3 }], true);
+		expect(can(friend, 'control.basic', 'wolfbet')).toBe(false);
+		expect(denialReason(friend, 'control.basic', 'wolfbet')).toBe('Needs operator role');
 	});
 });

@@ -7,6 +7,7 @@ export type Report = AnalyticsOut['report'];
 export type SessionStats = AnalyticsOut['sessions'];
 
 export const LANES = Array.from({ length: 10 }, (_, i) => i + 1);
+const LANE_ID_MAX = 99;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** The page's filter; it lives in the URL so a range can be shared and reloaded. */
@@ -27,7 +28,7 @@ export function parseFilter(params: Pick<URLSearchParams, 'get'>): Filter {
 	return {
 		since: date('since'),
 		until: date('until'),
-		lane: LANES.includes(lane) ? lane : null,
+		lane: Number.isInteger(lane) && lane >= 1 && lane <= LANE_ID_MAX ? lane : null,
 		epoch: parseEpoch(params)
 	};
 }

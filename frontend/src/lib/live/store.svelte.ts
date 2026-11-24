@@ -12,6 +12,17 @@ import {
 	type TapeRow
 } from './protocol';
 
+const LANE_TOPIC = /:lane:\d+$/;
+
+/**
+ * A lane topic's snapshot joins the tape the other lane topics already filled: newest first
+ * by time, each bet once, capped.
+ */
+function mergeTape(tape: TapeRow[], rows: TapeRow[]): TapeRow[] {
+	const merged = prependRows(tape, rows, Number.MAX_SAFE_INTEGER);
+	return [...merged].sort((a, b) => b.ts_ms - a.ts_ms).slice(0, TAPE_MAX);
+}
+
 export const STALE_MS = 6000;
 const BACKOFF_BASE_MS = 500;
 const BACKOFF_MAX_MS = 30_000;
@@ -222,7 +233,11 @@ export class LiveStore {
 			if (message === null) continue;
 			this.#attempt = 0;
 			this.connection = 'live';
-			if (message.op === 'snapshot') {
+			if (message.op === 'snapshot' && LANE_TOPIC.test(message.topic)) {
+				lanes = { ...lanes, ...message.lanes };
+				tape = mergeTape(tape, message.tape);
+				fresh = true;
+			} else if (message.op === 'snapshot') {
 				lanes = { ...message.lanes };
 				tape = prependRows([], message.tape, TAPE_MAX);
 				fresh = true;

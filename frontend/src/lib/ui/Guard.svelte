@@ -1,16 +1,23 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { can, type Perm } from '#lib/permissions';
+	import { can, laneScope, type Perm } from '#lib/permissions';
 	import { session } from '#lib/session.svelte';
 
+	/** With `lanes`, a user whose lane roles on `service` grant `perm` is let in too. */
 	let {
 		perm,
 		service = null,
+		lanes = false,
 		children
-	}: { perm: Perm; service?: string | null; children: Snippet } = $props();
+	}: { perm: Perm; service?: string | null; lanes?: boolean; children: Snippet } = $props();
+
+	const allowed = $derived(
+		can(session.me, perm, service) ||
+			(lanes && service !== null && (laneScope(session.me, perm, service)?.length ?? 0) > 0)
+	);
 </script>
 
-{#if can(session.me, perm, service)}
+{#if allowed}
 	{@render children()}
 {:else}
 	<section class="mx-auto max-w-lg rounded-lg border border-line bg-surface p-6">

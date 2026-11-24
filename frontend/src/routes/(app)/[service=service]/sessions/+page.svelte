@@ -3,6 +3,8 @@
 	import SessionsList from '#components/SessionsList';
 	import type { SessionsQuery } from '#lib/history-source';
 	import { liveFor } from '#lib/live/index';
+	import { laneScope } from '#lib/permissions';
+	import { session } from '#lib/session.svelte';
 	import Field from '#ui/Field';
 
 	const service = $derived(page.params.service ?? '');
@@ -14,12 +16,18 @@
 	let to = $state('');
 	let total = $state<number | null>(null);
 
+	const ownLanes = $derived(laneScope(session.me, 'view', service));
 	const lanes = $derived(
-		Object.keys(live.lanes)
-			.map(Number)
-			.filter((n) => Number.isInteger(n))
-			.sort((a, b) => a - b)
+		ownLanes ??
+			Object.keys(live.lanes)
+				.map(Number)
+				.filter((n) => Number.isInteger(n))
+				.sort((a, b) => a - b)
 	);
+
+	$effect(() => {
+		if (ownLanes?.length && !ownLanes.includes(Number(lane))) lane = String(ownLanes[0]);
+	});
 
 	const startOfDay = (day: string, plusDays = 0) => {
 		const [year = 0, month = 1, date = 1] = day.split('-').map(Number);
@@ -58,7 +66,7 @@
 		<label class="flex flex-col gap-1 text-sm font-medium text-ink">
 			Lane
 			<select bind:value={lane} class={selectClass}>
-				<option value="">All lanes</option>
+				{#if ownLanes === null}<option value="">All lanes</option>{/if}
 				{#each lanes as n (n)}
 					<option value={String(n)}>Lane {n}</option>
 				{/each}

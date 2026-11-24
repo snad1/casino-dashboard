@@ -20,12 +20,18 @@
 	} from '#lib/analytics';
 	import { ApiError, unwrap } from '#lib/api/client';
 	import { formatAmount, formatProfit } from '#lib/format';
-	import { denialReason } from '#lib/permissions';
+	import { denialReason, laneScope } from '#lib/permissions';
 	import { api, session } from '#lib/session.svelte';
 	import Notice from '#ui/Notice';
 
 	const service = $derived(page.params.service ?? '');
-	const filter = $derived(parseFilter(page.url.searchParams));
+	const ownLanes = $derived(laneScope(session.me, 'view', service));
+	const asked = $derived(parseFilter(page.url.searchParams));
+	const filter = $derived<Filter>(
+		ownLanes === null || ownLanes.includes(asked.lane ?? 0)
+			? asked
+			: { ...asked, lane: ownLanes[0] ?? null }
+	);
 	const exportReason = $derived(denialReason(session.me, 'export', service));
 
 	let data = $state<AnalyticsOut | null>(null);
@@ -152,8 +158,8 @@
 		<label class="flex flex-col gap-1 text-sm font-medium">
 			Lane
 			<select class={input} bind:value={lane}>
-				<option value="all">All</option>
-				{#each LANES as n (n)}
+				{#if ownLanes === null}<option value="all">All</option>{/if}
+				{#each ownLanes ?? LANES as n (n)}
 					<option value={String(n)}>Lane {n}</option>
 				{/each}
 			</select>

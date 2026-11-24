@@ -17,8 +17,12 @@ describe('filter', () => {
 		expect(parseFilter(new URLSearchParams(filterQuery(filter)))).toEqual(filter);
 	});
 
+	it('keeps any lane id the api takes, such as a lane added later as 12', () => {
+		expect(parseFilter(new URLSearchParams('lane=12')).lane).toBe(12);
+	});
+
 	it('drops values the form could not send', () => {
-		const params = new URLSearchParams('since=yesterday&until=2026-11-01T10:00&lane=11&epoch=0');
+		const params = new URLSearchParams('since=yesterday&until=2026-11-01T10:00&lane=100&epoch=0');
 		const none = { since: null, until: null, lane: null, epoch: null };
 		expect(parseFilter(params)).toEqual(none);
 		expect(filterQuery(none)).toEqual({});
