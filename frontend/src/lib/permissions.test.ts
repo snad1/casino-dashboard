@@ -54,6 +54,21 @@ describe('can', () => {
 		expect(can(both, 'control.basic', 'wolfbet')).toBe(false);
 	});
 
+	it('lets a lane manager create a lane and use own keys, nothing else', () => {
+		const friend = me('lane_manager', 'wolfbet', false);
+		expect(can(friend, 'lanes.create', 'wolfbet')).toBe(true);
+		expect(can(friend, 'keys.own', 'wolfbet')).toBe(true);
+		for (const perm of [
+			'view',
+			'control.basic',
+			'config.write',
+			'keys.manage',
+			'terminal'
+		] as const) {
+			expect(can(friend, perm, 'wolfbet')).toBe(false);
+		}
+	});
+
 	it('lets owners and admins only look until 2FA is on', () => {
 		expect(can(me('admin', null, false), 'view')).toBe(true);
 		expect(can(me('admin', null, false), 'users.manage')).toBe(false);

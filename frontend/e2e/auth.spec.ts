@@ -146,6 +146,38 @@ test('a role can be limited to one lane', async ({ page }) => {
 	await expect(page.getByText('viewer on wolfbet lane 3', { exact: true })).toBeVisible();
 });
 
+test('a lane manager is granted on this service', async ({ page }) => {
+	const sent: unknown[] = [];
+	const users = [
+		{ ...adminMe, id: 1, disabled: false, created_at: '2026-11-01T00:00:00Z' },
+		{
+			id: 2,
+			email: 'friend@example.test',
+			roles: [{ service: null, role: 'viewer', lane: null }],
+			disabled: false,
+			totp_enabled: false,
+			created_at: '2026-11-02T00:00:00Z'
+		}
+	];
+	await stubApi(page, {
+		'GET /auth/me': () => ({ status: 200, json: adminMe }),
+		'GET /admin/users': () => ({ status: 200, json: { items: users } }),
+		'PUT /admin/users/2/role': (body) => {
+			sent.push(body);
+			return { status: 204 };
+		}
+	});
+	await page.goto('/admin/users');
+	await page.getByLabel('Role for friend@example.test').selectOption('lane_manager');
+	await page.getByRole('button', { name: 'Make lane_manager' }).click();
+	await expect(page.getByRole('status')).toContainText(
+		'friend@example.test is now lane_manager on wolfbet.'
+	);
+	expect(sent).toEqual([{ role: 'lane_manager', service: 'wolfbet', lane: null }]);
+	const invite = page.locator('form').filter({ has: page.getByLabel('Email to invite') });
+	await expect(invite.getByRole('combobox').first()).not.toContainText('lane_manager');
+});
+
 test('2FA setup shows a QR code to scan alongside the key', async ({ page }) => {
 	const secret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
 	await stubApi(page, {

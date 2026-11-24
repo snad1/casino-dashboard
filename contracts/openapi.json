@@ -2784,7 +2784,8 @@
             "enum": [
               "admin",
               "operator",
-              "viewer"
+              "viewer",
+              "lane_manager"
             ],
             "title": "Role",
             "type": "string"

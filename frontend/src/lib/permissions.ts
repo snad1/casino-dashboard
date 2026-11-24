@@ -14,6 +14,8 @@ export type Perm =
 	| 'audit.read'
 	| 'alerts.manage'
 	| 'keys.manage'
+	| 'lanes.create'
+	| 'keys.own'
 	| 'comments.moderate';
 
 const ALL: Perm[] = [
@@ -29,6 +31,8 @@ const ALL: Perm[] = [
 	'audit.read',
 	'alerts.manage',
 	'keys.manage',
+	'lanes.create',
+	'keys.own',
 	'comments.moderate'
 ];
 const VIEWER: Perm[] = ['view', 'comment'];
@@ -39,6 +43,8 @@ const ROLE_PERMS: Record<string, Perm[]> = {
 	admin: ALL.filter((p) => p !== 'terminal'),
 	operator: OPERATOR,
 	viewer: VIEWER,
+	// A friend who creates and runs their own lane with their own keys, nothing service-wide.
+	lane_manager: ['lanes.create', 'keys.own'],
 	// A Telegram account reaches only its own bot user, through the `/tg/<uid>` routes.
 	tg_user: []
 };

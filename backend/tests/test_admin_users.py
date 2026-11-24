@@ -232,3 +232,14 @@ def test_bad_lane_roles_are_refused(
     sent = {k: (lane_service if v == "SERVICE" else v) for k, v in body.items()}
     assert _send(admin, "PUT", f"/admin/users/{target.id}/role", sent) == 422
     assert _user(app_settings, target.id) == (False, [(None, "viewer")])
+
+
+def test_a_lane_manager_is_granted_on_a_service(
+    app_settings: Settings, admin: TestClient, lane_service: str
+) -> None:
+    target = make_user(app_settings, Role.VIEWER, two_factor=False)
+    body = {"role": "lane_manager", "service": lane_service}
+    assert _send(admin, "PUT", f"/admin/users/{target.id}/role", body) == 204
+    assert _send(admin, "PUT", f"/admin/users/{target.id}/role", {"role": "lane_manager"}) == 422
+    with_lane = {"role": "lane_manager", "service": lane_service, "lane": 2}
+    assert _send(admin, "PUT", f"/admin/users/{target.id}/role", with_lane) == 422

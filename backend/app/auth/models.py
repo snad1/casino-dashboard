@@ -33,6 +33,7 @@ class Role(StrEnum):
     OPERATOR = "operator"
     VIEWER = "viewer"
     TG_USER = "tg_user"
+    LANE_MANAGER = "lane_manager"
 
 
 _ROLE_CHECK = "role IN (" + ", ".join(f"'{role}'" for role in Role) + ")"

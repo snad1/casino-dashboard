@@ -52,7 +52,9 @@ class ControlAction:
     last three may name `{service}` or a body field such as `{target}`. A read with
     `confirm_first` False runs on the press, without a modal. `exclusive` jobs run one at a
     time per service on the host (the agent refuses a second), so while one runs the
-    other control buttons wait; reads such as a log follow are not exclusive.
+    other control buttons wait; reads such as a log follow are not exclusive. `lane_field`
+    names the body field holding the one lane the action touches, so a role on that lane
+    alone may run it.
     """
 
     perm: Perm
@@ -68,3 +70,4 @@ class ControlAction:
     job: bool = False
     agent_args: Callable[[Any], dict[str, Any]] | None = None
     fixed_args: Mapping[str, Any] = field(default_factory=dict)
+    lane_field: str | None = None

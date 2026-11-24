@@ -275,6 +275,7 @@ ACTIONS: dict[str, ControlAction] = {
         effect="Lane {lane} stops after its current bet and its session is saved. Other lanes "
         "keep betting. Start brings it back.",
         confirm="Stop lane {lane}",
+        lane_field="lane",
     ),
     "lane_start": ControlAction(
         _BASIC,
@@ -284,6 +285,7 @@ ACTIONS: dict[str, ControlAction] = {
         title="Start lane {lane}?",
         effect="Lane {lane} starts betting again with its saved config.",
         confirm="Start lane {lane}",
+        lane_field="lane",
     ),
     "lane_restart": ControlAction(
         _BASIC,
@@ -294,6 +296,7 @@ ACTIONS: dict[str, ControlAction] = {
         effect="Lane {lane} saves its session, stops and starts again with its saved config. "
         "Other lanes keep betting.",
         confirm="Restart lane {lane}",
+        lane_field="lane",
     ),
     "lane_add": ControlAction(
         _CONFIG,
@@ -316,6 +319,7 @@ ACTIONS: dict[str, ControlAction] = {
         "betting.",
         confirm="Remove lane {lane}",
         fresh=True,
+        lane_field="lane",
     ),
     "lane_rename": ControlAction(
         _CONFIG,
@@ -326,6 +330,7 @@ ACTIONS: dict[str, ControlAction] = {
         effect="Only the name changes. Lane {lane} keeps betting.",
         confirm="Rename",
         fresh=True,
+        lane_field="lane",
     ),
     "pause": ControlAction(
         _BASIC,
@@ -335,6 +340,7 @@ ACTIONS: dict[str, ControlAction] = {
         title="Pause {target}?",
         effect="Betting stops on {target} until you resume it. The session stays open.",
         confirm="Pause {target}",
+        lane_field="target",
     ),
     "resume": ControlAction(
         _BASIC,
@@ -344,6 +350,7 @@ ACTIONS: dict[str, ControlAction] = {
         title="Resume {target}?",
         effect="Betting starts again on {target} where it paused.",
         confirm="Resume {target}",
+        lane_field="target",
     ),
     "reload": ControlAction(
         _BASIC,
@@ -353,6 +360,7 @@ ACTIONS: dict[str, ControlAction] = {
         title="Reload the config on {target}?",
         effect="The config file is read again on {target} without stopping. The session goes on.",
         confirm="Reload {target}",
+        lane_field="target",
     ),
     "restart": ControlAction(
         _BASIC,

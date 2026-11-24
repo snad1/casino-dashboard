@@ -11,7 +11,7 @@
 	import StepUpPrompt from '#ui/StepUpPrompt';
 
 	type User = components['schemas']['UserOut'];
-	type Role = 'admin' | 'operator' | 'viewer';
+	type Role = 'admin' | 'operator' | 'viewer' | 'lane_manager';
 	type Pending = {
 		title: string;
 		body: string;
@@ -20,10 +20,11 @@
 		run: () => Promise<void>;
 	};
 
-	const ROLES: Role[] = ['viewer', 'operator', 'admin'];
+	const ROLES: Role[] = ['viewer', 'operator', 'admin', 'lane_manager'];
+	const INVITE_ROLES: Exclude<Role, 'lane_manager'>[] = ['viewer', 'operator', 'admin'];
 	let users: User[] = $state([]);
 	let inviteEmail = $state('');
-	let inviteRole: Role = $state('viewer');
+	let inviteRole: Exclude<Role, 'lane_manager'> = $state('viewer');
 	let inviteScope = $state('all');
 	let notice: { tone: 'success' | 'error'; text: string } | null = $state(null);
 	let pending: Pending | null = $state(null);
@@ -95,7 +96,12 @@
 
 	/** A role on every service, or (with `lane`) on that one lane of this dashboard's service. */
 	function changeRole(user: User, role: Role, lane: number | null = user.roles[0]?.lane ?? null) {
-		const where = lane ? `${DEFAULT_SERVICE} lane ${lane}` : 'every service';
+		const onService = role === 'lane_manager' || lane !== null;
+		const where = lane
+			? `${DEFAULT_SERVICE} lane ${lane}`
+			: onService
+				? DEFAULT_SERVICE
+				: 'every service';
 		ask({
 			title: `Make ${user.email} ${role}${lane ? ` on lane ${lane}` : ''}?`,
 			body: `Their current roles (${describe(user)}) are replaced by ${role} on ${where}.`,
@@ -105,7 +111,7 @@
 				await unwrap(
 					api.PUT('/admin/users/{user_id}/role', {
 						params: { path: { user_id: user.id } },
-						body: { role, service: lane ? DEFAULT_SERVICE : null, lane }
+						body: { role, service: onService ? DEFAULT_SERVICE : null, lane }
 					})
 				);
 				notice = { tone: 'success', text: `${user.email} is now ${role} on ${where}.` };
@@ -154,7 +160,7 @@
 					bind:value={inviteRole}
 					class="min-h-11 rounded-md border border-line-strong bg-surface px-3 text-ink"
 				>
-					{#each ROLES as role (role)}<option value={role}>{role}</option>{/each}
+					{#each INVITE_ROLES as role (role)}<option value={role}>{role}</option>{/each}
 				</select>
 			</label>
 			<label class="flex flex-col gap-1 text-sm font-medium">

@@ -31,6 +31,8 @@ class Perm(StrEnum):
     AUDIT_READ = "audit.read"
     ALERTS_MANAGE = "alerts.manage"
     KEYS_MANAGE = "keys.manage"
+    LANES_CREATE = "lanes.create"
+    KEYS_OWN = "keys.own"
     COMMENTS_MODERATE = "comments.moderate"
 
 
@@ -43,6 +45,9 @@ ROLE_PERMS: dict[Role, frozenset[Perm]] = {
     Role.ADMIN: _ADMIN,
     Role.OPERATOR: _OPERATOR,
     Role.VIEWER: _VIEWER,
+    # A friend running their own lanes: create one, use their own keys. Each lane they create
+    # comes with an operator role on that lane alone, never on the service.
+    Role.LANE_MANAGER: frozenset({Perm.LANES_CREATE, Perm.KEYS_OWN}),
     # A Telegram user reaches only their own bot user, through `tg_access`, never a service.
     Role.TG_USER: frozenset(),
 }

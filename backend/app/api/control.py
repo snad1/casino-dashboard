@@ -44,6 +44,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.adapters.base import ControlAction
 from app.adapters.wolfbet.control import ACTIONS as WOLFBET_ACTIONS
 from app.agent_client import AgentClient, AgentError
+from app.api.lane_access import (
+    added_lane,
+    check_lane_action,
+    drop_lane,
+    grant_lane,
+    may_act_on_a_lane,
+)
 from app.audit import AuditEntry, record
 from app.auth.models import User
 from app.auth.permissions import Perm, denial, require, roles_for
@@ -291,7 +298,11 @@ async def _audit(
 
 
 def _guard(name: str, spec: ControlAction) -> Callable[..., Awaitable[User]]:
-    """The user, when they hold the action's permission (and a fresh step-up if it needs one)."""
+    """The user, when they hold the action's permission (and a fresh step-up if it needs one).
+
+    An action on one lane (or a lane add or config change) goes on to the endpoint for a user
+    without the service-wide permission, which then checks the lane in the body.
+    """
     fresh = require_fresh()
 
     async def dependency(
@@ -301,7 +312,8 @@ def _guard(name: str, spec: ControlAction) -> Callable[..., Awaitable[User]]:
         db: Db,
     ) -> User:
         detail = await denial(db, user, service, spec.perm)
-        if detail is not None:
+        request.state.lane_refused = detail
+        if detail is not None and not await may_act_on_a_lane(db, user, service, name, spec):
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail)
         if CONTROLS.get(service, {}).get(name) is not spec:
             raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
@@ -325,6 +337,11 @@ def _endpoint(name: str, spec: ControlAction) -> Callable[..., Awaitable[Control
         idempotency_key: Annotated[str, Header(alias="Idempotency-Key", pattern=KEY_PATTERN)],
     ) -> ControlOut:
         payload: BaseModel = body
+        refused: str | None = request.state.lane_refused
+        if refused is not None:
+            await check_lane_action(
+                db, agent_or_error(request), user, service, name, spec, payload, refused
+            )
         sessionmaker: async_sessionmaker[AsyncSession] = request.app.state.sessionmaker
         fingerprint = _fingerprint(service, name, payload)
         claimed, existing = await _claim(
@@ -358,11 +375,34 @@ def _endpoint(name: str, spec: ControlAction) -> Callable[..., Awaitable[Control
             log.exception("audit write failed after a control action", action=name)
         if out is None:
             raise HTTPException(status_code, stored["detail"])
+        if out.status == "succeeded":
+            await _after_lane_change(db, user, service, name, payload, out, refused)
         response.status_code = status_code
         return out
 
     control.__name__ = f"control_{name}"
     return control
+
+
+async def _after_lane_change(
+    db: AsyncSession,
+    user: User,
+    service: str,
+    name: str,
+    body: BaseModel,
+    out: ControlOut,
+    refused: str | None,
+) -> None:
+    """A lane added by a lane manager becomes theirs; a removed lane takes its roles along."""
+    removed = getattr(body, "lane", None)
+    if name == "lane_remove" and isinstance(removed, int):
+        await drop_lane(db, service, removed)
+    elif name == "lane_add" and refused is not None:
+        lane = added_lane(out.output)
+        if lane is None:
+            log.warning("could not read the new lane's id; no lane role granted")
+            return
+        await grant_lane(db, user.id, service, lane)
 
 
 for _name, _spec in WOLFBET_ACTIONS.items():

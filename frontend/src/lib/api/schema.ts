@@ -2665,7 +2665,7 @@ export interface components {
 			 * Role
 			 * @enum {string}
 			 */
-			role: 'admin' | 'operator' | 'viewer';
+			role: 'admin' | 'operator' | 'viewer' | 'lane_manager';
 			/** Service */
 			service?: string | null;
 		};

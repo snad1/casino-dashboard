@@ -1,7 +1,8 @@
 """Casino API keys in the bot host's vault: listed, added, rotated and deleted, never read back.
 
-Every route needs `keys.manage` on the service (owner or admin, with 2FA); the writes also
-need a step-up in the last 5 minutes. A key travels to the agent once and reaches the bot on
+Every route needs `keys.manage` on the service (owner or admin, with 2FA), or `keys.own` (a
+lane manager, who sees and touches only the keys they added); the writes also need a step-up
+in the last 5 minutes. A key travels to the agent once and reaches the bot on
 its stdin; no answer, log or audit row carries it (the audit middleware redacts the
 `secret` field). A key's id is its label as a slug, so a retried add finds the key it made
 instead of storing a second copy. The bot decides which lanes use a key and refuses to
@@ -9,17 +10,21 @@ delete one in use.
 """
 
 import re
+from dataclasses import dataclass
 from typing import Annotated, Any, Literal
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent_client import AgentError
 from app.api.control import AGENT_DOWN, CONTROLS, NOT_CONTROLLABLE, ServiceName, agent_or_error
 from app.auth.models import User
-from app.auth.permissions import Perm, require
+from app.auth.permissions import Perm, denial
+from app.auth.sessions import current_user
 from app.auth.stepup import require_fresh
+from app.db.engine import get_session
 
 KEY_ID_PATTERN = r"^[a-z0-9][a-z0-9_-]{0,31}$"
 VAULT_DOWN = "The key vault on the bot host can't be used. Check the host."
@@ -37,7 +42,30 @@ _REFUSALS = {
 
 log = structlog.get_logger("app.keys")
 router = APIRouter(tags=["keys"])
-Manager = Annotated[User, Depends(require(Perm.KEYS_MANAGE))]
+Db = Annotated[AsyncSession, Depends(get_session)]
+
+
+@dataclass(frozen=True)
+class KeyAccess:
+    """Who asks, and whether they manage every key or only their own."""
+
+    user: User
+    every_key: bool
+
+
+async def key_access(
+    service: ServiceName, user: Annotated[User, Depends(current_user)], db: Db
+) -> KeyAccess:
+    """`keys.manage` opens every key; `keys.own` (a lane manager) only the caller's own."""
+    if await denial(db, user, service, Perm.KEYS_MANAGE) is None:
+        return KeyAccess(user, every_key=True)
+    detail = await denial(db, user, service, Perm.KEYS_OWN)
+    if detail is not None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail)
+    return KeyAccess(user, every_key=False)
+
+
+Manager = Annotated[KeyAccess, Depends(key_access)]
 Fresh = Annotated[User, Depends(require_fresh())]
 KeyId = Annotated[str, Path(pattern=KEY_ID_PATTERN)]
 
@@ -130,24 +158,38 @@ async def _call(request: Request, service: str, cmd: str, args: dict[str, Any]) 
     return doc
 
 
+async def _check_owner(request: Request, service: str, access: KeyAccess, key_id: str) -> None:
+    """A user limited to their own keys gets 404 for any other key, as if it did not exist."""
+    if access.every_key:
+        return
+    doc = await _call(request, service, "key_list", {})
+    for row in doc.get("keys", []):
+        if isinstance(row, dict) and row.get("id") == key_id:
+            if row.get("owner_user_id") == access.user.id:
+                return
+            break
+    raise HTTPException(status.HTTP_404_NOT_FOUND, f"No key named {key_id}.")
+
+
 def _written(doc: dict[str, Any]) -> KeyWriteOut:
     return KeyWriteOut(key=KeyOut.model_validate(doc["key"]), note=doc.get("note"))
 
 
 @router.get("/{service}/keys", response_model=KeysOut)
 async def list_keys(
-    service: ServiceName, request: Request, user: Manager, mine: bool = Query(default=False)
+    service: ServiceName, request: Request, access: Manager, mine: bool = Query(default=False)
 ) -> KeysOut:
     """Every key with its label, last 4 characters, owner and the lanes that use it."""
     _known(service)
     doc = await _call(request, service, "key_list", {})
     keys = [KeyOut.model_validate(row) for row in doc.get("keys", [])]
-    return KeysOut(keys=[k for k in keys if not mine or k.owner_user_id == user.id])
+    only_mine = mine or not access.every_key
+    return KeysOut(keys=[k for k in keys if not only_mine or k.owner_user_id == access.user.id])
 
 
 @router.post("/{service}/keys", response_model=KeyWriteOut, status_code=201)
 async def add_key(
-    service: ServiceName, body: KeyIn, request: Request, user: Manager, _: Fresh
+    service: ServiceName, body: KeyIn, request: Request, access: Manager, _: Fresh
 ) -> KeyWriteOut:
     """Store a new key under its label's slug, owned by the caller."""
     _known(service)
@@ -155,7 +197,7 @@ async def add_key(
         "key_id": key_id_for(body.label),
         "label": body.label,
         "secret": body.secret,
-        "owner_user_id": user.id,
+        "owner_user_id": access.user.id,
         "kind": body.kind,
     }
     return _written(await _call(request, service, "key_put", args))
@@ -163,19 +205,26 @@ async def add_key(
 
 @router.post("/{service}/keys/{key_id}/rotate", response_model=KeyWriteOut)
 async def rotate_key(
-    service: ServiceName, key_id: KeyId, body: RotateIn, request: Request, _: Manager, __: Fresh
+    service: ServiceName,
+    key_id: KeyId,
+    body: RotateIn,
+    request: Request,
+    access: Manager,
+    _: Fresh,
 ) -> KeyWriteOut:
     """Replace a key's secret; lanes using it pick the new one up when they restart."""
     _known(service)
+    await _check_owner(request, service, access, key_id)
     args = {"key_id": key_id, "secret": body.secret}
     return _written(await _call(request, service, "key_rotate", args))
 
 
 @router.delete("/{service}/keys/{key_id}", status_code=204, response_class=Response)
 async def delete_key(
-    service: ServiceName, key_id: KeyId, request: Request, _: Manager, __: Fresh
+    service: ServiceName, key_id: KeyId, request: Request, access: Manager, _: Fresh
 ) -> Response:
     """Delete a key no lane uses."""
     _known(service)
+    await _check_owner(request, service, access, key_id)
     await _call(request, service, "key_delete", {"key_id": key_id})
     return Response(status_code=204)

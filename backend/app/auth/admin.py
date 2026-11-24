@@ -32,6 +32,7 @@ TELEGRAM_ROLE = "A Telegram account keeps its own role."
 LANE_NEEDS_SERVICE = "Pick the service the lane belongs to."
 LANE_ROLES = ("viewer", "operator")
 LANE_ROLE = "Only viewer or operator can be given on one lane."
+MANAGER_NEEDS_SERVICE = "Pick the service a lane manager runs lanes on."
 
 router = APIRouter(prefix="/admin/users", tags=["admin"])
 Db = Annotated[AsyncSession, Depends(get_session)]
@@ -60,12 +61,14 @@ class UserList(BaseModel):
 
 
 class RoleIn(BaseModel):
-    role: Literal["admin", "operator", "viewer"]
+    role: Literal["admin", "operator", "viewer", "lane_manager"]
     service: str | None = Field(default=None, max_length=100)
     lane: int | None = Field(default=None, ge=1, le=99)
 
     @model_validator(mode="after")
     def _lane_in_a_service(self) -> "RoleIn":
+        if self.role == "lane_manager" and self.service is None:
+            raise ValueError(MANAGER_NEEDS_SERVICE)
         if self.lane is not None and self.service is None:
             raise ValueError(LANE_NEEDS_SERVICE)
         if self.lane is not None and self.role not in LANE_ROLES:
