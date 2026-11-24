@@ -1823,11 +1823,25 @@
             "title": "Email",
             "type": "string"
           },
+          "lane": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lane"
+          },
           "role": {
             "enum": [
               "admin",
               "operator",
-              "viewer"
+              "viewer",
+              "lane_manager"
             ],
             "title": "Role",
             "type": "string"
@@ -2103,6 +2117,21 @@
           "lane"
         ],
         "title": "LaneIdArgs",
+        "type": "object"
+      },
+      "LaneQuotaIn": {
+        "properties": {
+          "lane_quota": {
+            "maximum": 99.0,
+            "minimum": 1.0,
+            "title": "Lane Quota",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lane_quota"
+        ],
+        "title": "LaneQuotaIn",
         "type": "object"
       },
       "LaneRange": {
@@ -4211,6 +4240,10 @@
             "title": "Id",
             "type": "integer"
           },
+          "lane_quota": {
+            "title": "Lane Quota",
+            "type": "integer"
+          },
           "roles": {
             "items": {
               "$ref": "#/components/schemas/RoleOut"
@@ -4229,6 +4262,7 @@
           "roles",
           "disabled",
           "totp_enabled",
+          "lane_quota",
           "created_at"
         ],
         "title": "UserOut",
@@ -4417,6 +4451,53 @@
           }
         },
         "summary": "Enable User",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/users/{user_id}/lane-quota": {
+      "put": {
+        "description": "Set how many lanes the user may create as a lane manager; the owner only.",
+        "operationId": "set_lane_quota_admin_users__user_id__lane_quota_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "User Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LaneQuotaIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Lane Quota",
         "tags": [
           "admin"
         ]

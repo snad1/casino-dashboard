@@ -102,6 +102,7 @@ ARGV_CASES: list[tuple[str, dict[str, Any], list[str]]] = [
     ("lane_remove", {"lane": 3}, [CTL, "lane", "remove", "3"]),
     ("lane_rename", {"lane": 3, "name": "night-run"}, [CTL, "lane", "rename", "3", "night-run"]),
     ("key_list", {}, [PY, BOT, "--key-list", "--json"]),
+    ("lane_ids", {}, [PY, BOT, "--lane-ids", "all"]),
     (
         "key_put",
         {"key_id": "friend-a", "label": "Friend A", "secret": KEY_SECRET, "owner_user_id": 7},
@@ -390,6 +391,7 @@ def test_mutating_flags() -> None:
         "tg.status",
         "version",
         "key_list",
+        "lane_ids",
     }
 
 

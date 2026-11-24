@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import type { components } from '#lib/api/schema';
 	import { ApiError, unwrap } from '#lib/api/client';
-	import { api, DEFAULT_SERVICE } from '#lib/session.svelte';
+	import { api, DEFAULT_SERVICE, session } from '#lib/session.svelte';
 	import Button from '#ui/Button';
 	import ConfirmDialog from '#ui/ConfirmDialog';
 	import Field from '#ui/Field';
@@ -21,16 +21,19 @@
 	};
 
 	const ROLES: Role[] = ['viewer', 'operator', 'admin', 'lane_manager'];
-	const INVITE_ROLES: Exclude<Role, 'lane_manager'>[] = ['viewer', 'operator', 'admin'];
 	let users: User[] = $state([]);
 	let inviteEmail = $state('');
-	let inviteRole: Exclude<Role, 'lane_manager'> = $state('viewer');
+	let inviteRole: Role = $state('viewer');
 	let inviteScope = $state('all');
+	let inviteLane = $state('');
 	let notice: { tone: 'success' | 'error'; text: string } | null = $state(null);
 	let pending: Pending | null = $state(null);
 	let confirmOpen = $state(false);
 	let stepUpOpen = $state(false);
 	let busy = $state(false);
+
+	const isOwner = $derived(session.me?.roles.some((r) => r.role === 'owner') ?? false);
+	const lanes = (n: number) => `${n} lane${n === 1 ? '' : 's'}`;
 
 	const describe = (user: User) =>
 		user.roles
@@ -77,19 +80,48 @@
 		confirmOpen = true;
 	}
 
+	/** A lane manager or a lane is always on this dashboard's service, as on the role picker. */
 	function invite(event: SubmitEvent) {
 		event.preventDefault();
 		const email = inviteEmail.trim();
-		const service = inviteScope === 'all' ? null : inviteScope;
+		const role = inviteRole;
+		const lane = laneFrom(String(inviteLane));
+		const service =
+			role === 'lane_manager' || lane !== null
+				? DEFAULT_SERVICE
+				: inviteScope === 'all'
+					? null
+					: inviteScope;
+		const scope = `${role}${service ? ` on ${service}` : ''}${lane ? ` lane ${lane}` : ''}`;
 		ask({
 			title: `Invite ${email}?`,
-			body: `They get an email with a link to set a password and join as ${inviteRole}.`,
+			body: `They get an email with a link to set a password and join as ${scope}.`,
 			label: 'Send invite',
 			danger: false,
 			run: async () => {
-				await unwrap(api.POST('/auth/invites', { body: { email, role: inviteRole, service } }));
+				await unwrap(api.POST('/auth/invites', { body: { email, role, service, lane } }));
 				notice = { tone: 'success', text: `Invite sent to ${email}.` };
 				inviteEmail = '';
+				inviteLane = '';
+			}
+		});
+	}
+
+	function setQuota(user: User, quota: number | null) {
+		if (quota === null) return;
+		ask({
+			title: `Let ${user.email} run ${lanes(quota)}?`,
+			body: `They may create up to ${lanes(quota)} on ${DEFAULT_SERVICE}, each with their own keys.`,
+			label: 'Set quota',
+			danger: false,
+			run: async () => {
+				await unwrap(
+					api.PUT('/admin/users/{user_id}/lane-quota', {
+						params: { path: { user_id: user.id } },
+						body: { lane_quota: quota }
+					})
+				);
+				notice = { tone: 'success', text: `${user.email} may now run ${lanes(quota)}.` };
 			}
 		});
 	}
@@ -151,7 +183,7 @@
 
 		<form
 			onsubmit={invite}
-			class="grid gap-4 rounded-lg border border-line bg-surface p-4 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end"
+			class="grid gap-4 rounded-lg border border-line bg-surface p-4 sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-end"
 		>
 			<Field label="Email to invite" type="email" bind:value={inviteEmail} required />
 			<label class="flex flex-col gap-1 text-sm font-medium">
@@ -160,7 +192,7 @@
 					bind:value={inviteRole}
 					class="min-h-11 rounded-md border border-line-strong bg-surface px-3 text-ink"
 				>
-					{#each INVITE_ROLES as role (role)}<option value={role}>{role}</option>{/each}
+					{#each ROLES as role (role)}<option value={role}>{role}</option>{/each}
 				</select>
 			</label>
 			<label class="flex flex-col gap-1 text-sm font-medium">
@@ -173,71 +205,101 @@
 					<option value={DEFAULT_SERVICE}>{DEFAULT_SERVICE}</option>
 				</select>
 			</label>
+			<Field
+				label="Lane"
+				type="number"
+				min="1"
+				max="99"
+				placeholder="all lanes"
+				bind:value={inviteLane}
+			/>
 			<Button type="submit" variant="primary">Invite</Button>
 		</form>
 
-		<table class="w-full text-left text-sm">
-			<thead class="text-muted">
-				<tr
-					><th class="p-2">Email</th><th class="p-2">Role</th><th class="p-2">2FA</th><th
-						class="p-2">Status</th
-					><th class="p-2"><span class="sr-only">Actions</span></th></tr
-				>
-			</thead>
-			<tbody>
-				{#each users as user (user.id)}
-					<tr class="border-t border-line">
-						<td class="p-2">{user.email}</td>
-						<td class="p-2">
-							{#if user.roles.some((r) => r.role === 'owner')}
-								owner
-							{:else}
-								<div class="flex flex-wrap items-center gap-2">
-									<select
-										aria-label="Role for {user.email}"
-										value={user.roles[0]?.role ?? 'viewer'}
-										onchange={(e) => changeRole(user, e.currentTarget.value as Role)}
-										class="min-h-11 rounded-md border border-line-strong bg-surface px-2 text-ink"
-									>
-										{#each ROLES as role (role)}<option value={role}>{role}</option>{/each}
-									</select>
-									<input
-										type="number"
-										min="1"
-										max="99"
-										placeholder="all lanes"
-										aria-label="Lane for {user.email}"
-										value={user.roles[0]?.lane ?? ''}
-										onchange={(e) =>
-											changeRole(
-												user,
-												(user.roles[0]?.role ?? 'viewer') as Role,
-												laneFrom(e.currentTarget.value)
-											)}
-										class="min-h-11 w-24 rounded-md border border-line-strong bg-surface px-2 text-ink"
-									/>
-								</div>
-								{#if user.roles[0]?.lane}
-									<span class="mt-1 block text-xs text-muted">{describe(user)}</span>
+		<div class="overflow-x-auto">
+			<table class="w-full text-left text-sm">
+				<thead class="text-muted">
+					<tr
+						><th class="p-2">Email</th><th class="p-2">Role</th><th class="p-2">2FA</th><th
+							class="p-2">Status</th
+						><th class="p-2"><span class="sr-only">Actions</span></th></tr
+					>
+				</thead>
+				<tbody>
+					{#each users as user (user.id)}
+						<tr class="border-t border-line">
+							<td class="p-2">{user.email}</td>
+							<td class="p-2">
+								{#if user.roles.some((r) => r.role === 'owner')}
+									owner
+								{:else}
+									<div class="flex flex-wrap items-center gap-2">
+										<select
+											aria-label="Role for {user.email}"
+											value={user.roles[0]?.role ?? 'viewer'}
+											onchange={(e) => changeRole(user, e.currentTarget.value as Role)}
+											class="min-h-11 rounded-md border border-line-strong bg-surface px-2 text-ink"
+										>
+											{#each ROLES as role (role)}<option value={role}>{role}</option>{/each}
+										</select>
+										<input
+											type="number"
+											min="1"
+											max="99"
+											placeholder="all lanes"
+											aria-label="Lane for {user.email}"
+											value={user.roles[0]?.lane ?? ''}
+											onchange={(e) =>
+												changeRole(
+													user,
+													(user.roles[0]?.role ?? 'viewer') as Role,
+													laneFrom(e.currentTarget.value)
+												)}
+											class="min-h-11 w-24 rounded-md border border-line-strong bg-surface px-2 text-ink"
+										/>
+									</div>
+									{#if user.roles[0]?.lane}
+										<span class="mt-1 block text-xs text-muted">{describe(user)}</span>
+									{/if}
+									{#if user.roles.some((r) => r.role === 'lane_manager')}
+										{#if isOwner}
+											<label class="mt-2 flex items-center gap-2 text-xs text-muted">
+												Lane quota
+												<input
+													type="number"
+													min="1"
+													max="99"
+													aria-label="Lane quota for {user.email}"
+													value={user.lane_quota}
+													onchange={(e) => setQuota(user, laneFrom(e.currentTarget.value))}
+													class="min-h-11 w-20 rounded-md border border-line-strong bg-surface px-2 text-ink"
+												/>
+											</label>
+										{:else}
+											<span class="mt-1 block text-xs text-muted"
+												>May run up to {lanes(user.lane_quota)}</span
+											>
+										{/if}
+									{/if}
 								{/if}
-							{/if}
-						</td>
-						<td class="p-2">{user.totp_enabled ? 'On' : 'Off'}</td>
-						<td class="p-2">{user.disabled ? 'Disabled' : 'Active'}</td>
-						<td class="p-2 text-right">
-							{#if !user.roles.some((r) => r.role === 'owner')}
-								<Button
-									variant={user.disabled ? 'secondary' : 'danger'}
-									onclick={() => toggle(user)}
-								>
-									{user.disabled ? 'Enable' : 'Disable'}
-								</Button>
-							{/if}
-						</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
+							</td>
+							<td class="p-2">{user.totp_enabled ? 'On' : 'Off'}</td>
+							<td class="p-2">{user.disabled ? 'Disabled' : 'Active'}</td>
+							<td class="p-2 text-right">
+								{#if !user.roles.some((r) => r.role === 'owner')}
+									<Button
+										variant={user.disabled ? 'secondary' : 'danger'}
+										onclick={() => toggle(user)}
+									>
+										{user.disabled ? 'Enable' : 'Disable'}
+									</Button>
+								{/if}
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
 	</div>
 
 	{#if pending}

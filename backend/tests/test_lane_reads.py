@@ -18,7 +18,7 @@ from app.auth.sessions import current_user
 from app.comments import TARGET_NOT_FOUND, Comment
 from app.db.models import Service
 from app.settings import Settings
-from tests.conftest import NO_LOGIN, make_client, make_user, new_email, run_in_session
+from tests.conftest import NO_LOGIN, make_user, new_email, run_in_session
 from tests.fake_agent import FakeAgent, ok
 from tests.test_analytics_api import REPORT
 from tests.test_history_api import T0, Seed
@@ -93,22 +93,6 @@ def lanes_seeded(seed: Seed) -> int:
         seed.session(epoch, src_id, lane=lane, ended=src_id != 3)
         seed.bet(epoch, src_id, T0 + timedelta(minutes=src_id), session=src_id, lane=lane)
     return epoch
-
-
-@pytest.fixture
-def client_as(control_settings: Settings) -> Iterator[Any]:
-    """A client on the fake agent whose requests run as a given user."""
-    clients: list[TestClient] = []
-
-    def make(user: User) -> TestClient:
-        client = make_client(control_settings)
-        client.app.dependency_overrides[current_user] = lambda: user  # type: ignore[attr-defined]
-        clients.append(client.__enter__())
-        return client
-
-    yield make
-    for client in clients:
-        client.__exit__(None, None, None)
 
 
 @pytest.fixture

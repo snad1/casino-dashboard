@@ -365,6 +365,7 @@ COMMANDS: dict[str, CommandSpec] = {
     "config_schema": CommandSpec(
         NoArgs, lambda _a, p: _bot(p, "--config-schema"), 30, json_output=True
     ),
+    "lane_ids": CommandSpec(NoArgs, lambda _a, p: _bot(p, "--lane-ids", "all"), 30),
     "run_reset": CommandSpec(NoArgs, _ctl_verb("run-reset", "--yes"), 120, mutating=True),
     "reset": CommandSpec(NoArgs, _ctl_verb("reset", "--yes"), 120, mutating=True),
     "archives": CommandSpec(NoArgs, _ctl_verb("archives"), 30),

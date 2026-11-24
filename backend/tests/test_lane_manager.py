@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.lane_access import NOT_YOUR_KEY, OVER_QUOTA, added_lane
+from app.api.lane_access import NOT_YOUR_KEY, added_lane, over_quota
 from app.auth.models import Role, UserRole
 from app.auth.permissions import FORBIDDEN
 from app.db.models import Service
@@ -92,7 +92,7 @@ def test_a_lane_manager_creates_one_lane_and_owns_it(
     assert response.status_code == 200 and response.json()["status"] == "succeeded"
     assert wolfbet.owned() == [7]
     second = _post(client, "lane_add", {"name": "friend-B"})
-    assert (second.status_code, second.json()["detail"]) == (403, OVER_QUOTA)
+    assert (second.status_code, second.json()["detail"]) == (403, over_quota(1))
     assert [c["cmd"] for c in fake_agent.calls] == ["wolfbet.lane_add"]
 
 

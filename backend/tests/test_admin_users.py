@@ -93,6 +93,7 @@ def test_managers_list_every_user_with_roles_and_2fa(
         "roles",
         "disabled",
         "totp_enabled",
+        "lane_quota",
         "created_at",
     }
 
@@ -187,17 +188,14 @@ def lane_service(app_settings: Settings) -> Iterator[str]:
     run_in_session(app_settings, remove)
 
 
-def test_a_role_can_name_one_lane(
-    app_settings: Settings, admin: TestClient, lane_service: str, as_user: object
+def test_a_lane_on_a_service_the_bot_host_does_not_run_is_refused(
+    app_settings: Settings, admin: TestClient, lane_service: str
 ) -> None:
     target = make_user(app_settings, Role.VIEWER, two_factor=False)
     body = {"role": "viewer", "service": lane_service, "lane": 3}
-    assert _send(admin, "PUT", f"/admin/users/{target.id}/role", body) == 204
+    assert _send(admin, "PUT", f"/admin/users/{target.id}/role", body) == 422
     users = {u["id"]: u for u in admin.get("/admin/users").json()["items"]}
-    assert users[target.id]["roles"] == [{"service": lane_service, "role": "viewer", "lane": 3}]
-    friend = as_user(target)  # type: ignore[operator]
-    assert friend.get(f"/{lane_service}/sessions").status_code == 200
-    assert friend.get(f"/{lane_service}/sessions?lane=1").status_code == 403
+    assert users[target.id]["roles"] == [{"service": None, "role": "viewer", "lane": None}]
 
 
 def test_me_reports_a_lane_role_that_opens_nothing_service_wide(

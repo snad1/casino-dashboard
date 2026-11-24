@@ -9,7 +9,8 @@ from pydantic import SecretStr
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.models import Role, UserRole
+from app.auth.models import Role, User, UserRole
+from app.auth.sessions import current_user
 from app.settings import Settings
 from tests.conftest import Account, make_client, run_in_session
 from tests.fake_agent import TOKEN, FakeAgent
@@ -45,6 +46,22 @@ def signed_in_as(control_settings: Settings, account: Account) -> Iterator[Any]:
             _enrol(client, account.email)
         else:
             _login(client, account.email)
+        return client
+
+    yield make
+    for client in clients:
+        client.__exit__(None, None, None)
+
+
+@pytest.fixture
+def client_as(control_settings: Settings) -> Iterator[Any]:
+    """A client on the fake agent whose requests run as a given user, without signing in."""
+    clients: list[TestClient] = []
+
+    def make(user: User) -> TestClient:
+        client = make_client(control_settings)
+        client.app.dependency_overrides[current_user] = lambda: user  # type: ignore[attr-defined]
+        clients.append(client.__enter__())
         return client
 
     yield make

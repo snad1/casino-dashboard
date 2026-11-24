@@ -1,7 +1,8 @@
 """What a user without a service-wide role may do to lanes, and who owns which lane.
 
-A lane manager may create one lane (for now) and gets an operator role on that lane alone;
-lane ids are never reused, so that role can never open another lane. Such a user may run a
+A lane manager may create as many lanes as their quota allows (1 unless the owner raised it)
+and gets an operator role on each of those lanes alone; lane ids are never reused, so such a
+role can never open another lane. Such a user may run a
 lane action only on a lane they hold a role on, and change the config only on those lanes,
 pointing them only at their own vault keys and proxies. Everything else stays refused.
 """
@@ -20,8 +21,6 @@ from app.auth.models import Role, User, UserRole
 from app.auth.permissions import FORBIDDEN, Perm, denial
 from app.db.models import Service
 
-LANE_QUOTA = 1
-OVER_QUOTA = "You already run 1 lane, the most you may have for now."
 NOT_YOUR_KEY = "A lane can only use your own keys."
 REF_KINDS = {"key_ref": "key", "proxy_ref": "proxy"}
 _ADDED = re.compile(r"\bLane (\d{1,2}) \(")
@@ -61,6 +60,17 @@ async def drop_lane(db: AsyncSession, service: str, lane: int) -> None:
         delete(UserRole).where(UserRole.service_id == service_id, UserRole.lane == lane)
     )
     await db.commit()
+
+
+def over_quota(quota: int) -> str:
+    return f"You already run {quota} lane{'' if quota == 1 else 's'}, the most you may have."
+
+
+async def lane_exists(agent: AgentClient, service: str, lane: int) -> bool:
+    """Whether `lane` is in the bot's lane registry; raises `AgentError` when it can't tell."""
+    data = await agent.call(f"{service}.lane_ids", {})
+    words = str(data.get("stdout") or "").split()
+    return str(lane) in words
 
 
 def added_lane(output: str | None) -> int | None:
@@ -120,8 +130,8 @@ async def check_lane_action(
         if await denial(db, user, service, Perm.LANES_CREATE) is not None:
             raise HTTPException(status.HTTP_403_FORBIDDEN, refused)
         owned = await owned_lanes(db, user.id, service)
-        if len(owned) >= LANE_QUOTA:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, OVER_QUOTA)
+        if len(owned) >= user.lane_quota:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, over_quota(user.lane_quota))
         if body.copy_from is not None and body.copy_from not in owned:
             raise HTTPException(status.HTTP_403_FORBIDDEN, FORBIDDEN)
         return

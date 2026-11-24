@@ -61,6 +61,26 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/admin/users/{user_id}/lane-quota': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		/**
+		 * Set Lane Quota
+		 * @description Set how many lanes the user may create as a lane manager; the owner only.
+		 */
+		put: operations['set_lane_quota_admin_users__user_id__lane_quota_put'];
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/admin/users/{user_id}/role': {
 		parameters: {
 			query?: never;
@@ -2361,11 +2381,13 @@ export interface components {
 		InviteIn: {
 			/** Email */
 			email: string;
+			/** Lane */
+			lane?: number | null;
 			/**
 			 * Role
 			 * @enum {string}
 			 */
-			role: 'admin' | 'operator' | 'viewer';
+			role: 'admin' | 'operator' | 'viewer' | 'lane_manager';
 			/** Service */
 			service?: string | null;
 		};
@@ -2462,6 +2484,11 @@ export interface components {
 		LaneIdArgs: {
 			/** Lane */
 			lane: number;
+		};
+		/** LaneQuotaIn */
+		LaneQuotaIn: {
+			/** Lane Quota */
+			lane_quota: number;
 		};
 		/** LaneRange */
 		LaneRange: {
@@ -3070,6 +3097,8 @@ export interface components {
 			email: string;
 			/** Id */
 			id: number;
+			/** Lane Quota */
+			lane_quota: number;
 			/** Roles */
 			roles: components['schemas']['RoleOut'][];
 			/** Totp Enabled */
@@ -3165,6 +3194,39 @@ export interface operations {
 			cookie?: never;
 		};
 		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			204: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content?: never;
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	set_lane_quota_admin_users__user_id__lane_quota_put: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				user_id: number;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['LaneQuotaIn'];
+			};
+		};
 		responses: {
 			/** @description Successful Response */
 			204: {

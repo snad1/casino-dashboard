@@ -174,8 +174,74 @@ test('a lane manager is granted on this service', async ({ page }) => {
 		'friend@example.test is now lane_manager on wolfbet.'
 	);
 	expect(sent).toEqual([{ role: 'lane_manager', service: 'wolfbet', lane: null }]);
+});
+
+test('an invite can name one lane, or make a lane manager', async ({ page }) => {
+	const sent: unknown[] = [];
+	await stubApi(page, {
+		'GET /auth/me': () => ({ status: 200, json: adminMe }),
+		'GET /admin/users': () => ({ status: 200, json: { items: [] } }),
+		'POST /auth/invites': (body) => {
+			sent.push(body);
+			return { status: 204 };
+		}
+	});
+	await page.goto('/admin/users');
+	await page.getByLabel('Email to invite').fill('friend@example.test');
+	await page.getByLabel('Lane', { exact: true }).fill('3');
+	await page.getByRole('button', { name: 'Invite' }).click();
+	await expect(page.getByText('join as viewer on wolfbet lane 3')).toBeVisible();
+	await page.getByRole('button', { name: 'Send invite' }).click();
+	await expect(page.getByRole('status')).toContainText('Invite sent to friend@example.test.');
+
+	await page.getByLabel('Email to invite').fill('manager@example.test');
 	const invite = page.locator('form').filter({ has: page.getByLabel('Email to invite') });
-	await expect(invite.getByRole('combobox').first()).not.toContainText('lane_manager');
+	await invite.getByRole('combobox').first().selectOption('lane_manager');
+	await page.getByRole('button', { name: 'Invite' }).click();
+	await page.getByRole('button', { name: 'Send invite' }).click();
+	await expect(page.getByRole('status')).toContainText('Invite sent to manager@example.test.');
+	expect(sent).toEqual([
+		{ email: 'friend@example.test', role: 'viewer', service: 'wolfbet', lane: 3 },
+		{ email: 'manager@example.test', role: 'lane_manager', service: 'wolfbet', lane: null }
+	]);
+});
+
+test('only the owner changes a lane manager quota', async ({ page }) => {
+	const sent: unknown[] = [];
+	const manager = {
+		id: 2,
+		email: 'manager@example.test',
+		roles: [{ service: 'wolfbet', role: 'lane_manager', lane: null }],
+		disabled: false,
+		totp_enabled: true,
+		lane_quota: 1,
+		created_at: '2026-11-02T00:00:00Z'
+	};
+	const ownerMe = {
+		...adminMe,
+		email: 'owner@example.test',
+		roles: [{ service: null, role: 'owner' }]
+	};
+	let me = adminMe;
+	await stubApi(page, {
+		'GET /auth/me': () => ({ status: 200, json: me }),
+		'GET /admin/users': () => ({ status: 200, json: { items: [manager] } }),
+		'PUT /admin/users/2/lane-quota': (body) => {
+			sent.push(body);
+			return { status: 204 };
+		}
+	});
+	await page.goto('/admin/users');
+	await expect(page.getByText('May run up to 1 lane')).toBeVisible();
+	await expect(page.getByLabel('Lane quota for manager@example.test')).toHaveCount(0);
+
+	me = ownerMe;
+	await page.reload();
+	await page.getByLabel('Lane quota for manager@example.test').fill('3');
+	await page.getByLabel('Lane quota for manager@example.test').press('Tab');
+	await page.getByRole('button', { name: 'Set quota' }).click();
+	await expect(page.getByRole('status')).toContainText('manager@example.test may now run 3 lanes.');
+	expect(sent).toEqual([{ lane_quota: 3 }]);
 });
 
 test('2FA setup shows a QR code to scan alongside the key', async ({ page }) => {

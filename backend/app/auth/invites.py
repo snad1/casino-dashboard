@@ -1,4 +1,8 @@
-"""Invites: an owner or admin invites an email with a role; the link sets a password once."""
+"""Invites: an owner or admin invites an email with a role; the link sets a password once.
+
+The role may be on every service, one service, or one lane of it (checked against the bot's
+lanes when sent and again when accepted), or a lane manager on one service.
+"""
 
 import hashlib
 import secrets
@@ -6,11 +10,12 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
+from app.auth.admin import check_scope, require_lane
 from app.auth.models import Invite, Role, User, UserRole
 from app.auth.passwords import hash_password, password_problem
 from app.auth.permissions import Perm, require
@@ -34,8 +39,19 @@ def token_hash(token: str) -> bytes:
 
 class InviteIn(BaseModel):
     email: str = Field(min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-    role: Literal["admin", "operator", "viewer"]
+    role: Literal["admin", "operator", "viewer", "lane_manager"]
     service: str | None = Field(default=None, max_length=100)
+    lane: int | None = Field(default=None, ge=1, le=99)
+
+    @model_validator(mode="after")
+    def _scope(self) -> "InviteIn":
+        check_scope(self.role, self.service, self.lane)
+        return self
+
+    def scope(self) -> str:
+        """The role as the email names it: `viewer on wolfbet lane 3`."""
+        where = f" on {self.service}" if self.service else ""
+        return f"{self.role}{where}{f' lane {self.lane}' if self.lane else ''}"
 
 
 class AcceptIn(BaseModel):
@@ -59,6 +75,8 @@ async def create_invite(
         service_id = await db.scalar(select(Service.id).where(Service.name == body.service))
         if service_id is None:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, UNKNOWN_SERVICE)
+    if body.service is not None and body.lane is not None:
+        await require_lane(request, body.service, body.lane)
     await db.execute(delete(Invite).where(Invite.email == email, Invite.accepted_at.is_(None)))
     token = secrets.token_urlsafe(32)
     db.add(
@@ -67,18 +85,30 @@ async def create_invite(
             email=email,
             role=body.role,
             service_id=service_id,
+            lane=body.lane,
             invited_by=inviter.id,
             expires_at=datetime.now(UTC) + INVITE_TTL,
         )
     )
     # The token rides in the fragment, so it never reaches a server log or a Referer header.
     url = f"{request.app.state.public_origin}/invite#token={token}"
-    enqueue(db, email, templates.invite(url, body.role, inviter.email or "an admin"))
+    enqueue(db, email, templates.invite(url, body.scope(), inviter.email or "an admin"))
     await db.commit()
 
 
+async def _lane_still_there(request: Request, db: AsyncSession, invite: Invite) -> None:
+    """Refuse an invite whose lane was removed since it was sent, as an invalid link."""
+    service = await db.scalar(select(Service.name).where(Service.id == invite.service_id))
+    try:
+        await require_lane(request, service or "", invite.lane or 0)
+    except HTTPException as error:
+        if error.status_code != status.HTTP_422_UNPROCESSABLE_CONTENT:
+            raise
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, INVITE_INVALID) from None
+
+
 @router.post("/accept", status_code=status.HTTP_204_NO_CONTENT)
-async def accept_invite(body: AcceptIn, db: Db) -> None:
+async def accept_invite(body: AcceptIn, request: Request, db: Db) -> None:
     invite = await db.scalar(
         select(Invite).where(Invite.token_hash == token_hash(body.token)).with_for_update()
     )
@@ -88,6 +118,8 @@ async def accept_invite(body: AcceptIn, db: Db) -> None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, INVITE_INVALID)
     if problem := password_problem(body.password, invite.email):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, problem)
+    if invite.lane is not None:
+        await _lane_still_there(request, db, invite)
     user = User(
         email=invite.email,
         password_hash=await run_in_threadpool(hash_password, body.password),
@@ -95,6 +127,10 @@ async def accept_invite(body: AcceptIn, db: Db) -> None:
     )
     db.add(user)
     await db.flush()
-    db.add(UserRole(user_id=user.id, service_id=invite.service_id, role=Role(invite.role)))
+    db.add(
+        UserRole(
+            user_id=user.id, service_id=invite.service_id, role=Role(invite.role), lane=invite.lane
+        )
+    )
     invite.accepted_at = datetime.now(UTC)
     await db.commit()

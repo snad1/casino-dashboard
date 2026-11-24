@@ -63,6 +63,7 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint("email IS NOT NULL OR tg_uid IS NOT NULL", name="email_or_tg_uid"),
+        CheckConstraint("lane_quota BETWEEN 1 AND 99", name="lane_quota"),
     )
 
     id: Mapped[int] = _id()
@@ -75,6 +76,7 @@ class User(Base):
     created_by: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("users.id", ondelete="SET NULL")
     )
+    lane_quota: Mapped[int] = mapped_column(SmallInteger, server_default=text("1"))
     created_at: Mapped[datetime] = _created_at()
 
 
@@ -92,6 +94,10 @@ class AuditActor:
 
 
 LANE_CHECK = "lane IS NULL OR (service_id IS NOT NULL AND lane BETWEEN 1 AND 99)"
+INVITE_LANE_CHECK = (
+    "lane IS NULL OR (service_id IS NOT NULL AND lane BETWEEN 1 AND 99"
+    " AND role IN ('viewer', 'operator'))"
+)
 
 
 class UserRole(Base):
@@ -142,7 +148,10 @@ class ApiSession(Base):
 
 class Invite(Base):
     __tablename__ = "invites"
-    __table_args__ = (CheckConstraint(_ROLE_CHECK, name="role"),)
+    __table_args__ = (
+        CheckConstraint(_ROLE_CHECK, name="role"),
+        CheckConstraint(INVITE_LANE_CHECK, name="lane"),
+    )
 
     id: Mapped[int] = _id()
     token_hash: Mapped[bytes] = mapped_column(LargeBinary, unique=True)
@@ -151,6 +160,7 @@ class Invite(Base):
     service_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("services.id", ondelete="CASCADE")
     )
+    lane: Mapped[int | None] = mapped_column(SmallInteger)
     invited_by: Mapped[int] = _user_fk()
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
