@@ -43,6 +43,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.adapters.base import ControlAction
 from app.adapters.wolfbet.control import ACTIONS as WOLFBET_ACTIONS
+from app.adapters.wolfbet.control import ConfigChanges, owner_keys
 from app.agent_client import AgentClient, AgentError
 from app.api.lane_access import (
     added_lane,
@@ -53,7 +54,7 @@ from app.api.lane_access import (
     owned_lanes,
 )
 from app.audit import AuditEntry, record
-from app.auth.models import User
+from app.auth.models import Role, User
 from app.auth.permissions import FORBIDDEN, Perm, denial, require, roles_for
 from app.auth.sessions import current_user
 from app.auth.stepup import require_fresh
@@ -354,6 +355,10 @@ def _endpoint(name: str, spec: ControlAction) -> Callable[..., Awaitable[Control
             await check_lane_action(
                 db, agent_or_error(request), user, service, name, spec, payload, refused
             )
+        if isinstance(payload, ConfigChanges) and (owned := owner_keys(payload)):
+            if Role.OWNER not in await roles_for(db, user.id, None):
+                detail = f"Only the owner can change {', '.join(owned)}."
+                raise HTTPException(status.HTTP_403_FORBIDDEN, detail)
         sessionmaker: async_sessionmaker[AsyncSession] = request.app.state.sessionmaker
         fingerprint = _fingerprint(service, name, payload)
         claimed, existing = await _claim(

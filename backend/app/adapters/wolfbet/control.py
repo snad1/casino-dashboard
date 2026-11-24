@@ -182,6 +182,28 @@ class ConfigChanges(Args):
         return self
 
 
+OWNER_KEYS = frozenset(
+    {
+        "purge_days",
+        "db_write_mode",
+        "pipeline_depth",
+        "events_enabled",
+        "events_url",
+        "delay_martin_threshold",
+        "currency",
+        "proxy",
+        "key_ref",
+        "proxy_ref",
+    }
+)
+"""Base settings only the owner may change: those every lane shares, and the account."""
+
+
+def owner_keys(body: ConfigChanges) -> list[str]:
+    """The base changes in `body` that only the owner may make."""
+    return sorted(c.key for c in body.changes if c.lane is None and c.key in OWNER_KEYS)
+
+
 def config_pairs(body: ConfigChanges) -> dict[str, Any]:
     """The agent's `pairs`, built here so a client never writes `key=value` text itself."""
     pairs = {

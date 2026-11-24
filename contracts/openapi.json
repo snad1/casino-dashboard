@@ -1191,6 +1191,11 @@
             "title": "Off Allowed",
             "type": "boolean"
           },
+          "owner_only": {
+            "default": false,
+            "title": "Owner Only",
+            "type": "boolean"
+          },
           "rule_options": {
             "anyOf": [
               {

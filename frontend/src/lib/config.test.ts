@@ -21,6 +21,7 @@ const key = (over: Partial<ConfigKey>): ConfigKey => ({
 	off_allowed: false,
 	live_reload: true,
 	lane_overridable: true,
+	owner_only: false,
 	...over
 });
 const CONFIG: ConfigOut = {

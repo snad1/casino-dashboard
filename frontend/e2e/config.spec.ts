@@ -12,6 +12,7 @@ const key = (over: Record<string, unknown>) => ({
 	default: null,
 	live_reload: true,
 	lane_overridable: true,
+	owner_only: false,
 	...over
 });
 const RULE_OPTIONS = {
@@ -456,4 +457,47 @@ test('without key rights the refs stay text fields', async ({ page }) => {
 	});
 	await page.goto('/wolfbet/config');
 	await expect(page.getByRole('textbox', { name: 'key_ref' })).toHaveValue('default');
+});
+
+const WITH_OWNER_KEYS = {
+	...CONFIG,
+	keys: [
+		...CONFIG.keys,
+		key({ key: 'purge_days', type: 'integer', lane_overridable: false, owner_only: true }),
+		key({ key: 'currency', type: 'string', live_reload: false, owner_only: true })
+	],
+	base: { ...CONFIG.base, purge_days: 3, currency: 'btc' }
+};
+
+test('settings every lane shares are read-only on the base tab except for the owner', async ({
+	page
+}) => {
+	await rig(page, adminMe, {
+		'GET /wolfbet/config': () => ({ status: 200, json: WITH_OWNER_KEYS })
+	});
+	await page.goto('/wolfbet/config');
+	await expect(page.getByLabel('purge_days')).toBeDisabled();
+	await expect(page.getByLabel('currency')).toBeDisabled();
+	const purge = page.getByRole('listitem').filter({ has: page.getByLabel('purge_days') });
+	await expect(purge.getByText('Only the owner can change this.')).toBeVisible();
+	await expect(page.getByLabel('max_loss')).toBeEnabled();
+
+	await page.getByRole('tab', { name: 'Lane 2' }).click();
+	const laneCurrency = page.getByRole('listitem').filter({ has: page.getByLabel('currency') });
+	await laneCurrency.getByLabel('Use base').uncheck();
+	await expect(page.getByLabel('currency')).toBeEnabled();
+});
+
+test('the owner edits the settings every lane shares', async ({ page }) => {
+	const ownerMe = {
+		...adminMe,
+		email: 'owner@example.test',
+		roles: [{ service: null, role: 'owner' }]
+	};
+	await rig(page, ownerMe, {
+		'GET /wolfbet/config': () => ({ status: 200, json: WITH_OWNER_KEYS })
+	});
+	await page.goto('/wolfbet/config');
+	await expect(page.getByLabel('purge_days')).toBeEnabled();
+	await expect(page.getByText('Only the owner can change this.')).toHaveCount(0);
 });

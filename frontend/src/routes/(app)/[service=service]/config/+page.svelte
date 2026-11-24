@@ -32,11 +32,14 @@
 	import { liveFor } from '#lib/live/index';
 	import { can } from '#lib/permissions';
 	import { api, session } from '#lib/session.svelte';
+
+	const OWNER_ONLY = 'Only the owner can change this.';
 	import Button from '#ui/Button';
 	import Guard from '#ui/Guard';
 	import Notice from '#ui/Notice';
 
 	const service = $derived(page.params.service ?? '');
+	const isOwner = $derived(session.me?.roles.some((r) => r.role === 'owner') ?? false);
 	const live = $derived(liveFor(service));
 
 	let config = $state<ConfigOut | null>(null);
@@ -298,7 +301,8 @@
 						{@const edit = edits[scope]?.[key.key]}
 						{#if edit}
 							{@const id = `field-${scope}-${key.key}`}
-							{@const locked = scope !== BASE && edit.useBase}
+							{@const ownerLocked = scope === BASE && key.owner_only && !isOwner}
+							{@const locked = (scope !== BASE && edit.useBase) || ownerLocked}
 							<li class="grid gap-1 sm:grid-cols-[14rem_1fr] sm:items-start sm:gap-4">
 								<div class="pt-3">
 									<label for={id} class="text-sm font-medium">{key.key}</label>
@@ -361,7 +365,8 @@
 									{/if}
 									<p class="text-xs text-muted">
 										{key.help ?? ''}{#if hint(key)}
-											<span class="block">{hint(key)}</span>{/if}
+											<span class="block">{hint(key)}</span>{/if}{#if ownerLocked}
+											<span class="block">{OWNER_ONLY}</span>{/if}
 									</p>
 								</div>
 							</li>

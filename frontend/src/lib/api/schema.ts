@@ -2158,6 +2158,11 @@ export interface components {
 			min?: number | null;
 			/** Off Allowed */
 			off_allowed: boolean;
+			/**
+			 * Owner Only
+			 * @default false
+			 */
+			owner_only: boolean;
 			rule_options?: components['schemas']['RuleOptions'] | null;
 			/**
 			 * Type

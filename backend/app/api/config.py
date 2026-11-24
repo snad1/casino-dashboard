@@ -3,7 +3,9 @@
 Every route needs `config.write` on the service. The agent reads the schema and the saved
 config, and runs the dry run; nothing here writes. Saving goes through the `config_set`
 control action, which is idempotent, stepped up and audited. Only keys the schema lists
-are returned, so the api key and anything else the bot keeps never reach the browser.
+are returned, so the api key and anything else the bot keeps never reach the browser. Base
+settings every lane shares, and the account ones, are marked `owner_only`: saving them
+needs the owner.
 """
 
 import asyncio
@@ -13,7 +15,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, JsonValue, ValidationError
 
-from app.adapters.wolfbet.control import ConfigChanges, config_pairs
+from app.adapters.wolfbet.control import OWNER_KEYS, ConfigChanges, config_pairs
 from app.agent_client import AgentError
 from app.api.control import AGENT_DOWN, CONTROLS, NOT_CONTROLLABLE, ServiceName, agent_or_error
 from app.auth.models import User
@@ -61,6 +63,7 @@ class ConfigKey(BaseModel):
     default: JsonValue = None
     live_reload: bool
     lane_overridable: bool
+    owner_only: bool = False
     rule_options: RuleOptions | None = None
 
 
@@ -127,7 +130,10 @@ async def get_config(service: ServiceName, request: Request, _: Writer) -> Confi
         log.warning("config could not be read", schema=schema is not None, show=show is not None)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, CONFIG_UNREADABLE)
     try:
-        keys = [ConfigKey.model_validate(entry) for entry in schema["keys"]]
+        keys = [
+            ConfigKey.model_validate({**entry, "owner_only": entry.get("key") in OWNER_KEYS})
+            for entry in schema["keys"]
+        ]
         names = {k.key for k in keys}
         lanes = schema["lanes"]
         return ConfigOut(
