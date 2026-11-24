@@ -18,7 +18,8 @@ const config = (base_bet: number, lanes: ConfigOut['lanes'] = {}): ConfigOut => 
 	split_choices: ['none', 'budget', 'bet', 'both'],
 	lane_split: 'none',
 	base: { base_bet },
-	lanes
+	lanes,
+	pending: {}
 });
 
 describe('laneShares', () => {

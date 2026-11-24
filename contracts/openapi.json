@@ -1264,6 +1264,17 @@
           "override_lanes": {
             "$ref": "#/components/schemas/LaneRange"
           },
+          "pending": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/PendingRow"
+              },
+              "type": "array"
+            },
+            "default": {},
+            "title": "Pending",
+            "type": "object"
+          },
           "split_choices": {
             "items": {
               "type": "string"
@@ -2585,6 +2596,27 @@
           "label"
         ],
         "title": "Option",
+        "type": "object"
+      },
+      "PendingRow": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "running": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "saved": {
+            "$ref": "#/components/schemas/JsonValue"
+          }
+        },
+        "required": [
+          "key",
+          "running",
+          "saved"
+        ],
+        "title": "PendingRow",
         "type": "object"
       },
       "PreviewOut": {

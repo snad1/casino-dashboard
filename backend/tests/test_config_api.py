@@ -23,6 +23,12 @@ SHOW = {
     "lanes": 3,
     "lane_split": "budget",
     "lane_overrides": {"2": {"multiplier": 3.0, "api_key": "leak"}},
+    "pending": {
+        "2": [
+            {"key": "multiplier", "running": 3.0, "saved": 4.0},
+            {"key": "api_key", "running": "leak", "saved": "leak"},
+        ]
+    },
     "config_file": {"path": "/root/.wolfbet_autobot.json", "mode": "0600", "size": 900},
 }
 DIFF = {
@@ -77,6 +83,7 @@ def test_writers_get_the_schema_and_saved_values_without_secrets(
     assert body["lane_split"] == "budget"
     assert body["base"] == {"max_loss": 0.02, "multiplier": 2.01, "proxy": None}
     assert body["lanes"] == {"2": {"multiplier": 3.0}}
+    assert body["pending"] == {"2": [{"key": "multiplier", "running": 3.0, "saved": 4.0}]}
     assert "leak" not in response.text
     assert "abcd" not in response.text
     assert ".wolfbet_autobot.json" not in response.text

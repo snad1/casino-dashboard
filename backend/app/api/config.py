@@ -72,6 +72,12 @@ class LaneRange(BaseModel):
     max: int
 
 
+class PendingRow(BaseModel):
+    key: str
+    running: JsonValue
+    saved: JsonValue
+
+
 class ConfigOut(BaseModel):
     keys: list[ConfigKey]
     lane_count: int
@@ -80,6 +86,7 @@ class ConfigOut(BaseModel):
     lane_split: str
     base: dict[str, JsonValue]
     lanes: dict[str, dict[str, JsonValue]]
+    pending: dict[str, list[PendingRow]] = {}
 
 
 class DiffRow(BaseModel):
@@ -146,6 +153,10 @@ async def get_config(service: ServiceName, request: Request, _: Writer) -> Confi
             lanes={
                 lane: {k: v for k, v in values.items() if k in names}
                 for lane, values in show["lane_overrides"].items()
+            },
+            pending={
+                lane: [PendingRow.model_validate(row) for row in rows if row.get("key") in names]
+                for lane, rows in show.get("pending", {}).items()
             },
         )
     except (KeyError, TypeError, AttributeError, ValidationError):

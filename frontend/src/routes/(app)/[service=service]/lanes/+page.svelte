@@ -3,7 +3,7 @@
 	import ActionButton from '#components/ActionButton';
 	import ConfigDiff from '#components/ConfigDiff';
 	import { ApiError, unwrap } from '#lib/api/client';
-	import type { ConfigChange, ConfigOut, Preview } from '#lib/config';
+	import { display, type ConfigChange, type ConfigOut, type Preview } from '#lib/config';
 	import { control } from '#lib/control.svelte';
 	import { formatAmount } from '#lib/format';
 	import {
@@ -105,6 +105,12 @@
 		preview = null;
 		void load();
 	});
+
+	/** Restart one lane so it runs on the saved settings, then show what is still waiting. */
+	async function applyPending(lane: number) {
+		const out = await control.ask('lane_restart', { lane });
+		if (out?.status === 'succeeded') await load();
+	}
 
 	async function runPreview() {
 		previewing = true;
@@ -269,6 +275,7 @@
 					{#each laneRows as row (row.n)}
 						{@const value = renameTo(row.n, row.lane.name)}
 						{@const error = laneNameError(value)}
+						{@const pending = config?.pending?.[String(row.n)] ?? []}
 						<li
 							class="flex flex-wrap items-end gap-3 py-3"
 							aria-label={laneTitle(row.n, row.lane.name)}
@@ -312,6 +319,16 @@
 							{/if}
 							{#if value !== '' && error}
 								<p class="w-full text-xs text-loss">{error}</p>
+							{/if}
+							{#if pending.length}
+								<div class="flex w-full flex-wrap items-center gap-3">
+									<p class="text-sm text-warn">
+										Waiting for a restart: {pending
+											.map((p) => `${p.key} ${display(p.running)} -> ${display(p.saved)}`)
+											.join(', ')}
+									</p>
+									<Button onclick={() => void applyPending(row.n)}>Apply</Button>
+								</div>
 							{/if}
 						</li>
 					{/each}

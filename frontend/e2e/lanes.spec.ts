@@ -10,7 +10,8 @@ const CONFIG = {
 	split_choices: ['none', 'budget', 'bet', 'both'],
 	lane_split: 'none',
 	base: { base_bet: 0.0002 },
-	lanes: {}
+	lanes: {},
+	pending: {}
 };
 const DIFF = {
 	base: [
@@ -280,4 +281,33 @@ test('/wolfbet/lanes has no serious accessibility issues', async ({ page }) => {
 		.filter((v) => v.impact === 'serious' || v.impact === 'critical')
 		.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`);
 	expect(blocking).toEqual([]);
+});
+
+test('a lane still on an old setting says so, and Apply restarts only that lane', async ({
+	page
+}) => {
+	let pending: Record<string, unknown[]> = {
+		'2': [{ key: 'multiplier', running: 3, saved: 4 }]
+	};
+	const { posts } = await rig(page, operatorMe, {
+		'GET /wolfbet/config': () => ({ status: 200, json: { ...CONFIG, pending } }),
+		'POST /wolfbet/control/lane_restart': () => {
+			pending = {};
+			return done();
+		}
+	});
+	await page.goto('/wolfbet/lanes');
+	const list = page.getByRole('list', { name: 'Lane controls' });
+	const two = list.getByRole('listitem', { name: 'Lane 2 · friend-A' });
+	await expect(two.getByText('Waiting for a restart: multiplier 3 -> 4')).toBeVisible();
+	await expect(list.getByText(/Waiting for a restart/)).toHaveCount(1);
+	await two.getByRole('button', { name: 'Apply' }).click();
+	await page
+		.getByRole('dialog', { name: 'Restart lane 2?' })
+		.getByRole('button', { name: 'Restart lane 2' })
+		.click();
+	await expect(two.getByText(/Waiting for a restart/)).toHaveCount(0);
+	expect(posts.filter((p) => p.path === '/wolfbet/control/lane_restart')).toEqual([
+		{ path: '/wolfbet/control/lane_restart', body: { lane: 2 } }
+	]);
 });

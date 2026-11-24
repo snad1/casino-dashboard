@@ -45,7 +45,8 @@ const CONFIG: ConfigOut = {
 		recurring: false,
 		streak_delay_win: [3, 1.5]
 	},
-	lanes: { '2': { multiplier: 3 } }
+	lanes: { '2': { multiplier: 3 } },
+	pending: {}
 };
 
 describe('fields from the schema', () => {

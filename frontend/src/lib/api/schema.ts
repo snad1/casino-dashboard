@@ -2190,6 +2190,13 @@ export interface components {
 				};
 			};
 			override_lanes: components['schemas']['LaneRange'];
+			/**
+			 * Pending
+			 * @default {}
+			 */
+			pending: {
+				[key: string]: components['schemas']['PendingRow'][];
+			};
 			/** Split Choices */
 			split_choices: string[];
 		};
@@ -2621,6 +2628,13 @@ export interface components {
 			key: string;
 			/** Label */
 			label: string;
+		};
+		/** PendingRow */
+		PendingRow: {
+			/** Key */
+			key: string;
+			running: components['schemas']['JsonValue'];
+			saved: components['schemas']['JsonValue'];
 		};
 		/** PreviewOut */
 		PreviewOut: {
