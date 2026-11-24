@@ -42,14 +42,21 @@ def tail(text: str, limit: int) -> str:
 
 
 async def spawn(
-    argv: Sequence[str], cwd: Path | None = None, env: Mapping[str, str] = os.environ
+    argv: Sequence[str],
+    cwd: Path | None = None,
+    env: Mapping[str, str] = os.environ,
+    with_stdin: bool = False,
 ) -> asyncio.subprocess.Process:
-    """Start `argv` (argv[0] an absolute path): no shell, no stdin, scrubbed env, own session."""
+    """Start `argv` (argv[0] an absolute path): no shell, scrubbed env, own session.
+
+    stdin is empty unless `with_stdin`, which is how a secret reaches a program without
+    ever showing in its argv.
+    """
     if not argv or not os.path.isabs(argv[0]):
         raise ValueError("argv[0] must be an absolute path")
     return await asyncio.create_subprocess_exec(
         *argv,
-        stdin=asyncio.subprocess.DEVNULL,
+        stdin=asyncio.subprocess.PIPE if with_stdin else asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         cwd=cwd,
@@ -63,14 +70,15 @@ async def run(
     timeout_s: float,
     cwd: Path | None = None,
     env: Mapping[str, str] = os.environ,
+    stdin: bytes | None = None,
 ) -> RunResult:
-    """Run `argv` to the end and capture its output (see spawn).
+    """Run `argv` to the end and capture its output (see spawn); `stdin` is fed to it once.
 
     Raises CommandTimeout after `timeout_s` seconds; the whole process group is killed.
     """
-    proc = await spawn(argv, cwd, env)
+    proc = await spawn(argv, cwd, env, with_stdin=stdin is not None)
     try:
-        out, err = await asyncio.wait_for(proc.communicate(), timeout_s)
+        out, err = await asyncio.wait_for(proc.communicate(stdin), timeout_s)
     except TimeoutError:
         with contextlib.suppress(ProcessLookupError):  # it may have just exited
             os.killpg(proc.pid, signal.SIGKILL)

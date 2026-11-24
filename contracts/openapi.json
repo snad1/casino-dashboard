@@ -1905,6 +1905,129 @@
         "type": "object"
       },
       "JsonValue": {},
+      "KeyIn": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "secret": {
+            "maxLength": 4096,
+            "title": "Secret",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "secret",
+          "label"
+        ],
+        "title": "KeyIn",
+        "type": "object"
+      },
+      "KeyOut": {
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last4": {
+            "title": "Last4",
+            "type": "string"
+          },
+          "owner_user_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner User Id"
+          },
+          "rotated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rotated At"
+          },
+          "used_by_lanes": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Used By Lanes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "last4",
+          "owner_user_id",
+          "created_at",
+          "rotated_at",
+          "used_by_lanes"
+        ],
+        "title": "KeyOut",
+        "type": "object"
+      },
+      "KeyWriteOut": {
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/KeyOut"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "key",
+          "note"
+        ],
+        "title": "KeyWriteOut",
+        "type": "object"
+      },
+      "KeysOut": {
+        "properties": {
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/KeyOut"
+            },
+            "title": "Keys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "keys"
+        ],
+        "title": "KeysOut",
+        "type": "object"
+      },
       "Kind": {
         "enum": [
           "profit",
@@ -2676,6 +2799,23 @@
           "role"
         ],
         "title": "RoleOut",
+        "type": "object"
+      },
+      "RotateIn": {
+        "additionalProperties": false,
+        "description": "A key's new secret: write-only, never stored by the dashboard.",
+        "properties": {
+          "secret": {
+            "maxLength": 4096,
+            "title": "Secret",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "secret"
+        ],
+        "title": "RotateIn",
         "type": "object"
       },
       "RuleAction": {
@@ -9652,6 +9792,223 @@
         "summary": "Download Job File",
         "tags": [
           "files"
+        ]
+      }
+    },
+    "/{service}/keys": {
+      "get": {
+        "description": "Every key with its label, last 4 characters, owner and the lanes that use it.",
+        "operationId": "list_keys__service__keys_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Service",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mine",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Mine",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeysOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Keys",
+        "tags": [
+          "keys"
+        ]
+      },
+      "post": {
+        "description": "Store a new key under its label's slug, owned by the caller.",
+        "operationId": "add_key__service__keys_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Service",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyWriteOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Key",
+        "tags": [
+          "keys"
+        ]
+      }
+    },
+    "/{service}/keys/{key_id}": {
+      "delete": {
+        "description": "Delete a key no lane uses.",
+        "operationId": "delete_key__service__keys__key_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Service",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$",
+              "title": "Key Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Key",
+        "tags": [
+          "keys"
+        ]
+      }
+    },
+    "/{service}/keys/{key_id}/rotate": {
+      "post": {
+        "description": "Replace a key's secret; lanes using it pick the new one up when they restart.",
+        "operationId": "rotate_key__service__keys__key_id__rotate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Service",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$",
+              "title": "Key Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RotateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyWriteOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rotate Key",
+        "tags": [
+          "keys"
         ]
       }
     },

@@ -13,6 +13,7 @@ export type Perm =
 	| 'users.manage'
 	| 'audit.read'
 	| 'alerts.manage'
+	| 'keys.manage'
 	| 'comments.moderate';
 
 const ALL: Perm[] = [
@@ -27,6 +28,7 @@ const ALL: Perm[] = [
 	'users.manage',
 	'audit.read',
 	'alerts.manage',
+	'keys.manage',
 	'comments.moderate'
 ];
 const VIEWER: Perm[] = ['view', 'comment'];

@@ -30,6 +30,7 @@ class Perm(StrEnum):
     USERS_MANAGE = "users.manage"
     AUDIT_READ = "audit.read"
     ALERTS_MANAGE = "alerts.manage"
+    KEYS_MANAGE = "keys.manage"
     COMMENTS_MODERATE = "comments.moderate"
 
 

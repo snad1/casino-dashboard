@@ -26,6 +26,9 @@ from agent.validators import (
     InvalidArgs,
     InvalidValue,
     IsoDate,
+    KeyId,
+    KeyLabel,
+    KeySecret,
     Lane,
     LaneName,
     LaneTarget,
@@ -102,6 +105,22 @@ class LaneAddArgs(Args):
 class LaneRenameArgs(Args):
     lane: Lane
     name: LaneName
+
+
+class KeyIdArgs(Args):
+    key_id: KeyId
+
+
+class KeyPutArgs(Args):
+    key_id: KeyId
+    label: KeyLabel
+    secret: KeySecret
+    owner_user_id: int | None = Field(default=None, ge=1)
+
+
+class KeyRotateArgs(Args):
+    key_id: KeyId
+    secret: KeySecret
 
 
 class LanesArgs(Args):
@@ -198,6 +217,7 @@ class CommandSpec:
     json_output: bool = False
     cwd_repo: bool = False
     clears_schema: bool = False
+    stdin_field: str | None = None
     writes_file: bool = False
 
 
@@ -293,6 +313,39 @@ COMMANDS: dict[str, CommandSpec] = {
         lambda a, p: _ctl(p, "lane", "rename", str(a.lane), a.name),
         60,
         mutating=True,
+    ),
+    "key_list": CommandSpec(
+        NoArgs, lambda _a, p: _bot(p, "--key-list", "--json"), 30, json_output=True
+    ),
+    "key_put": CommandSpec(
+        KeyPutArgs,
+        lambda a, p: _bot(
+            p,
+            "--key-put",
+            a.key_id,
+            f"--key-label={a.label}",
+            *_opt("--key-owner", a.owner_user_id),
+            "--json",
+        ),
+        30,
+        mutating=True,
+        json_output=True,
+        stdin_field="secret",
+    ),
+    "key_rotate": CommandSpec(
+        KeyRotateArgs,
+        lambda a, p: _bot(p, "--key-rotate", a.key_id, "--json"),
+        30,
+        mutating=True,
+        json_output=True,
+        stdin_field="secret",
+    ),
+    "key_delete": CommandSpec(
+        KeyIdArgs,
+        lambda a, p: _bot(p, "--key-delete", a.key_id, "--json"),
+        30,
+        mutating=True,
+        json_output=True,
     ),
     "pause": CommandSpec(TargetArgs, _signal("pause"), 30, mutating=True),
     "resume": CommandSpec(TargetArgs, _signal("resume"), 30, mutating=True),
@@ -434,6 +487,7 @@ class Prepared:
     mutating: bool
     file_id: str | None = None
     redact: tuple[str, ...] = ()
+    stdin: bytes | None = field(default=None, repr=False)
 
 
 def _never_busy() -> bool:
@@ -471,15 +525,19 @@ class WolfBetService:
             file_id, directory = self.files.allocate()
             paths = replace(self.paths, export_dir=directory)
             redact = tuple({str(directory), os.path.realpath(directory)})
+        secret = getattr(args, spec.stdin_field) if spec.stdin_field else None
         return Prepared(
             name=name,
-            args=args.model_dump(mode="json"),
+            args=args.model_dump(
+                mode="json", exclude={spec.stdin_field} if spec.stdin_field else None
+            ),
             argv=spec.build(args, paths),
             timeout_s=spec.timeout_s,
             cwd=self.paths.repo if spec.cwd_repo else None,
             mutating=spec.mutating,
             file_id=file_id,
             redact=redact,
+            stdin=None if secret is None else f"{secret}\n".encode(),
         )
 
     def after_job(self, name: str) -> None:
@@ -495,7 +553,8 @@ class WolfBetService:
         prepared = self.prepare(name, raw_args)
         if prepared.mutating:
             self._refuse_while_busy()
-        result = await self.runner(prepared.argv, prepared.timeout_s, cwd=prepared.cwd)
+        extra = {} if prepared.stdin is None else {"stdin": prepared.stdin}
+        result = await self.runner(prepared.argv, prepared.timeout_s, cwd=prepared.cwd, **extra)
         self.after_job(name)
         return result_data(COMMANDS[name], result)
 

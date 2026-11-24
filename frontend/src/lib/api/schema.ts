@@ -1649,6 +1649,70 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/{service}/keys': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * List Keys
+		 * @description Every key with its label, last 4 characters, owner and the lanes that use it.
+		 */
+		get: operations['list_keys__service__keys_get'];
+		put?: never;
+		/**
+		 * Add Key
+		 * @description Store a new key under its label's slug, owned by the caller.
+		 */
+		post: operations['add_key__service__keys_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/keys/{key_id}': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		post?: never;
+		/**
+		 * Delete Key
+		 * @description Delete a key no lane uses.
+		 */
+		delete: operations['delete_key__service__keys__key_id__delete'];
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/keys/{key_id}/rotate': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/**
+		 * Rotate Key
+		 * @description Replace a key's secret; lanes using it pick the new one up when they restart.
+		 */
+		post: operations['rotate_key__service__keys__key_id__rotate_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/{service}/series': {
 		parameters: {
 			query?: never;
@@ -2315,6 +2379,41 @@ export interface components {
 			status: 'running' | 'succeeded' | 'failed' | 'cancelled' | 'timeout';
 		};
 		JsonValue: unknown;
+		/** KeyIn */
+		KeyIn: {
+			/** Label */
+			label: string;
+			/** Secret */
+			secret: string;
+		};
+		/** KeyOut */
+		KeyOut: {
+			/** Created At */
+			created_at: string;
+			/** Id */
+			id: string;
+			/** Label */
+			label: string;
+			/** Last4 */
+			last4: string;
+			/** Owner User Id */
+			owner_user_id: number | null;
+			/** Rotated At */
+			rotated_at: string | null;
+			/** Used By Lanes */
+			used_by_lanes: number[];
+		};
+		/** KeyWriteOut */
+		KeyWriteOut: {
+			key: components['schemas']['KeyOut'];
+			/** Note */
+			note: string | null;
+		};
+		/** KeysOut */
+		KeysOut: {
+			/** Keys */
+			keys: components['schemas']['KeyOut'][];
+		};
 		/**
 		 * Kind
 		 * @enum {string}
@@ -2560,6 +2659,14 @@ export interface components {
 			role: string;
 			/** Service */
 			service: string | null;
+		};
+		/**
+		 * RotateIn
+		 * @description A key's new secret: write-only, never stored by the dashboard.
+		 */
+		RotateIn: {
+			/** Secret */
+			secret: string;
 		};
 		/** RuleAction */
 		RuleAction: {
@@ -6338,6 +6445,140 @@ export interface operations {
 				};
 				content: {
 					'application/json': unknown;
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	list_keys__service__keys_get: {
+		parameters: {
+			query?: {
+				mine?: boolean;
+			};
+			header?: never;
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['KeysOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	add_key__service__keys_post: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['KeyIn'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			201: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['KeyWriteOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	delete_key__service__keys__key_id__delete: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+				key_id: string;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			204: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content?: never;
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	rotate_key__service__keys__key_id__rotate_post: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+				key_id: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['RotateIn'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['KeyWriteOut'];
 				};
 			};
 			/** @description Validation Error */

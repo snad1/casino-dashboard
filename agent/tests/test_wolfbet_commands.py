@@ -36,6 +36,7 @@ PATHS = WolfBetPaths(
     journalctl=Path("/usr/bin/journalctl"),
 )
 FILE_ID = "f" * 32
+KEY_SECRET = "wb_live_FRIEND_0123456789abcdef7777"  # noqa: S105  # a fake key for tests
 EXP = f"/var/agent/exports/{FILE_ID}"
 
 
@@ -62,12 +63,14 @@ class FakeRunner:
 
     def __init__(self, *results: RunResult) -> None:
         self.calls: list[tuple[list[str], float, Path | None]] = []
+        self.stdins: list[bytes | None] = []
         self.results = list(results)
 
     async def __call__(
-        self, argv: list[str], timeout_s: float, cwd: Path | None = None
+        self, argv: list[str], timeout_s: float, cwd: Path | None = None, stdin: bytes | None = None
     ) -> RunResult:
         self.calls.append((list(argv), timeout_s, cwd))
+        self.stdins.append(stdin)
         if self.results:
             return self.results.pop(0)
         if argv[-1] == "--config-schema":
@@ -98,6 +101,23 @@ ARGV_CASES: list[tuple[str, dict[str, Any], list[str]]] = [
     ),
     ("lane_remove", {"lane": 3}, [CTL, "lane", "remove", "3"]),
     ("lane_rename", {"lane": 3, "name": "night-run"}, [CTL, "lane", "rename", "3", "night-run"]),
+    ("key_list", {}, [PY, BOT, "--key-list", "--json"]),
+    (
+        "key_put",
+        {"key_id": "friend-a", "label": "Friend A", "secret": KEY_SECRET, "owner_user_id": 7},
+        [PY, BOT, "--key-put", "friend-a", "--key-label=Friend A", "--key-owner", "7", "--json"],
+    ),
+    (
+        "key_put",
+        {"key_id": "spare", "label": "-starts with dash", "secret": KEY_SECRET},
+        [PY, BOT, "--key-put", "spare", "--key-label=-starts with dash", "--json"],
+    ),
+    (
+        "key_rotate",
+        {"key_id": "friend-a", "secret": KEY_SECRET},
+        [PY, BOT, "--key-rotate", "friend-a", "--json"],
+    ),
+    ("key_delete", {"key_id": "friend-a"}, [PY, BOT, "--key-delete", "friend-a", "--json"]),
     ("pause", {}, [CTL, "pause", "all"]),
     ("pause", {"target": 2}, [CTL, "pause", "2"]),
     ("resume", {"target": "all"}, [CTL, "resume", "all"]),
@@ -246,6 +266,16 @@ async def test_argv(name: str, args: dict[str, Any], argv: list[str]) -> None:
         ("lane_remove", {"lane": 100}),
         ("lane_rename", {"lane": 2}),
         ("lane_rename", {"lane": 2, "name": "%(asctime)s"}),
+        ("key_put", {"key_id": "Friend", "label": "x", "secret": KEY_SECRET}),
+        ("key_put", {"key_id": "../x", "label": "x", "secret": KEY_SECRET}),
+        ("key_put", {"key_id": "a", "label": " x", "secret": KEY_SECRET}),
+        ("key_put", {"key_id": "a", "label": "a\nb", "secret": KEY_SECRET}),
+        ("key_put", {"key_id": "a", "label": "x", "secret": "short"}),
+        ("key_put", {"key_id": "a", "label": "x", "secret": "has a space in it"}),
+        ("key_put", {"key_id": "a", "label": "x", "secret": KEY_SECRET, "owner_user_id": 0}),
+        ("key_put", {"key_id": "a", "label": "x", "secret": KEY_SECRET, "extra": 1}),
+        ("key_rotate", {"key_id": "a"}),
+        ("key_delete", {"key_id": ""}),
         ("lane_start", {}),
         ("lane_start", {"lane": "2"}),
         ("lanes", {"count": 2, "split": "half"}),
@@ -275,6 +305,26 @@ async def test_bad_args_run_nothing(name: str, args: dict[str, Any]) -> None:
     with pytest.raises(InvalidArgs):
         await WolfBetService(PATHS, runner).run_command(name, args)
     assert runner.calls == []
+
+
+@pytest.mark.parametrize("name", ["key_put", "key_rotate"])
+async def test_a_key_reaches_the_bot_on_stdin_only(name: str) -> None:
+    runner = FakeRunner(_ok({"v": 1, "key": {"id": "friend-a"}}))
+    args = {"key_id": "friend-a", "secret": KEY_SECRET}
+    if name == "key_put":
+        args["label"] = "Friend A"
+    service = WolfBetService(PATHS, runner, files=StubFiles())
+    data = await service.run_command(name, args)
+    assert runner.stdins == [f"{KEY_SECRET}\n".encode()]
+    assert KEY_SECRET not in " ".join(runner.calls[0][0])
+    assert KEY_SECRET not in json.dumps(data)
+    assert "secret" not in service.prepare(name, args).args
+
+
+async def test_other_commands_get_no_stdin() -> None:
+    runner = FakeRunner()
+    await WolfBetService(PATHS, runner).run_command("key_list", {})
+    assert runner.stdins == [None]
 
 
 def test_long_running_commands_are_not_served_yet() -> None:
@@ -315,6 +365,7 @@ def test_mutating_flags() -> None:
         "status_all",
         "tg.status",
         "version",
+        "key_list",
     }
 
 
@@ -512,6 +563,12 @@ async def test_runner_scrubs_the_environment(bin_dir: Path) -> None:
         k: env[k] for k in ("PATH", "HOME", "LANG", "XDG_RUNTIME_DIR")
     }
     assert result.stderr.strip() == "True"
+
+
+async def test_runner_feeds_stdin_once_when_given(bin_dir: Path) -> None:
+    exe = _script(bin_dir, "echo.py", "import sys; print(repr(sys.stdin.read()))\n")
+    assert (await run([exe], 10, stdin=b"top-secret\n")).stdout == "'top-secret\\n'\n"
+    assert (await run([exe], 10)).stdout == "''\n"
 
 
 async def test_runner_timeout_kills_the_process_group(bin_dir: Path) -> None:

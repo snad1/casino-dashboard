@@ -15,6 +15,9 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 LANE_ID_MAX = 99
 _NAME = re.compile(r"[A-Za-z0-9_.-]{1,64}")
+_KEY_ID = re.compile(r"[a-z0-9][a-z0-9_-]{0,31}")
+_KEY_LABEL = re.compile(r"[^\x00-\x1f\x7f]{1,64}")
+_KEY_SECRET = re.compile(r"[\x21-\x7e]{8,4096}")
 _LANE_NAME = re.compile(r"[A-Za-z0-9_]([A-Za-z0-9 _-]{0,30}[A-Za-z0-9_-])?")
 _BRANCH = re.compile(r"[A-Za-z0-9._/-]{1,100}")
 _INT = re.compile(r"-?[0-9]{1,15}")
@@ -65,6 +68,24 @@ def _lane_name(value: str) -> str:
     return value
 
 
+def _key_id(value: str) -> str:
+    if not _KEY_ID.fullmatch(value):
+        raise ValueError("must be 1-32 lowercase letters, digits, '_' or '-'")
+    return value
+
+
+def _key_label(value: str) -> str:
+    if not _KEY_LABEL.fullmatch(value) or value != value.strip():
+        raise ValueError("must be 1-64 printable characters without leading or trailing spaces")
+    return value
+
+
+def _key_secret(value: str) -> str:
+    if not _KEY_SECRET.fullmatch(value):
+        raise ValueError("must be 8-4096 printable characters with no spaces")
+    return value
+
+
 def _branch(value: str) -> str:
     if (
         not _BRANCH.fullmatch(value)
@@ -89,6 +110,9 @@ LaneTarget = Lane | Literal["all"]
 IsoDate = Annotated[str, Field(max_length=19), AfterValidator(_iso_date)]
 Name = Annotated[str, AfterValidator(_name)]
 LaneName = Annotated[str, AfterValidator(_lane_name)]
+KeyId = Annotated[str, AfterValidator(_key_id)]
+KeyLabel = Annotated[str, AfterValidator(_key_label)]
+KeySecret = Annotated[str, Field(max_length=4096), AfterValidator(_key_secret)]
 Branch = Annotated[str, AfterValidator(_branch)]
 PositiveFloat = Annotated[float, Field(gt=0, le=1e12), AfterValidator(_finite)]
 
