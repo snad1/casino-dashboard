@@ -8,7 +8,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.keys import AGENT_DOWN, BAD_LABEL, VAULT_DOWN, key_id_for
+from app.api.control import AGENT_DOWN
+from app.api.keys import BAD_LABEL, VAULT_DOWN, key_id_for
 from app.audit import AuditLog
 from app.auth.models import ApiSession, Role
 from app.auth.stepup import STEP_UP_NEEDED

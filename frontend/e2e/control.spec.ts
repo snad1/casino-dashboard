@@ -292,7 +292,7 @@ test('a lane card pauses or stops only its own lane', async ({ page }) => {
 test('each lane shows the code it runs and its waiting change, and Apply restarts it', async ({
 	page
 }) => {
-	let config = {
+	let config: Record<string, unknown> = {
 		...CONFIG,
 		pending: { '2': [{ key: 'multiplier', running: 3, saved: 4 }] },
 		rollout: { '1': 'new', '2': 'waiting for session end' }

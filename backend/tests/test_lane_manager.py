@@ -196,7 +196,7 @@ def test_their_keys_are_the_only_keys_they_see_or_touch(
     signed_in_as: Any, fake_agent: FakeAgent, wolfbet: Any, account: Account
 ) -> None:
     client = signed_in_as(Role.LANE_MANAGER)
-    rows = [
+    rows: list[dict[str, Any]] = [
         {
             "id": key_id,
             "label": key_id,

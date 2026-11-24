@@ -22,7 +22,7 @@ def _rows() -> dict[str, list[str]]:
 
 
 def _dispatcher_commands(script: str) -> set[str]:
-    block = script.split('case "${1:-}" in', 1)[1].split("esac", 1)[0]
+    block = script.split('\ncase "${1:-}" in', 1)[1].split("\nesac", 1)[0]
     names = re.findall(r"^\s{4}([a-z][a-z|-]*(?:\|-{1,2}[a-z]+)*)\)", block, re.M)
     return {alt for name in names for alt in name.split("|") if not alt.startswith("-")}
 
