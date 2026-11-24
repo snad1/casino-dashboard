@@ -11,7 +11,8 @@ const CONFIG = {
 	lane_split: 'none',
 	base: { base_bet: 0.0002 },
 	lanes: {},
-	pending: {}
+	pending: {},
+	rollout: {}
 };
 const DIFF = {
 	base: [

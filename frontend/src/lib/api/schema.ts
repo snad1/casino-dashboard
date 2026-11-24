@@ -2197,6 +2197,13 @@ export interface components {
 			pending: {
 				[key: string]: components['schemas']['PendingRow'][];
 			};
+			/**
+			 * Rollout
+			 * @default {}
+			 */
+			rollout: {
+				[key: string]: 'new' | 'waiting for session end' | 'old';
+			};
 			/** Split Choices */
 			split_choices: string[];
 		};

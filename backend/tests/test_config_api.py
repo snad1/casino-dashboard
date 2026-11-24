@@ -29,6 +29,7 @@ SHOW = {
             {"key": "api_key", "running": "leak", "saved": "leak"},
         ]
     },
+    "rollout": {"1": "new", "2": "waiting for session end"},
     "config_file": {"path": "/root/.wolfbet_autobot.json", "mode": "0600", "size": 900},
 }
 DIFF = {
@@ -84,6 +85,7 @@ def test_writers_get_the_schema_and_saved_values_without_secrets(
     assert body["base"] == {"max_loss": 0.02, "multiplier": 2.01, "proxy": None}
     assert body["lanes"] == {"2": {"multiplier": 3.0}}
     assert body["pending"] == {"2": [{"key": "multiplier", "running": 3.0, "saved": 4.0}]}
+    assert body["rollout"] == {"1": "new", "2": "waiting for session end"}
     assert "leak" not in response.text
     assert "abcd" not in response.text
     assert ".wolfbet_autobot.json" not in response.text
@@ -179,3 +181,12 @@ def test_custom_rules_may_be_longer_than_other_values(
     )
     assert response.status_code == 200
     assert fake_agent.calls[0]["args"] == {"pairs": {"custom_rules_text": rules}}
+
+
+def test_a_bot_that_reports_no_rollout_shows_none(signed_in_as: Any, fake_agent: FakeAgent) -> None:
+    older = {k: v for k, v in SHOW.items() if k != "rollout"}
+    docs = {"wolfbet.config_schema": SCHEMA, "wolfbet.config_show": older}
+    fake_agent.reply = lambda request: [
+        ok(request, {"exit_code": 0, "stderr": "", "json": docs[request["cmd"]]})
+    ]
+    assert signed_in_as(Role.OPERATOR).get("/wolfbet/config").json()["rollout"] == {}

@@ -3,7 +3,7 @@
 	import ActionButton from '#components/ActionButton';
 	import ConfigDiff from '#components/ConfigDiff';
 	import { ApiError, unwrap } from '#lib/api/client';
-	import { display, type ConfigChange, type ConfigOut, type Preview } from '#lib/config';
+	import { pendingText, type ConfigChange, type ConfigOut, type Preview } from '#lib/config';
 	import { control } from '#lib/control.svelte';
 	import { formatAmount } from '#lib/format';
 	import {
@@ -322,11 +322,7 @@
 							{/if}
 							{#if pending.length}
 								<div class="flex w-full flex-wrap items-center gap-3">
-									<p class="text-sm text-warn">
-										Waiting for a restart: {pending
-											.map((p) => `${p.key} ${display(p.running)} -> ${display(p.saved)}`)
-											.join(', ')}
-									</p>
+									<p class="text-sm text-warn">Waiting for a restart: {pendingText(pending)}</p>
 									<Button onclick={() => void applyPending(row.n)}>Apply</Button>
 								</div>
 							{/if}

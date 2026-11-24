@@ -1275,6 +1275,19 @@
             "title": "Pending",
             "type": "object"
           },
+          "rollout": {
+            "additionalProperties": {
+              "enum": [
+                "new",
+                "waiting for session end",
+                "old"
+              ],
+              "type": "string"
+            },
+            "default": {},
+            "title": "Rollout",
+            "type": "object"
+          },
           "split_choices": {
             "items": {
               "type": "string"

@@ -36,6 +36,11 @@ export function display(value: unknown): string {
 	return plainText(value);
 }
 
+/** A lane's settings waiting for a restart, as `key running -> saved, ...`. */
+export function pendingText(rows: ConfigOut['pending'][string]): string {
+	return rows.map((p) => `${p.key} ${display(p.running)} -> ${display(p.saved)}`).join(', ');
+}
+
 export function overridden(config: ConfigOut, scope: Scope, key: string): boolean {
 	return scope !== BASE && key in (config.lanes[scope] ?? {});
 }

@@ -466,8 +466,9 @@ ACTIONS: dict[str, ControlAction] = {
         UpdateArgs,
         label="Update",
         title="Update {service}?",
-        effect="The bot pulls the latest code{branch}, reinstalls and restarts. Lanes are "
-        "down while it runs.",
+        effect="The bot pulls the latest code{branch} and reinstalls. Each lane restarts on it "
+        "when its session ends, so betting goes on. Use Restart under Service to move every "
+        "lane now.",
         confirm="Update",
         fresh=True,
         job=True,

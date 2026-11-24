@@ -19,7 +19,8 @@ const config = (base_bet: number, lanes: ConfigOut['lanes'] = {}): ConfigOut => 
 	lane_split: 'none',
 	base: { base_bet },
 	lanes,
-	pending: {}
+	pending: {},
+	rollout: {}
 });
 
 describe('laneShares', () => {

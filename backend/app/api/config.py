@@ -87,6 +87,7 @@ class ConfigOut(BaseModel):
     base: dict[str, JsonValue]
     lanes: dict[str, dict[str, JsonValue]]
     pending: dict[str, list[PendingRow]] = {}
+    rollout: dict[str, Literal["new", "waiting for session end", "old"]] = {}
 
 
 class DiffRow(BaseModel):
@@ -158,6 +159,7 @@ async def get_config(service: ServiceName, request: Request, _: Writer) -> Confi
                 lane: [PendingRow.model_validate(row) for row in rows if row.get("key") in names]
                 for lane, rows in show.get("pending", {}).items()
             },
+            rollout=show.get("rollout", {}),
         )
     except (KeyError, TypeError, AttributeError, ValidationError):
         log.warning("config reply did not match the schema")

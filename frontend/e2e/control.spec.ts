@@ -17,6 +17,17 @@ const job = (status: string, exit_code: number | null = null) => ({
 	duration_ms: 4200,
 	lines: 2
 });
+const CONFIG = {
+	keys: [],
+	lane_count: 2,
+	override_lanes: { min: 2, max: 10 },
+	split_choices: ['none'],
+	lane_split: 'none',
+	base: {},
+	lanes: {},
+	pending: {},
+	rollout: {}
+};
 const done = { status: 200, json: { status: 'succeeded', exit_code: 0, job_id: null } };
 
 interface Sent {
@@ -45,6 +56,7 @@ async function rig(page: Page, me: object, handlers: Record<string, Handler> = {
 		'GET /wolfbet/comments': () => ({ status: 200, json: { items: [] } }),
 		'GET /wolfbet/series': () => ({ status: 200, json: { res: '1s', series: [] } }),
 		'GET /wolfbet/sessions': () => ({ status: 200, json: { items: [], next_cursor: null } }),
+		'GET /wolfbet/config': () => ({ status: 200, json: CONFIG }),
 		...handlers
 	});
 	await page.routeWebSocket(/\/ws\?ticket=/, (ws) => {
@@ -180,7 +192,12 @@ test('an admin reset needs the typed service name and a fresh code, then retries
 });
 
 test('an update opens the job drawer and streams its output to the end', async ({ page }) => {
+	let configReads = 0;
 	await rig(page, adminMe, {
+		'GET /wolfbet/config': () => {
+			configReads += 1;
+			return { status: 200, json: CONFIG };
+		},
 		'POST /wolfbet/control/update': () => ({
 			status: 202,
 			json: { status: 'running', exit_code: null, job_id: JOB_ID }
@@ -200,6 +217,7 @@ test('an update opens the job drawer and streams its output to the end', async (
 	await expect(drawer.getByText('Pulling latest from git...')).toBeVisible();
 	await expect(drawer.getByText('Restarted.')).toBeVisible();
 	await expect(drawer).toContainText('succeeded, exit code 0 after 4.2 s');
+	await expect.poll(() => configReads).toBe(2);
 	await drawer.getByRole('button', { name: 'Close' }).click();
 	await expect(drawer).toBeHidden();
 });
@@ -269,4 +287,69 @@ test('a lane card pauses or stops only its own lane', async ({ page }) => {
 			['/wolfbet/control/pause', { target: 1 }],
 			['/wolfbet/control/lane_stop', { lane: 2 }]
 		]);
+});
+
+test('each lane shows the code it runs and its waiting change, and Apply restarts it', async ({
+	page
+}) => {
+	let config = {
+		...CONFIG,
+		pending: { '2': [{ key: 'multiplier', running: 3, saved: 4 }] },
+		rollout: { '1': 'new', '2': 'waiting for session end' }
+	};
+	const sent = await rig(page, operatorMe, {
+		'GET /wolfbet/config': () => ({ status: 200, json: config }),
+		'POST /wolfbet/control/lane_restart': () => {
+			config = { ...CONFIG, rollout: { '1': 'new', '2': 'new' } };
+			return done;
+		}
+	});
+	await page.goto('/wolfbet/control');
+	await expect(lane(page, 'Lane 1').getByText('Code: new')).toBeVisible();
+	await expect(lane(page, 'Lane 2').getByText('Code: waiting for session end')).toBeVisible();
+	await expect(
+		lane(page, 'Lane 2').getByText('Waiting for a restart: multiplier 3 -> 4')
+	).toBeVisible();
+	await expect(lane(page, 'Lane 1').getByText(/Waiting for a restart/)).toHaveCount(0);
+	await lane(page, 'Lane 2').getByRole('button', { name: 'Apply' }).click();
+	await page
+		.getByRole('dialog', { name: 'Restart lane 2?' })
+		.getByRole('button', { name: 'Restart lane 2' })
+		.click();
+	await expect(lane(page, 'Lane 2').getByText('Code: new')).toBeVisible();
+	await expect(lane(page, 'Lane 2').getByText(/Waiting for a restart/)).toHaveCount(0);
+	expect(sent.map((s) => [s.path, s.body])).toEqual([
+		['/wolfbet/control/lane_restart', { lane: 2 }]
+	]);
+});
+
+test('a viewer neither reads the config nor sees code or waiting lines', async ({ page }) => {
+	const reads: string[] = [];
+	page.on('request', (request) => {
+		if (new URL(request.url()).pathname === '/api/wolfbet/config') reads.push(request.url());
+	});
+	await rig(page, viewerMe, {
+		'GET /wolfbet/config': () => ({
+			status: 200,
+			json: { ...CONFIG, rollout: { '1': 'old' } }
+		})
+	});
+	await page.goto('/wolfbet/control');
+	await expect(lane(page, 'Lane 1')).toBeVisible();
+	await expect(page.getByText(/Code: /)).toHaveCount(0);
+	expect(reads).toEqual([]);
+});
+
+test('a config that cannot be read shows one message and keeps the lane controls', async ({
+	page
+}) => {
+	await rig(page, operatorMe, {
+		'GET /wolfbet/config': () => ({
+			status: 502,
+			json: { detail: "Could not read the bot's config. Try again." }
+		})
+	});
+	await page.goto('/wolfbet/control');
+	await expect(page.getByText("Could not read the bot's config. Try again.")).toBeVisible();
+	await expect(lane(page, 'Lane 2').getByRole('button', { name: 'Pause' })).toBeVisible();
 });

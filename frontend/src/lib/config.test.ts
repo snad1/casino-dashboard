@@ -11,6 +11,7 @@ import {
 	needsRestart,
 	restartPlan,
 	parsePasted,
+	pendingText,
 	reloadMarks,
 	type ConfigKey,
 	type ConfigOut,
@@ -46,7 +47,8 @@ const CONFIG: ConfigOut = {
 		streak_delay_win: [3, 1.5]
 	},
 	lanes: { '2': { multiplier: 3 } },
-	pending: {}
+	pending: {},
+	rollout: {}
 };
 
 describe('fields from the schema', () => {
@@ -147,6 +149,17 @@ describe('preview and reload', () => {
 		expect(appliedSince(before, marks)).toEqual([]);
 		const after = { ...before, 1: { last_reload: { ts_ms: 9, keys: ['max_loss'] } } };
 		expect(appliedSince(after, marks)).toEqual([{ lane: 1, keys: ['max_loss'] }]);
+	});
+});
+
+describe('pendingText', () => {
+	it('lists each waiting key as running -> saved', () => {
+		expect(
+			pendingText([
+				{ key: 'multiplier', running: 3, saved: 4 },
+				{ key: 'streak_delay_win', running: [3, 1.5], saved: null }
+			])
+		).toBe('multiplier 3 -> 4, streak_delay_win 3:1.5 -> ');
 	});
 });
 

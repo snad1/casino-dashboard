@@ -2,9 +2,14 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import ActionButton from '#components/ActionButton';
+	import { ApiError, unwrap } from '#lib/api/client';
+	import { pendingText, type ConfigOut } from '#lib/config';
 	import type { ActionBody, ActionName } from '#lib/control';
 	import { control } from '#lib/control.svelte';
 	import { liveFor } from '#lib/live/index';
+	import { can } from '#lib/permissions';
+	import { api, session } from '#lib/session.svelte';
+	import Button from '#ui/Button';
 	import Notice from '#ui/Notice';
 
 	const service = $derived(page.params.service ?? '');
@@ -27,6 +32,49 @@
 		if (out) report = { title, text: out.output ?? '' };
 	}
 	let branch = $state('');
+	let config = $state<ConfigOut | null>(null);
+	let configError = $state<string | null>(null);
+	let handledJob: string | null = null;
+
+	/** While a lane still waits for its session end, how often to look again. */
+	const ROLLOUT_POLL_MS = 30_000;
+	const LANE_CODE_JOBS = ['update', 'restart', 'lane_restart'];
+	const waiting = $derived(
+		Object.values(config?.rollout ?? {}).includes('waiting for session end')
+	);
+
+	async function loadConfig() {
+		try {
+			config = await unwrap(api.GET('/{service}/config', { params: { path: { service } } }));
+			configError = null;
+		} catch (e) {
+			configError = e instanceof ApiError ? e.detail : String(e);
+		}
+	}
+
+	/** Restart one lane so it runs on the saved settings, then show what is still waiting. */
+	async function applyPending(lane: number) {
+		const out = await control.ask('lane_restart', { lane });
+		if (out?.status === 'succeeded') await loadConfig();
+	}
+
+	$effect(() => {
+		if (service && can(session.me, 'config.write', service)) void loadConfig();
+	});
+
+	$effect(() => {
+		const job = control.job;
+		if (!job || job.status === 'running' || handledJob === job.job_id) return;
+		if (!LANE_CODE_JOBS.some((name) => job.cmd === `${service}.${name}`)) return;
+		handledJob = job.job_id;
+		void loadConfig();
+	});
+
+	$effect(() => {
+		if (!waiting) return;
+		const timer = setInterval(() => void loadConfig(), ROLLOUT_POLL_MS);
+		return () => clearInterval(timer);
+	});
 
 	const updateBody = $derived.by(() => {
 		const body: ActionBody = {};
@@ -61,6 +109,9 @@
 
 		<section class={section} aria-labelledby="lanes-title">
 			<h2 id="lanes-title" class="mb-3 font-semibold">Lanes</h2>
+			{#if configError}
+				<div class="mb-3"><Notice tone="error">{configError}</Notice></div>
+			{/if}
 			<ul class="flex flex-col gap-3">
 				<li class={row}>
 					<span class="min-w-20 pt-3 text-sm font-medium">All lanes</span>
@@ -69,6 +120,8 @@
 					<ActionButton name="reload" body={{ target: 'all' }} />
 				</li>
 				{#each lanes as lane (lane)}
+					{@const code = config?.rollout?.[String(lane)]}
+					{@const pending = config?.pending?.[String(lane)] ?? []}
 					<li class={row}>
 						<span class="min-w-20 pt-3 text-sm">
 							Lane {lane}
@@ -77,6 +130,17 @@
 						<ActionButton name="pause" body={{ target: lane }} />
 						<ActionButton name="resume" body={{ target: lane }} />
 						<ActionButton name="reload" body={{ target: lane }} />
+						{#if code}
+							<p class="w-full text-sm {code === 'new' ? 'text-muted' : 'text-warn'}">
+								Code: {code}
+							</p>
+						{/if}
+						{#if pending.length}
+							<div class="flex w-full flex-wrap items-center gap-3">
+								<p class="text-sm text-warn">Waiting for a restart: {pendingText(pending)}</p>
+								<Button onclick={() => void applyPending(lane)}>Apply</Button>
+							</div>
+						{/if}
 					</li>
 				{/each}
 			</ul>
