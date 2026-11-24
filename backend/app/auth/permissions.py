@@ -1,6 +1,7 @@
 """The role to permission matrix and the `require` dependency every guarded route uses."""
 
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Annotated
 
@@ -108,6 +109,76 @@ def require(perm: Perm) -> Callable[..., Awaitable[User]]:
         if detail is not None:
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail)
         return user
+
+    return dependency
+
+
+async def lane_scope(
+    session: AsyncSession, user: User, service: str, perm: Perm
+) -> frozenset[int] | None:
+    """The lanes of `service` where `user` may use `perm`: None for every lane, a set when
+    only lane roles grant it (empty when nothing does)."""
+    if await denial(session, user, service, perm) is None:
+        return None
+    rows = await session.scalars(
+        select(UserRole.lane)
+        .join(Service, Service.id == UserRole.service_id)
+        .where(UserRole.user_id == user.id, Service.name == service, UserRole.lane.is_not(None))
+    )
+    lanes = set()
+    for lane in set(rows):
+        if lane is not None and await denial(session, user, service, perm, lane) is None:
+            lanes.add(lane)
+    return frozenset(lanes)
+
+
+@dataclass(frozen=True)
+class LaneScope:
+    """Who is asking and which lanes they may see; `lanes` is None for every lane."""
+
+    user: User
+    lanes: frozenset[int] | None
+
+    def allows(self, lane: int | None) -> bool:
+        return self.lanes is None or (lane is not None and lane in self.lanes)
+
+    def check(self, lane: int | None) -> None:
+        """Refuse a lane filter naming a lane outside the scope; no filter is fine."""
+        if lane is not None and not self.allows(lane):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, FORBIDDEN)
+
+    def one(self, lane: int | None) -> int | None:
+        """The lane a single-lane report covers: the asked one when allowed, or the only lane
+        a lane-only user holds. Refuses a lane-only user's report over several lanes."""
+        self.check(lane)
+        if lane is not None or self.lanes is None:
+            return lane
+        if len(self.lanes) != 1:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, FORBIDDEN)
+        return next(iter(self.lanes))
+
+    def cache_tag(self) -> str:
+        """Added to cache keys so an answer cut to some lanes never serves another caller."""
+        return "" if self.lanes is None else "&lanes=" + ",".join(map(str, sorted(self.lanes)))
+
+
+def scoped(perm: Perm) -> Callable[..., Awaitable[LaneScope]]:
+    """Dependency like `require`, which also lets in a user whose lane roles grant `perm`,
+    with the lanes they may see."""
+
+    async def dependency(
+        request: Request,
+        user: Annotated[User, Depends(current_user)],
+        session: Annotated[AsyncSession, Depends(get_session)],
+    ) -> LaneScope:
+        service = request.path_params.get("service")
+        if service is None:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, FORBIDDEN)
+        lanes = await lane_scope(session, user, service, perm)
+        if lanes is not None and not lanes:
+            detail = await denial(session, user, service, perm)
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail or FORBIDDEN)
+        return LaneScope(user, lanes)
 
     return dependency
 

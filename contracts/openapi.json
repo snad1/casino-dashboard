@@ -5977,7 +5977,7 @@
     },
     "/{service}/alerts/events": {
       "get": {
-        "description": "Newest first; pass `next_before` back as `before` for the next page.",
+        "description": "Newest first; pass `next_before` back as `before` for the next page. A lane-only user\nsees only their lanes' events.",
         "operationId": "list_events__service__alerts_events_get",
         "parameters": [
           {
@@ -6050,6 +6050,7 @@
     },
     "/{service}/alerts/rules": {
       "get": {
+        "description": "The service's rules; a lane-only user sees only the rules on their lanes.",
         "operationId": "list_rules__service__alerts_rules_get",
         "parameters": [
           {
@@ -6309,7 +6310,7 @@
     },
     "/{service}/analytics": {
       "get": {
-        "description": "The report for sessions started in the window (a bare `until` date counts whole), from\nthe bot for the current epoch, or from history for an archived `epoch`.",
+        "description": "The report for sessions started in the window (a bare `until` date counts whole), from\nthe bot for the current epoch, or from history for an archived `epoch`. A lane-only user\ngets one of their lanes, never a report over others.",
         "operationId": "get_analytics__service__analytics_get",
         "parameters": [
           {
@@ -9581,7 +9582,7 @@
     },
     "/{service}/epochs": {
       "get": {
-        "description": "The bot's databases, newest first: the current one and each one a reset archived.",
+        "description": "The bot's databases, newest first: the current one and each one a reset archived.\n\nFor a lane-only user the last start counts only their lanes' sessions.",
         "operationId": "list_epochs__service__epochs_get",
         "parameters": [
           {
@@ -9624,7 +9625,7 @@
     },
     "/{service}/ingest": {
       "get": {
-        "description": "The latest reconcile run: how far ingest lags and whether the history copy matches.",
+        "description": "The latest reconcile run: how far ingest lags and whether the history copy matches.\n\nService-wide health, so a lane-only user is refused.",
         "operationId": "get_ingest__service__ingest_get",
         "parameters": [
           {

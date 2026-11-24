@@ -223,7 +223,8 @@ def test_their_keys_are_the_only_keys_they_see_or_touch(
 def test_nothing_service_wide_opens(signed_in_as: Any, fake_agent: FakeAgent, wolfbet: Any) -> None:
     client = signed_in_as(Role.LANE_MANAGER)
     wolfbet.give(7)
-    assert client.get("/wolfbet/sessions").status_code == 403
+    assert client.get("/wolfbet/sessions?lane=1").status_code == 403
+    assert client.get("/wolfbet/ingest").status_code == 403
     assert client.get("/wolfbet/config").status_code == 403
     assert fake_agent.calls == []
 

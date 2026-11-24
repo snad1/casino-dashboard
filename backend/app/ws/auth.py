@@ -19,11 +19,14 @@ from dataclasses import dataclass
 
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
-from app.auth.permissions import ROLE_PERMS, Perm, roles_for, tg_denial
+from app.auth.permissions import ROLE_PERMS, Perm, denial, roles_for, tg_denial
 from app.auth.sessions import SESSION_COOKIE, decode_session_id, load_session
+from app.history.epochs import epoch_view
+from app.history.models import HistorySession
 
 TICKET_TTL_SECONDS = 30
 MAX_SOCKETS_PER_USER = 5
@@ -36,6 +39,7 @@ CLOSE_SIGNED_OUT = 4401
 CLOSE_FORBIDDEN = 4403
 _TOPIC = re.compile(r"svc:([a-z0-9-]+)(?::[A-Za-z0-9:_-]+)?")
 _USER_TOPIC = re.compile(r"svc:[a-z0-9-]+:user:([1-9][0-9]{0,18})(?::|$)")
+_LANE_TOPIC = re.compile(r"svc:[a-z0-9-]+:(lane|session):([0-9]{1,18})")
 
 
 NOT_SIGNED_IN = "Sign in to continue."
@@ -167,7 +171,9 @@ async def topic_allowed(db: AsyncSession, user_id: int, topic: str) -> bool:
     """`svc:<name>` and its sub-topics need `view` on that service; nothing else is offered.
 
     A Telegram user's topics (`svc:<name>:user:<uid>...`) show that person's own betting:
-    their own Telegram account may follow them, and so may whoever manages users.
+    their own Telegram account may follow them, and so may whoever manages users. A user
+    with `view` on some lanes only may follow those lanes and their sessions (a session not
+    in history yet is refused until it is).
     """
     match = _TOPIC.fullmatch(topic)
     if match is None:
@@ -175,5 +181,31 @@ async def topic_allowed(db: AsyncSession, user_id: int, topic: str) -> bool:
     if user_topic := _USER_TOPIC.match(topic):
         user = await db.get(User, user_id)
         return user is not None and await tg_denial(db, user, int(user_topic.group(1))) is None
-    roles = await roles_for(db, user_id, match.group(1))
-    return any(Perm.VIEW in ROLE_PERMS[role] for role in roles)
+    service = match.group(1)
+    roles = await roles_for(db, user_id, service)
+    if any(Perm.VIEW in ROLE_PERMS[role] for role in roles):
+        return True
+    lane_topic = _LANE_TOPIC.fullmatch(topic)
+    if lane_topic is None:
+        return False
+    key = int(lane_topic.group(2))
+    lane = await _session_lane(db, service, key) if lane_topic.group(1) == "session" else key
+    user = await db.get(User, user_id)
+    return (
+        user is not None
+        and lane is not None
+        and await denial(db, user, service, Perm.VIEW, lane) is None
+    )
+
+
+async def _session_lane(db: AsyncSession, service: str, session_id: int) -> int | None:
+    """The lane of a session in the service's current epoch, or None when it is not there."""
+    view = await epoch_view(db, service)
+    lane: int | None = await db.scalar(
+        select(HistorySession.lane).where(
+            HistorySession.service == service,
+            HistorySession.epoch_id.in_(view.ids),
+            HistorySession.src_id == session_id,
+        )
+    )
+    return lane

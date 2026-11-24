@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.auth.models import User
-from app.auth.permissions import Perm, denial, require
+from app.auth.permissions import FORBIDDEN, LaneScope, Perm, denial, require, scoped
 from app.auth.ratelimit import check_comment_rate
 from app.db.engine import get_session
 from app.db.models import Base, Service
@@ -49,7 +49,7 @@ Kind = Literal["session", "bet", "chart"]
 
 router = APIRouter(prefix="/{service}/comments", tags=["comments"])
 Db = Annotated[AsyncSession, Depends(get_session)]
-Viewer = Annotated[User, Depends(require(Perm.VIEW))]
+Viewer = Annotated[LaneScope, Depends(scoped(Perm.VIEW))]
 Commenter = Annotated[User, Depends(require(Perm.COMMENT))]
 CommentId = Annotated[int, Path(ge=1)]
 
@@ -184,6 +184,30 @@ async def _target_exists(db: AsyncSession, service: str, body: CommentIn) -> boo
     return await db.scalar(query.limit(1)) is not None
 
 
+async def _check_target_lane(
+    db: AsyncSession,
+    scope: LaneScope,
+    service: str,
+    kind: str,
+    epoch_id: int | None,
+    src_id: int | None,
+) -> None:
+    """Refuse a lane-only user chart notes (they span every lane) and answer 404 for a
+    session or bet on a lane outside their scope, as if it did not exist."""
+    if scope.lanes is None:
+        return
+    if kind == "chart":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, FORBIDDEN)
+    model: Any = HistorySession if kind == "session" else Bet
+    lane = await db.scalar(
+        select(model.lane)
+        .where(model.service == service, model.epoch_id == epoch_id, model.src_id == src_id)
+        .limit(1)
+    )
+    if not scope.allows(lane):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, TARGET_NOT_FOUND)
+
+
 def _target_columns(body: CommentIn) -> dict[str, Any]:
     if body.kind == "session" and body.epoch_id is not None and body.session_id is not None:
         return {"epoch_id": body.epoch_id, "session_src_id": body.session_id}
@@ -210,7 +234,7 @@ async def _load(db: AsyncSession, service: str, comment_id: int) -> tuple[Commen
 @router.get("", response_model=CommentList)
 async def list_comments(
     service: str,
-    user: Viewer,
+    scope: Viewer,
     db: Db,
     kind: Kind,
     epoch_id: Annotated[int | None, Query(ge=1)] = None,
@@ -220,6 +244,7 @@ async def list_comments(
     until: Annotated[datetime | None, Query(alias="to")] = None,
 ) -> CommentList:
     """One target's comments, oldest first; chart notes in a range, by their time."""
+    user = scope.user
     query = (
         select(Comment, func.coalesce(User.email, TELEGRAM_AUTHOR))
         .join(User, User.id == Comment.author_id)
@@ -238,6 +263,9 @@ async def list_comments(
         query = query.where(Comment.at >= start, Comment.at <= end).order_by(Comment.at, Comment.id)
     else:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, NO_TARGET)
+    await _check_target_lane(
+        db, scope, service, kind, epoch_id, session_id if kind == "session" else bet_id
+    )
     moderator = await _moderator(db, user, service)
     rows = await db.execute(query.limit(MAX_LIST))
     return CommentList(items=[_out(c, email, user, moderator) for c, email in rows.tuples()])

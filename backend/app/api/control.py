@@ -50,10 +50,11 @@ from app.api.lane_access import (
     drop_lane,
     grant_lane,
     may_act_on_a_lane,
+    owned_lanes,
 )
 from app.audit import AuditEntry, record
 from app.auth.models import User
-from app.auth.permissions import Perm, denial, require, roles_for
+from app.auth.permissions import FORBIDDEN, Perm, denial, require, roles_for
 from app.auth.sessions import current_user
 from app.auth.stepup import require_fresh
 from app.db.engine import get_session
@@ -165,13 +166,24 @@ def agent_or_error(request: Request) -> AgentClient:
 
 
 async def job_access(db: AsyncSession, user: User, service: str, job_id: str) -> bool:
-    """True when `job_id` was started here on `service` with a permission `user` still has."""
-    perm = await db.scalar(
-        select(ControlRequest.perm).where(
-            ControlRequest.service == service, ControlRequest.job_id == job_id
+    """True when `job_id` was started here on `service` with a permission `user` still has,
+    or by `user` themself while they still hold a lane role on `service`."""
+    row = (
+        await db.execute(
+            select(ControlRequest.perm, ControlRequest.user_id).where(
+                ControlRequest.service == service, ControlRequest.job_id == job_id
+            )
         )
+    ).first()
+    if row is None:
+        return False
+    if await denial(db, user, service, Perm(row.perm)) is None:
+        return True
+    return (
+        row.user_id == user.id
+        and not user.disabled
+        and bool(await owned_lanes(db, user.id, service))
     )
-    return perm is not None and await denial(db, user, service, Perm(perm)) is None
 
 
 async def _claim(
@@ -493,6 +505,20 @@ async def control_menu(
 JobId = Annotated[str, Path(pattern=JOB_ID_PATTERN)]
 
 
+async def job_reader(
+    service: ServiceName,
+    user: Annotated[User, Depends(current_user)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> User:
+    """The caller, when they may view `service` or hold a lane role on it; anyone else is
+    refused before the job id is read, so the answer reveals nothing about the route."""
+    if await denial(db, user, service, Perm.VIEW) is None:
+        return user
+    if not user.disabled and await owned_lanes(db, user.id, service):
+        return user
+    raise HTTPException(status.HTTP_403_FORBIDDEN, FORBIDDEN)
+
+
 async def job_call(
     request: Request, db: AsyncSession, user: User, service: str, job_id: str, cmd: str
 ) -> dict[str, Any]:
@@ -521,7 +547,7 @@ async def get_job(
     service: ServiceName,
     job_id: JobId,
     request: Request,
-    user: Annotated[User, Depends(require(Perm.VIEW))],
+    user: Annotated[User, Depends(job_reader)],
     db: Db,
 ) -> JobOut:
     """A job's status and output line count, for whoever may still run what started it."""
@@ -533,7 +559,7 @@ async def cancel_job(
     service: ServiceName,
     job_id: JobId,
     request: Request,
-    user: Annotated[User, Depends(require(Perm.VIEW))],
+    user: Annotated[User, Depends(job_reader)],
     db: Db,
 ) -> JobOut:
     """Stop a running job (a log follow, say); a finished job is returned as it is."""

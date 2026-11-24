@@ -31,7 +31,7 @@ from app.alerts.push import ENDPOINT_MAX, endpoint_allowed, keys_valid
 from app.alerts.rules import Kind, Rule
 from app.api.control import CONTROLS, NOT_CONTROLLABLE, ServiceName
 from app.auth.models import User
-from app.auth.permissions import Perm, require
+from app.auth.permissions import LaneScope, Perm, require, scoped
 from app.auth.sessions import current_user
 from app.db.engine import get_session
 
@@ -49,7 +49,7 @@ MAX_DEVICES = 10
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 router = APIRouter(tags=["alerts"])
-Viewer = Annotated[User, Depends(require(Perm.VIEW))]
+Viewer = Annotated[LaneScope, Depends(scoped(Perm.VIEW))]
 Manager = Annotated[User, Depends(require(Perm.ALERTS_MANAGE))]
 Me = Annotated[User, Depends(current_user)]
 Db = Annotated[AsyncSession, Depends(get_session)]
@@ -193,11 +193,13 @@ async def _reload(request: Request, service: str) -> None:
 
 
 @router.get("/{service}/alerts/rules", response_model=list[RuleOut])
-async def list_rules(service: ServiceName, _: Viewer, db: Db) -> list[RuleOut]:
+async def list_rules(service: ServiceName, scope: Viewer, db: Db) -> list[RuleOut]:
+    """The service's rules; a lane-only user sees only the rules on their lanes."""
     _known(service)
-    rows = await db.scalars(
-        select(AlertRule).where(AlertRule.service == service).order_by(AlertRule.id)
-    )
+    query = select(AlertRule).where(AlertRule.service == service).order_by(AlertRule.id)
+    if scope.lanes is not None:
+        query = query.where(AlertRule.lane.in_(scope.lanes))
+    rows = await db.scalars(query)
     return [_out(row) for row in rows]
 
 
@@ -290,12 +292,13 @@ async def test_rule(service: ServiceName, rule_id: RuleId, user: Manager, db: Db
 @router.get("/{service}/alerts/events", response_model=EventPage)
 async def list_events(
     service: ServiceName,
-    _: Viewer,
+    scope: Viewer,
     db: Db,
     before: Annotated[int | None, Query(ge=1)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> EventPage:
-    """Newest first; pass `next_before` back as `before` for the next page."""
+    """Newest first; pass `next_before` back as `before` for the next page. A lane-only user
+    sees only their lanes' events."""
     _known(service)
     query = (
         select(AlertEvent)
@@ -305,6 +308,8 @@ async def list_events(
     )
     if before is not None:
         query = query.where(AlertEvent.id < before)
+    if scope.lanes is not None:
+        query = query.where(AlertEvent.lane.in_(scope.lanes))
     rows = list(await db.scalars(query))
     more = len(rows) > limit
     rows = rows[:limit]

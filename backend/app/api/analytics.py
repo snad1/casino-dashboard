@@ -40,8 +40,7 @@ from app.adapters.wolfbet.control import LANE_ID_MAX
 from app.agent_client import AgentError
 from app.api.control import CONTROLS, NOT_CONTROLLABLE, ServiceName, agent_or_error
 from app.api.history import SessionDetail, _cache, _session_out
-from app.auth.models import User
-from app.auth.permissions import Perm, require
+from app.auth.permissions import LaneScope, Perm, scoped
 from app.db.engine import get_session
 from app.history.epochs import EpochView, epoch_view
 from app.history.models import HistorySession
@@ -55,8 +54,8 @@ _BOUND = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}([ T][0-9]{2}:[0-9]{2}(:[0-9]{2}
 
 log = structlog.get_logger("app.analytics")
 router = APIRouter(tags=["analytics"])
-Viewer = Annotated[User, Depends(require(Perm.VIEW))]
-Exporter = Annotated[User, Depends(require(Perm.EXPORT))]
+Viewer = Annotated[LaneScope, Depends(scoped(Perm.VIEW))]
+Exporter = Annotated[LaneScope, Depends(scoped(Perm.EXPORT))]
 Db = Annotated[AsyncSession, Depends(get_session)]
 Bound = Annotated[str | None, Query(max_length=19)]
 
@@ -233,7 +232,7 @@ async def chart_data(db: AsyncSession, window: SessionWindow, view: EpochView) -
 async def get_analytics(
     service: ServiceName,
     request: Request,
-    _: Viewer,
+    scope: Viewer,
     db: Db,
     since: Bound = None,
     until: Bound = None,
@@ -241,11 +240,13 @@ async def get_analytics(
     epoch: Annotated[int | None, Query(ge=1)] = None,
 ) -> BaseModel:
     """The report for sessions started in the window (a bare `until` date counts whole), from
-    the bot for the current epoch, or from history for an archived `epoch`."""
+    the bot for the current epoch, or from history for an archived `epoch`. A lane-only user
+    gets one of their lanes, never a report over others."""
     if service not in CONTROLS:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
+    lane = scope.one(lane)
     since, until = _bound(since), _bound(until)
-    cache, key = _cache(request, "analytics_cache", BOT_SECONDS)
+    cache, key = _cache(request, scope, "analytics_cache", BOT_SECONDS)
     if (hit := cache.get(key)) is not None:
         return hit
     args = {
@@ -289,7 +290,7 @@ def csv_text(model: type[BaseModel], rows: Sequence[BaseModel]) -> str:
 async def export_analytics(
     service: ServiceName,
     request: Request,
-    _: Exporter,
+    scope: Exporter,
     db: Db,
     since: Bound = None,
     until: Bound = None,
@@ -300,6 +301,7 @@ async def export_analytics(
     """The window's sessions, the ones the report counts, oldest first, as a download."""
     if service not in CONTROLS:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
+    lane = scope.one(lane)
     since, until = _bound(since), _bound(until)
     view = await epoch_view(db, service, epoch)
     window = SessionWindow(

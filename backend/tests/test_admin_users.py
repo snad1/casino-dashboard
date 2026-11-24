@@ -196,7 +196,8 @@ def test_a_role_can_name_one_lane(
     users = {u["id"]: u for u in admin.get("/admin/users").json()["items"]}
     assert users[target.id]["roles"] == [{"service": lane_service, "role": "viewer", "lane": 3}]
     friend = as_user(target)  # type: ignore[operator]
-    assert friend.get(f"/{lane_service}/sessions").status_code == 403
+    assert friend.get(f"/{lane_service}/sessions").status_code == 200
+    assert friend.get(f"/{lane_service}/sessions?lane=1").status_code == 403
 
 
 def test_me_reports_a_lane_role_that_opens_nothing_service_wide(
@@ -213,7 +214,8 @@ def test_me_reports_a_lane_role_that_opens_nothing_service_wide(
     assert client.get("/auth/me").json()["roles"] == [
         {"service": lane_service, "role": "viewer", "lane": 3}
     ]
-    assert client.get(f"/{lane_service}/sessions").status_code == 403
+    assert client.get(f"/{lane_service}/sessions?lane=1").status_code == 403
+    assert client.get(f"/{lane_service}/ingest").status_code == 403
 
 
 @pytest.mark.parametrize(

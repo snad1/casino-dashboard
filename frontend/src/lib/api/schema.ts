@@ -721,7 +721,8 @@ export interface paths {
 		};
 		/**
 		 * List Events
-		 * @description Newest first; pass `next_before` back as `before` for the next page.
+		 * @description Newest first; pass `next_before` back as `before` for the next page. A lane-only user
+		 *     sees only their lanes' events.
 		 */
 		get: operations['list_events__service__alerts_events_get'];
 		put?: never;
@@ -739,7 +740,10 @@ export interface paths {
 			path?: never;
 			cookie?: never;
 		};
-		/** List Rules */
+		/**
+		 * List Rules
+		 * @description The service's rules; a lane-only user sees only the rules on their lanes.
+		 */
 		get: operations['list_rules__service__alerts_rules_get'];
 		put?: never;
 		/** Create Rule */
@@ -798,7 +802,8 @@ export interface paths {
 		/**
 		 * Get Analytics
 		 * @description The report for sessions started in the window (a bare `until` date counts whole), from
-		 *     the bot for the current epoch, or from history for an archived `epoch`.
+		 *     the bot for the current epoch, or from history for an archived `epoch`. A lane-only user
+		 *     gets one of their lanes, never a report over others.
 		 */
 		get: operations['get_analytics__service__analytics_get'];
 		put?: never;
@@ -1559,6 +1564,8 @@ export interface paths {
 		/**
 		 * List Epochs
 		 * @description The bot's databases, newest first: the current one and each one a reset archived.
+		 *
+		 *     For a lane-only user the last start counts only their lanes' sessions.
 		 */
 		get: operations['list_epochs__service__epochs_get'];
 		put?: never;
@@ -1579,6 +1586,8 @@ export interface paths {
 		/**
 		 * Get Ingest
 		 * @description The latest reconcile run: how far ingest lags and whether the history copy matches.
+		 *
+		 *     Service-wide health, so a lane-only user is refused.
 		 */
 		get: operations['get_ingest__service__ingest_get'];
 		put?: never;

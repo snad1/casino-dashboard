@@ -1,6 +1,7 @@
 """Read-only bet history: sessions, a session's bets, chart series and current lane totals.
 
-Every route needs `view` on the `{service}` in its path. Sessions are keyed by
+Every route needs `view` on the `{service}` in its path; a user with `view` on some lanes
+only sees those lanes, and service-wide health is refused to them. Sessions are keyed by
 `(epoch_id, id)` because the bot's ids restart after a reset. Lists page newest first with a
 keyset, so rows arriving between two pages never shift or repeat a page.
 
@@ -11,7 +12,7 @@ dashboard open on many screens costs one query.
 
 import math
 import time
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
 
@@ -22,8 +23,7 @@ from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.wolfbet.control import LANE_ID_MAX
-from app.auth.models import User
-from app.auth.permissions import Perm, require
+from app.auth.permissions import FORBIDDEN, LaneScope, Perm, scoped
 from app.db.engine import get_session
 from app.history.epochs import epoch_view
 from app.history.models import Bet, DbEpoch, HistorySession, ReconcileRun
@@ -46,7 +46,7 @@ Resolution = Literal["1s", "1m", "1h", "1d"]
 CURSOR = r"^\d{1,18}:\d{1,18}$"
 
 router = APIRouter(prefix="/{service}", tags=["history"])
-Viewer = Annotated[User, Depends(require(Perm.VIEW))]
+Viewer = Annotated[LaneScope, Depends(scoped(Perm.VIEW))]
 Db = Annotated[AsyncSession, Depends(get_session)]
 
 
@@ -173,7 +173,7 @@ class _Cache:
 
 
 def _cache(
-    request: Request, name: str = "history_cache", ttl: float | None = None
+    request: Request, scope: LaneScope, name: str = "history_cache", ttl: float | None = None
 ) -> tuple[_Cache, str]:
     cache: _Cache | None = getattr(request.app.state, name, None)
     if cache is None:
@@ -183,6 +183,7 @@ def _cache(
         request.url.path
         + "?"
         + "&".join(sorted(f"{k}={v}" for k, v in request.query_params.multi_items()))
+        + scope.cache_tag()
     )
     return cache, key
 
@@ -196,7 +197,7 @@ def _session_out[T: SessionOut](model: type[T], row: HistorySession) -> T:
 async def list_sessions(
     service: str,
     request: Request,
-    _: Viewer,
+    scope: Viewer,
     db: Db,
     lane: Annotated[int | None, Query(ge=1, le=LANE_ID_MAX)] = None,
     since: datetime | None = None,
@@ -207,7 +208,8 @@ async def list_sessions(
     epoch: Annotated[int | None, Query(ge=1)] = None,
 ) -> BaseModel:
     """Newest first, from the current epoch or `epoch`; pass `next_cursor` back as `cursor`."""
-    cache, key = _cache(request)
+    scope.check(lane)
+    cache, key = _cache(request, scope)
     if (hit := cache.get(key)) is not None:
         return hit
     view = await epoch_view(db, service, epoch)
@@ -222,6 +224,7 @@ async def list_sessions(
         cursor,
         limit,
         with_total=cursor is None,
+        lanes=scope.lanes,
     )
     cache.put(key, page)
     return page
@@ -238,8 +241,10 @@ async def session_page(
     cursor: str | None,
     limit: int,
     with_total: bool = False,
+    lanes: Collection[int] | None = None,
 ) -> SessionPage:
-    """One page of sessions, newest first; `epochs` limits it to those databases.
+    """One page of sessions, newest first; `epochs` limits it to those databases and `lanes`
+    to those lanes.
 
     With `with_total`, the page also carries how many sessions match the filters.
     """
@@ -248,6 +253,8 @@ async def session_page(
         filters.append(HistorySession.epoch_id.in_(epochs))
     if lane is not None:
         filters.append(HistorySession.lane == lane)
+    if lanes is not None:
+        filters.append(HistorySession.lane.in_(lanes))
     if since is not None:
         filters.append(HistorySession.started_at >= since)
     if until is not None:
@@ -282,6 +289,16 @@ async def session_page(
     )
 
 
+async def _visible_session(
+    db: AsyncSession, scope: LaneScope, service: str, epoch_id: int, session_id: int
+) -> HistorySession:
+    """The session, or 404 when it does not exist or sits on a lane outside the scope."""
+    row = await find_session(db, service, epoch_id, session_id)
+    if not scope.allows(row.lane):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, SESSION_NOT_FOUND)
+    return row
+
+
 async def find_session(
     db: AsyncSession,
     service: str,
@@ -308,10 +325,12 @@ async def get_session_detail(
     service: str,
     epoch_id: Annotated[int, Path(ge=1)],
     session_id: Annotated[int, Path(ge=1)],
-    _: Viewer,
+    scope: Viewer,
     db: Db,
 ) -> SessionDetail:
-    return _session_out(SessionDetail, await find_session(db, service, epoch_id, session_id))
+    return _session_out(
+        SessionDetail, await _visible_session(db, scope, service, epoch_id, session_id)
+    )
 
 
 @router.get("/sessions/{epoch_id}/{session_id}/bets", response_model=BetPage)
@@ -320,16 +339,16 @@ async def list_session_bets(
     epoch_id: Annotated[int, Path(ge=1)],
     session_id: Annotated[int, Path(ge=1)],
     request: Request,
-    _: Viewer,
+    scope: Viewer,
     db: Db,
     before: Annotated[int | None, Query(ge=1)] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 200,
 ) -> BaseModel:
     """Newest first; pass `next_before` back as `before` for the next page."""
-    cache, key = _cache(request)
+    cache, key = _cache(request, scope)
     if (hit := cache.get(key)) is not None:
         return hit
-    await find_session(db, service, epoch_id, session_id)
+    await _visible_session(db, scope, service, epoch_id, session_id)
     page = await bet_page(db, service, epoch_id, session_id, before, limit)
     cache.put(key, page)
     return page
@@ -403,7 +422,7 @@ _TIME_COLUMN = {"1s": "ts", "1m": "bucket", "1h": "bucket", "1d": "bucket"}
 async def get_series(
     service: str,
     request: Request,
-    _: Viewer,
+    scope: Viewer,
     db: Db,
     metric: Literal["profit", "balance"] = "profit",
     res: Resolution | None = None,
@@ -414,7 +433,8 @@ async def get_series(
 ) -> BaseModel:
     """Per-lane points `[t, value]`: profit summed per bucket, or the bucket's last balance,
     from the current epoch or `epoch`, cut to that epoch's whole buckets."""
-    cache, key = _cache(request)
+    scope.check(lane)
+    cache, key = _cache(request, scope)
     if (hit := cache.get(key)) is not None:
         return hit
     end = until or datetime.now(UTC)
@@ -429,7 +449,7 @@ async def get_series(
     if not view.ids or start >= end:
         out = SeriesOut(res=chosen, series=[])
     else:
-        out = await series(db, service, None, metric, chosen, start, end, lane)
+        out = await series(db, service, None, metric, chosen, start, end, lane, scope.lanes)
     cache.put(key, out)
     return out
 
@@ -443,15 +463,19 @@ async def series(
     since: datetime | None,
     until: datetime | None,
     lane: int | None,
+    lanes: Collection[int] | None = None,
 ) -> SeriesOut:
-    """Per-lane points over a range. With `epochs`, only those databases' bets count; the
-    rollups mix every database, so that reads the raw bets at any resolution."""
+    """Per-lane points over a range, of `lane` or of `lanes` when given. With `epochs`, only
+    those databases' bets count; the rollups mix every database, so that reads the raw bets
+    at any resolution."""
     end = until or datetime.now(UTC)
     start = since or end - DEFAULT_RANGE
     if start >= end:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, EMPTY_RANGE)
     chosen = pick_resolution(end - start, res)
     lane_filter = " AND lane = :lane" if lane is not None else ""
+    if lanes is not None:
+        lane_filter += " AND lane = ANY(:lanes)"
     params: dict[str, Any] = {"service": service, "start": start, "end": end}
     if epochs is not None:
         # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
@@ -468,6 +492,8 @@ async def series(
         )
     if lane is not None:
         params["lane"] = lane
+    if lanes is not None:
+        params["lanes"] = sorted(lanes)
     rows = (await db.execute(statement, params)).all()
     by_lane: dict[int, list[tuple[datetime, float | None]]] = {}
     for row in rows:
@@ -492,21 +518,31 @@ async def current_sessions(db: AsyncSession, service: str) -> list[HistorySessio
 
 
 @router.get("/current", response_model=CurrentOut)
-async def get_current(service: str, request: Request, _: Viewer, db: Db) -> BaseModel:
+async def get_current(service: str, request: Request, scope: Viewer, db: Db) -> BaseModel:
     """Each lane's latest session in the current epoch, with its totals, for live resync."""
-    cache, key = _cache(request)
+    cache, key = _cache(request, scope)
     if (hit := cache.get(key)) is not None:
         return hit
     rows = await current_sessions(db, service)
-    out = CurrentOut(lanes=[_session_out(SessionOut, row) for row in rows])
+    out = CurrentOut(
+        lanes=[_session_out(SessionOut, row) for row in rows if scope.allows(row.lane)]
+    )
     cache.put(key, out)
     return out
 
 
 @router.get("/epochs", response_model=EpochList)
-async def list_epochs(service: str, _: Viewer, db: Db) -> EpochList:
-    """The bot's databases, newest first: the current one and each one a reset archived."""
+async def list_epochs(service: str, scope: Viewer, db: Db) -> EpochList:
+    """The bot's databases, newest first: the current one and each one a reset archived.
+
+    For a lane-only user the last start counts only their lanes' sessions.
+    """
     view = await epoch_view(db, service)
+    joined = (HistorySession.service == DbEpoch.service) & (
+        HistorySession.epoch_id == DbEpoch.epoch_id
+    )
+    if scope.lanes is not None:
+        joined &= HistorySession.lane.in_(scope.lanes)
     rows = (
         await db.execute(
             select(
@@ -514,11 +550,7 @@ async def list_epochs(service: str, _: Viewer, db: Db) -> EpochList:
                 DbEpoch.first_started_at,
                 func.max(HistorySession.started_at).label("last_started_at"),
             )
-            .outerjoin(
-                HistorySession,
-                (HistorySession.service == DbEpoch.service)
-                & (HistorySession.epoch_id == DbEpoch.epoch_id),
-            )
+            .outerjoin(HistorySession, joined)
             .where(DbEpoch.service == service, DbEpoch.tg_uid.is_(None))
             .group_by(DbEpoch.epoch_id)
             .order_by(DbEpoch.epoch_id.desc())
@@ -549,9 +581,14 @@ async def latest_reconcile(db: AsyncSession, service: str) -> ReconcileRun | Non
 
 
 @router.get("/ingest", response_model=IngestOut)
-async def get_ingest(service: str, request: Request, _: Viewer, db: Db) -> BaseModel:
-    """The latest reconcile run: how far ingest lags and whether the history copy matches."""
-    cache, key = _cache(request)
+async def get_ingest(service: str, request: Request, scope: Viewer, db: Db) -> BaseModel:
+    """The latest reconcile run: how far ingest lags and whether the history copy matches.
+
+    Service-wide health, so a lane-only user is refused.
+    """
+    if scope.lanes is not None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, FORBIDDEN)
+    cache, key = _cache(request, scope)
     if (hit := cache.get(key)) is not None:
         return hit
     run = await latest_reconcile(db, service)

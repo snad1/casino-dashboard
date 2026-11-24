@@ -135,13 +135,19 @@ def quiet_until(channels: UserChannels, now: datetime, zone: ZoneInfo) -> dateti
     return ends.astimezone(UTC)
 
 
-async def _can_view(db: AsyncSession, user_id: int, service: str) -> bool:
-    roles = await roles_for(db, user_id, service)
+async def _can_view(db: AsyncSession, user_id: int, service: str, lane: int | None = None) -> bool:
+    """Whether the user may see `service`, or (with `lane`) that lane of it."""
+    roles = await roles_for(db, user_id, service, lane)
     return any(Perm.VIEW in ROLE_PERMS[role] for role in roles)
 
 
-async def _recipients(db: AsyncSession, service: str, channel: str) -> list[tuple[int, int | None]]:
-    """(user, push subscription) pairs to deliver to: one per user, or one per device for push."""
+async def _recipients(
+    db: AsyncSession, service: str, channel: str, lane: int | None = None
+) -> list[tuple[int, int | None]]:
+    """(user, push subscription) pairs to deliver to: one per user, or one per device for push.
+
+    An event on a lane also reaches users who may see only that lane.
+    """
     query = (
         select(User.id, PushSubscription.id if channel == "push" else literal(None))
         .join(UserChannels, UserChannels.user_id == User.id)
@@ -156,7 +162,7 @@ async def _recipients(db: AsyncSession, service: str, channel: str) -> list[tupl
     else:
         query = query.join(PushSubscription, PushSubscription.user_id == User.id)
     pairs = [(uid, sub) for uid, sub in (await db.execute(query)).all()]
-    allowed = {uid for uid in {u for u, _ in pairs} if await _can_view(db, uid, service)}
+    allowed = {uid for uid in {u for u, _ in pairs} if await _can_view(db, uid, service, lane)}
     return [(uid, sub) for uid, sub in pairs if uid in allowed]
 
 
@@ -164,7 +170,7 @@ async def fan_out(db: AsyncSession, now: datetime) -> int:
     """Expand waiting channel deliveries into one per recipient; returns how many expanded."""
     rows = list(
         await db.execute(
-            select(AlertDelivery, AlertEvent.service)
+            select(AlertDelivery, AlertEvent.service, AlertEvent.lane)
             .join(AlertEvent, AlertEvent.id == AlertDelivery.event_id)
             .where(
                 AlertDelivery.user_id.is_(None),
@@ -176,8 +182,8 @@ async def fan_out(db: AsyncSession, now: datetime) -> int:
             .with_for_update(of=AlertDelivery, skip_locked=True)
         )
     )
-    for row, service in rows:
-        targets = await _recipients(db, service, row.channel)
+    for row, service, lane in rows:
+        targets = await _recipients(db, service, row.channel, lane)
         db.add_all(
             AlertDelivery(
                 event_id=row.event_id,
