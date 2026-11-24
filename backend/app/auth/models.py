@@ -15,6 +15,7 @@ from sqlalchemy import (
     Index,
     Integer,
     LargeBinary,
+    SmallInteger,
     Text,
     UniqueConstraint,
     func,
@@ -89,13 +90,21 @@ class AuditActor:
         return cls(user.id, user.email)
 
 
+LANE_CHECK = "lane IS NULL OR (service_id IS NOT NULL AND lane BETWEEN 1 AND 99)"
+
+
 class UserRole(Base):
-    """A role on one service, or on every service when `service_id` is null."""
+    """A role on one service, or on every service when `service_id` is null.
+
+    `lane` narrows a service role to one lane. Such a role never counts for a service-wide
+    check: it grants only what a check that names that lane allows.
+    """
 
     __tablename__ = "user_roles"
     __table_args__ = (
-        UniqueConstraint("user_id", "service_id", postgresql_nulls_not_distinct=True),
+        UniqueConstraint("user_id", "service_id", "lane", postgresql_nulls_not_distinct=True),
         CheckConstraint(_ROLE_CHECK, name="role"),
+        CheckConstraint(LANE_CHECK, name="lane"),
         # The database, not only the CLI, guarantees there is never a second owner.
         Index(
             "uq_user_roles_single_owner",
@@ -111,6 +120,7 @@ class UserRole(Base):
         BigInteger, ForeignKey("services.id", ondelete="CASCADE")
     )
     role: Mapped[str] = mapped_column(Text)
+    lane: Mapped[int | None] = mapped_column(SmallInteger)
 
 
 class ApiSession(Base):

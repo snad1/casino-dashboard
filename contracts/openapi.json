@@ -2767,6 +2767,19 @@
       },
       "RoleIn": {
         "properties": {
+          "lane": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lane"
+          },
           "role": {
             "enum": [
               "admin",
@@ -2797,6 +2810,17 @@
       },
       "RoleOut": {
         "properties": {
+          "lane": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lane"
+          },
           "role": {
             "title": "Role",
             "type": "string"
@@ -4399,7 +4423,7 @@
     },
     "/admin/users/{user_id}/role": {
       "put": {
-        "description": "Replace the user's roles with one role, on one service or (no service) on all.",
+        "description": "Replace the user's roles with one role: on all services, one service, or one lane of it.",
         "operationId": "set_role_admin_users__user_id__role_put",
         "parameters": [
           {

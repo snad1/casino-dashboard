@@ -100,8 +100,50 @@ test('an admin invites a user, and a role change asks for 2FA first', async ({ p
 	await expect(page.getByRole('heading', { name: "Confirm it's you" })).toBeVisible();
 	await page.getByLabel('Authenticator code').fill('123456');
 	await page.getByRole('button', { name: 'Confirm' }).click();
-	await expect(page.getByRole('status')).toContainText('op@example.test is now operator.');
+	await expect(page.getByRole('status')).toContainText(
+		'op@example.test is now operator on every service.'
+	);
 	expect(calls.filter((c) => c === 'PUT /admin/users/2/role')).toHaveLength(2);
+});
+
+test('a role can be limited to one lane', async ({ page }) => {
+	const sent: unknown[] = [];
+	const friend: { roles: { service: string | null; role: string; lane: number | null }[] } & Record<
+		string,
+		unknown
+	> = {
+		id: 2,
+		email: 'friend@example.test',
+		roles: [{ service: null, role: 'viewer', lane: null }],
+		disabled: false,
+		totp_enabled: false,
+		created_at: '2026-11-02T00:00:00Z'
+	};
+	const users = [
+		{ ...adminMe, id: 1, disabled: false, created_at: '2026-11-01T00:00:00Z' },
+		friend
+	];
+	await stubApi(page, {
+		'GET /auth/me': () => ({ status: 200, json: adminMe }),
+		'GET /admin/users': () => ({ status: 200, json: { items: users } }),
+		'PUT /admin/users/2/role': (body) => {
+			sent.push(body);
+			friend.roles = [{ service: 'wolfbet', role: 'viewer', lane: 3 }];
+			return { status: 204 };
+		}
+	});
+	await page.goto('/admin/users');
+	await page.getByLabel('Lane for friend@example.test').fill('3');
+	await page.getByLabel('Lane for friend@example.test').press('Tab');
+	await expect(
+		page.getByRole('dialog', { name: 'Make friend@example.test viewer on lane 3?' })
+	).toBeVisible();
+	await page.getByRole('button', { name: 'Make viewer' }).click();
+	await expect(page.getByRole('status')).toContainText(
+		'friend@example.test is now viewer on wolfbet lane 3.'
+	);
+	expect(sent).toEqual([{ role: 'viewer', service: 'wolfbet', lane: 3 }]);
+	await expect(page.getByText('viewer on wolfbet lane 3', { exact: true })).toBeVisible();
 });
 
 test('2FA setup shows a QR code to scan alongside the key', async ({ page }) => {

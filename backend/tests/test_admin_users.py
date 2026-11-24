@@ -11,9 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.admin import NOT_YOURSELF, OWNER_LOCKED, USER_NOT_FOUND
 from app.auth.models import ApiSession, Role, User, UserRole
 from app.auth.stepup import STEP_UP_NEEDED
+from app.db.models import Service
 from app.settings import Settings
 from tests.conftest import Account, make_user, run_in_session
 from tests.test_totp import _enrol
+from tests.test_ws_auth import _login
 
 
 def _make_admin(settings: Settings, user_id: int) -> None:
@@ -82,9 +84,9 @@ def test_managers_list_every_user_with_roles_and_2fa(
     response = admin.get("/admin/users")
     assert response.status_code == 200
     users = {u["id"]: u for u in response.json()["items"]}
-    assert users[account.id]["roles"] == [{"service": None, "role": "admin"}]
+    assert users[account.id]["roles"] == [{"service": None, "role": "admin", "lane": None}]
     assert users[account.id]["totp_enabled"] is True
-    assert users[other.id]["roles"] == [{"service": None, "role": "operator"}]
+    assert users[other.id]["roles"] == [{"service": None, "role": "operator", "lane": None}]
     assert set(users[other.id]) == {
         "id",
         "email",
@@ -166,3 +168,67 @@ def test_the_owner_yourself_and_unknown_users_are_refused(
     missing = admin.post("/admin/users/999999999/enable", headers={"x-csrf-token": token})
     assert missing.status_code == 404
     assert missing.json()["detail"] == USER_NOT_FOUND
+
+
+@pytest.fixture
+def lane_service(app_settings: Settings) -> Iterator[str]:
+    name = f"lanes-{datetime.now(UTC).timestamp():.0f}"
+
+    async def add(session: AsyncSession) -> None:
+        session.add(Service(name=name, adapter="wolfbet", host=f"{name}.test"))
+        await session.commit()
+
+    async def remove(session: AsyncSession) -> None:
+        await session.execute(delete(Service).where(Service.name == name))
+        await session.commit()
+
+    run_in_session(app_settings, add)
+    yield name
+    run_in_session(app_settings, remove)
+
+
+def test_a_role_can_name_one_lane(
+    app_settings: Settings, admin: TestClient, lane_service: str, as_user: object
+) -> None:
+    target = make_user(app_settings, Role.VIEWER, two_factor=False)
+    body = {"role": "viewer", "service": lane_service, "lane": 3}
+    assert _send(admin, "PUT", f"/admin/users/{target.id}/role", body) == 204
+    users = {u["id"]: u for u in admin.get("/admin/users").json()["items"]}
+    assert users[target.id]["roles"] == [{"service": lane_service, "role": "viewer", "lane": 3}]
+    friend = as_user(target)  # type: ignore[operator]
+    assert friend.get(f"/{lane_service}/sessions").status_code == 403
+
+
+def test_me_reports_a_lane_role_that_opens_nothing_service_wide(
+    app_settings: Settings, client: TestClient, account: Account, lane_service: str
+) -> None:
+    async def narrow(session: AsyncSession) -> None:
+        service_id = await session.scalar(select(Service.id).where(Service.name == lane_service))
+        query = update(UserRole).where(UserRole.user_id == account.id)
+        await session.execute(query.values(service_id=service_id, role=Role.VIEWER, lane=3))
+        await session.commit()
+
+    run_in_session(app_settings, narrow)
+    _login(client, account.email)
+    assert client.get("/auth/me").json()["roles"] == [
+        {"service": lane_service, "role": "viewer", "lane": 3}
+    ]
+    assert client.get(f"/{lane_service}/sessions").status_code == 403
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"role": "admin", "service": "SERVICE", "lane": 3},
+        {"role": "viewer", "lane": 3},
+        {"role": "viewer", "service": "SERVICE", "lane": 0},
+        {"role": "viewer", "service": "SERVICE", "lane": 100},
+    ],
+)
+def test_bad_lane_roles_are_refused(
+    app_settings: Settings, admin: TestClient, lane_service: str, body: dict[str, object]
+) -> None:
+    target = make_user(app_settings, Role.VIEWER, two_factor=False)
+    sent = {k: (lane_service if v == "SERVICE" else v) for k, v in body.items()}
+    assert _send(admin, "PUT", f"/admin/users/{target.id}/role", sent) == 422
+    assert _user(app_settings, target.id) == (False, [(None, "viewer")])

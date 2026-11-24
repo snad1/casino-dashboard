@@ -36,6 +36,24 @@ describe('can', () => {
 		expect(can(me('operator', 'wolfbet'), 'view', 'goated')).toBe(false);
 	});
 
+	it('opens nothing service-wide for a role on one lane', () => {
+		const friend: Me = {
+			...me('viewer'),
+			roles: [{ role: 'viewer', service: 'wolfbet', lane: 3 }]
+		};
+		expect(can(friend, 'view', 'wolfbet')).toBe(false);
+		expect(can(friend, 'view')).toBe(false);
+		const both: Me = {
+			...me('viewer'),
+			roles: [
+				{ role: 'viewer', service: 'wolfbet', lane: null },
+				{ role: 'operator', service: 'wolfbet', lane: 3 }
+			]
+		};
+		expect(can(both, 'view', 'wolfbet')).toBe(true);
+		expect(can(both, 'control.basic', 'wolfbet')).toBe(false);
+	});
+
 	it('lets owners and admins only look until 2FA is on', () => {
 		expect(can(me('admin', null, false), 'view')).toBe(true);
 		expect(can(me('admin', null, false), 'users.manage')).toBe(false);

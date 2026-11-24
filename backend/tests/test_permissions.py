@@ -12,7 +12,15 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role, Totp, User, UserRole
-from app.auth.permissions import FORBIDDEN, ROLE_PERMS, TWO_FACTOR_NEEDED, Perm, require
+from app.auth.permissions import (
+    FORBIDDEN,
+    ROLE_PERMS,
+    TWO_FACTOR_NEEDED,
+    Perm,
+    denial,
+    require,
+    roles_for,
+)
 from app.auth.sessions import NOT_SIGNED_IN, current_user
 from app.db.models import Service
 from app.main import create_app
@@ -83,6 +91,7 @@ def seeded(migrated: Settings) -> Iterator[Seeded]:
                 "admin_without_2fa",
                 "disabled",
                 "none",
+                "lane_viewer",
             )
         }
         users["disabled"].disabled = True
@@ -102,6 +111,7 @@ def seeded(migrated: Settings) -> Iterator[Seeded]:
                     enabled_at=datetime.now(UTC),
                 ),
                 UserRole(user_id=users["disabled"].id, service_id=on, role=Role.OPERATOR),
+                UserRole(user_id=users["lane_viewer"].id, service_id=on, role=Role.VIEWER, lane=3),
             ]
         )
         await session.commit()
@@ -133,6 +143,7 @@ def seeded(migrated: Settings) -> Iterator[Seeded]:
         ("admin_without_2fa", Perm.CONTROL_BASIC, 403),
         ("disabled", Perm.VIEW, 403),
         ("none", Perm.VIEW, 403),
+        ("lane_viewer", Perm.VIEW, 403),
     ],
 )
 def test_require_on_a_service_route(seeded: Seeded, who: str, perm: Perm, status: int) -> None:
@@ -182,3 +193,42 @@ def test_global_role_applies_to_routes_without_a_service(
         assert client.get("/users").status_code == 200
         app.dependency_overrides[current_user] = lambda: users["operator"]
         assert client.get("/users").status_code == 403
+
+
+def test_a_lane_role_counts_only_for_its_own_lane(seeded: Seeded) -> None:
+    settings, service, users = seeded
+    lane_viewer, viewer = users["lane_viewer"], users["viewer"]
+
+    async def check(session: AsyncSession) -> dict[str, object]:
+        return {
+            "service": await roles_for(session, lane_viewer.id, service),
+            "lane3": await roles_for(session, lane_viewer.id, service, 3),
+            "lane2": await roles_for(session, lane_viewer.id, service, 2),
+            "global": await roles_for(session, lane_viewer.id, None),
+            "deny_service": await denial(session, lane_viewer, service, Perm.VIEW),
+            "deny_lane3": await denial(session, lane_viewer, service, Perm.VIEW, 3),
+            "deny_lane3_control": await denial(
+                session, lane_viewer, service, Perm.CONTROL_BASIC, 3
+            ),
+            "service_role_on_a_lane": await roles_for(session, viewer.id, service, 3),
+        }
+
+    seen = run_in_session(settings, check)
+    assert seen["service"] == set() and seen["lane2"] == set() and seen["global"] == set()
+    assert seen["lane3"] == {Role.VIEWER}
+    assert seen["deny_service"] == FORBIDDEN and seen["deny_lane3"] is None
+    assert seen["deny_lane3_control"] == FORBIDDEN
+    assert seen["service_role_on_a_lane"] == {Role.VIEWER}
+
+
+def test_the_database_refuses_a_lane_without_a_service(seeded: Seeded) -> None:
+    from sqlalchemy.exc import IntegrityError
+
+    settings, _, users = seeded
+
+    async def insert(session: AsyncSession) -> None:
+        session.add(UserRole(user_id=users["none"].id, service_id=None, role=Role.VIEWER, lane=3))
+        await session.commit()
+
+    with pytest.raises(IntegrityError):
+        run_in_session(settings, insert)

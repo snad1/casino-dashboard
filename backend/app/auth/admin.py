@@ -6,13 +6,14 @@ an admin cannot act on their own account, so nobody can lock themselves or the o
 Telegram accounts are not listed here and keep their own role: they see only their own bot
 user, and making one an admin would hand a bot login link dashboard rights.
 Disabling an account also ends all of its sessions. The audit middleware records each call.
+A role may name one lane of a service; such a role grants nothing outside that lane.
 """
 
 from datetime import datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +29,9 @@ OWNER_LOCKED = "The owner account can't be changed here."
 NOT_YOURSELF = "You can't change your own account here."
 UNKNOWN_SERVICE = "That service does not exist."
 TELEGRAM_ROLE = "A Telegram account keeps its own role."
+LANE_NEEDS_SERVICE = "Pick the service the lane belongs to."
+LANE_ROLES = ("viewer", "operator")
+LANE_ROLE = "Only viewer or operator can be given on one lane."
 
 router = APIRouter(prefix="/admin/users", tags=["admin"])
 Db = Annotated[AsyncSession, Depends(get_session)]
@@ -39,6 +43,7 @@ UserId = Annotated[int, Path(ge=1)]
 class RoleOut(BaseModel):
     service: str | None
     role: str
+    lane: int | None = None
 
 
 class UserOut(BaseModel):
@@ -57,6 +62,15 @@ class UserList(BaseModel):
 class RoleIn(BaseModel):
     role: Literal["admin", "operator", "viewer"]
     service: str | None = Field(default=None, max_length=100)
+    lane: int | None = Field(default=None, ge=1, le=99)
+
+    @model_validator(mode="after")
+    def _lane_in_a_service(self) -> "RoleIn":
+        if self.lane is not None and self.service is None:
+            raise ValueError(LANE_NEEDS_SERVICE)
+        if self.lane is not None and self.role not in LANE_ROLES:
+            raise ValueError(LANE_ROLE)
+        return self
 
 
 @router.get("", response_model=UserList)
@@ -64,13 +78,13 @@ async def list_users(_: Manager, db: Db) -> UserList:
     """Every account, oldest first, with its roles and whether 2FA is on."""
     users = list(await db.scalars(select(User).where(User.tg_uid.is_(None)).order_by(User.id)))
     role_rows = await db.execute(
-        select(UserRole.user_id, Service.name, UserRole.role)
+        select(UserRole.user_id, Service.name, UserRole.role, UserRole.lane)
         .outerjoin(Service, Service.id == UserRole.service_id)
-        .order_by(Service.name.nulls_first())
+        .order_by(Service.name.nulls_first(), UserRole.lane.nulls_first())
     )
     roles: dict[int, list[RoleOut]] = {}
-    for user_id, service, role in role_rows:
-        roles.setdefault(user_id, []).append(RoleOut(service=service, role=role))
+    for user_id, service, role, lane in role_rows:
+        roles.setdefault(user_id, []).append(RoleOut(service=service, role=role, lane=lane))
     with_totp = set(await db.scalars(select(Totp.user_id).where(Totp.enabled_at.is_not(None))))
     return UserList(
         items=[
@@ -103,7 +117,7 @@ async def _target(db: AsyncSession, actor: User, user_id: int) -> User:
 
 @router.put("/{user_id}/role", status_code=status.HTTP_204_NO_CONTENT)
 async def set_role(user_id: UserId, body: RoleIn, actor: Manager, _: Fresh, db: Db) -> None:
-    """Replace the user's roles with one role, on one service or (no service) on all."""
+    """Replace the user's roles with one role: on all services, one service, or one lane of it."""
     user = await _target(db, actor, user_id)
     if user.tg_uid is not None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, TELEGRAM_ROLE)
@@ -113,7 +127,7 @@ async def set_role(user_id: UserId, body: RoleIn, actor: Manager, _: Fresh, db: 
         if service_id is None:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, UNKNOWN_SERVICE)
     await db.execute(delete(UserRole).where(UserRole.user_id == user.id))
-    db.add(UserRole(user_id=user.id, service_id=service_id, role=Role(body.role)))
+    db.add(UserRole(user_id=user.id, service_id=service_id, role=Role(body.role), lane=body.lane))
     await db.commit()
 
 

@@ -49,6 +49,7 @@ class LoginIn(BaseModel):
 class RoleOut(BaseModel):
     service: str | None
     role: str
+    lane: int | None = None
 
 
 class Me(BaseModel):
@@ -133,17 +134,17 @@ async def logout_all(user: CurrentUser, response: Response, db: Db) -> None:
 @router.get("/me", response_model=Me)
 async def me(user: CurrentUser, request: Request, db: Db) -> Me:
     rows = await db.execute(
-        select(Service.name, UserRole.role)
+        select(Service.name, UserRole.role, UserRole.lane)
         .select_from(UserRole)
         .outerjoin(Service, Service.id == UserRole.service_id)
         .where(UserRole.user_id == user.id)
-        .order_by(Service.name.nulls_first())
+        .order_by(Service.name.nulls_first(), UserRole.lane.nulls_first())
     )
     secret: str = request.app.state.session_secret
     return Me(
         email=user.email,
         tg_uid=user.tg_uid,
-        roles=[RoleOut(service=service, role=role) for service, role in rows],
+        roles=[RoleOut(service=service, role=role, lane=lane) for service, role, lane in rows],
         csrf_token=csrf_token(secret, request.state.session_id),
         totp_enabled=await is_enabled(db, user.id),
     )

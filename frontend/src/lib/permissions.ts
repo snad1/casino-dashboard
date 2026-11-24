@@ -47,11 +47,12 @@ const NEEDS_TWO_FACTOR = new Set(['owner', 'admin']);
 /**
  * Whether the signed-in user may use `perm` on `service`, mirroring the api's role map. The
  * api decides; this only hides what would be refused. Owner and admin grants beyond `view`
- * count only once 2FA is on, as on the server.
+ * count only once 2FA is on, as on the server. A role on one lane opens nothing service-wide.
  */
 export function can(me: Me | null, perm: Perm, service: string | null = null): boolean {
 	if (me === null) return false;
-	return me.roles.some(({ role, service: scope }) => {
+	return me.roles.some(({ role, service: scope, lane }) => {
+		if (lane !== null && lane !== undefined) return false;
 		if (scope !== null && scope !== service) return false;
 		if (!(ROLE_PERMS[role] ?? []).includes(perm)) return false;
 		return perm === 'view' || !NEEDS_TWO_FACTOR.has(role) || me.totp_enabled;

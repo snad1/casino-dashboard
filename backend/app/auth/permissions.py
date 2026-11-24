@@ -50,17 +50,28 @@ ROLE_PERMS: dict[Role, frozenset[Perm]] = {
 NEEDS_TWO_FACTOR = frozenset({Role.OWNER, Role.ADMIN})
 
 
-async def roles_for(session: AsyncSession, user_id: int, service: str | None) -> set[Role]:
-    """The user's global roles, plus the roles on `service` when one is named."""
+async def roles_for(
+    session: AsyncSession, user_id: int, service: str | None, lane: int | None = None
+) -> set[Role]:
+    """The user's global roles, plus the roles on `service` when one is named.
+
+    A role on one lane counts only when `lane` names that lane, so a lane-only role never
+    opens a service-wide check.
+    """
     applies: ColumnElement[bool] = UserRole.service_id.is_(None)
     if service is not None:
         on_service = select(Service.id).where(Service.name == service).scalar_subquery()
-        applies = or_(applies, UserRole.service_id == on_service)
+        lanes: ColumnElement[bool] = UserRole.lane.is_(None)
+        if lane is not None:
+            lanes = or_(lanes, UserRole.lane == lane)
+        applies = or_(applies, (UserRole.service_id == on_service) & lanes)
     rows = await session.scalars(select(UserRole.role).where(UserRole.user_id == user_id, applies))
     return {Role(role) for role in rows}
 
 
-async def denial(session: AsyncSession, user: User, service: str | None, perm: Perm) -> str | None:
+async def denial(
+    session: AsyncSession, user: User, service: str | None, perm: Perm, lane: int | None = None
+) -> str | None:
     """Why `user` may not use `perm` on `service`, or None when they may.
 
     An unknown service just grants nothing, so the refusal does not reveal which services
@@ -68,7 +79,7 @@ async def denial(session: AsyncSession, user: User, service: str | None, perm: P
     """
     if user.disabled:
         return FORBIDDEN
-    roles = await roles_for(session, user.id, service)
+    roles = await roles_for(session, user.id, service, lane)
     if not any(perm in ROLE_PERMS[role] for role in roles):
         return FORBIDDEN
     if perm != Perm.VIEW and not any(perm in ROLE_PERMS[role] for role in roles - NEEDS_TWO_FACTOR):
