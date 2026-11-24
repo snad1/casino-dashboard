@@ -6,7 +6,8 @@ in the last 5 minutes. A key travels to the agent once and reaches the bot on
 its stdin; no answer, log or audit row carries it (the audit middleware redacts the
 `secret` field). A key's id is its label as a slug, so a retried add finds the key it made
 instead of storing a second copy. The bot decides which lanes use a key and refuses to
-delete one in use.
+delete one in use. The Telegram bot token is one entry of kind `telegram`, always stored as
+`telegram`, that only the owner may add, rotate or delete.
 """
 
 import re
@@ -20,8 +21,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent_client import AgentError
 from app.api.control import AGENT_DOWN, CONTROLS, NOT_CONTROLLABLE, ServiceName, agent_or_error
-from app.auth.models import User
-from app.auth.permissions import Perm, denial
+from app.auth.models import Role, User
+from app.auth.permissions import Perm, denial, roles_for
 from app.auth.sessions import current_user
 from app.auth.stepup import require_fresh
 from app.db.engine import get_session
@@ -30,6 +31,10 @@ KEY_ID_PATTERN = r"^[a-z0-9][a-z0-9_-]{0,31}$"
 VAULT_DOWN = "The key vault on the bot host can't be used. Check the host."
 BAD_LABEL = "Use at least one letter or digit in the key's name."
 INVALID_KEY = "The key must be 8-4096 printable characters with no spaces."
+TG_KEY_ID = "telegram"
+TG_OWNER_ONLY = "Only the owner can change the Telegram bot token."
+BAD_TG_TOKEN = "That doesn't look like a Telegram bot token."  # noqa: S105  # a message, not a secret
+_TG_TOKEN = re.compile(r"\d{5,12}:[A-Za-z0-9_-]{30,64}")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 _SECRET = re.compile(r"[\x21-\x7e]{8,4096}")
 _REFUSALS = {
@@ -51,6 +56,12 @@ class KeyAccess:
 
     user: User
     every_key: bool
+    owner: bool = False
+
+    def check_telegram(self, key_id: str) -> None:
+        """Refuse anyone but the owner a change to the Telegram bot token."""
+        if key_id == TG_KEY_ID and not self.owner:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, TG_OWNER_ONLY)
 
 
 async def key_access(
@@ -58,7 +69,8 @@ async def key_access(
 ) -> KeyAccess:
     """`keys.manage` opens every key; `keys.own` (a lane manager) only the caller's own."""
     if await denial(db, user, service, Perm.KEYS_MANAGE) is None:
-        return KeyAccess(user, every_key=True)
+        owner = Role.OWNER in await roles_for(db, user.id, None)
+        return KeyAccess(user, every_key=True, owner=owner)
     detail = await denial(db, user, service, Perm.KEYS_OWN)
     if detail is not None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail)
@@ -73,7 +85,7 @@ KeyId = Annotated[str, Path(pattern=KEY_ID_PATTERN)]
 class KeyOut(BaseModel):
     id: str
     label: str
-    kind: Literal["key", "proxy"]
+    kind: Literal["key", "proxy", "telegram"]
     last4: str
     owner_user_id: int | None
     created_at: str
@@ -106,10 +118,11 @@ class RotateIn(BaseModel):
 
 
 class KeyIn(RotateIn):
-    """A new vault entry: a casino `key`, or a `proxy` URL that carries a password."""
+    """A new vault entry: a casino `key`, a `proxy` URL that carries a password, or the
+    Telegram bot token."""
 
     label: str = Field(min_length=1, max_length=64)
-    kind: Literal["key", "proxy"] = "key"
+    kind: Literal["key", "proxy", "telegram"] = "key"
 
     @field_validator("label")
     @classmethod
@@ -191,10 +204,15 @@ async def list_keys(
 async def add_key(
     service: ServiceName, body: KeyIn, request: Request, access: Manager, _: Fresh
 ) -> KeyWriteOut:
-    """Store a new key under its label's slug, owned by the caller."""
+    """Store a new key under its label's slug, owned by the caller; the Telegram bot token
+    always goes under `telegram`."""
     _known(service)
+    key_id = TG_KEY_ID if body.kind == "telegram" else key_id_for(body.label)
+    access.check_telegram(key_id)
+    if body.kind == "telegram" and not _TG_TOKEN.fullmatch(body.secret):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, BAD_TG_TOKEN)
     args = {
-        "key_id": key_id_for(body.label),
+        "key_id": key_id,
         "label": body.label,
         "secret": body.secret,
         "owner_user_id": access.user.id,
@@ -214,6 +232,7 @@ async def rotate_key(
 ) -> KeyWriteOut:
     """Replace a key's secret; lanes using it pick the new one up when they restart."""
     _known(service)
+    access.check_telegram(key_id)
     await _check_owner(request, service, access, key_id)
     args = {"key_id": key_id, "secret": body.secret}
     return _written(await _call(request, service, "key_rotate", args))
@@ -225,6 +244,7 @@ async def delete_key(
 ) -> Response:
     """Delete a key no lane uses."""
     _known(service)
+    access.check_telegram(key_id)
     await _check_owner(request, service, access, key_id)
     await _call(request, service, "key_delete", {"key_id": key_id})
     return Response(status_code=204)

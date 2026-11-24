@@ -41,6 +41,13 @@ describe('key secrets', () => {
 		expect(message).toBe('A proxy starts with http://, https:// or socks5://.');
 		expect(message).not.toContain('SECRET');
 	});
+
+	it('accepts only a Telegram bot token for the telegram kind', () => {
+		expect(secretError('telegram', '123456789:AAH-telegram-bot-token-x9Yz0123456789ab')).toBeNull();
+		const message = secretError('telegram', 'wb_live_SECRET_0001');
+		expect(message).toBe("That doesn't look like a Telegram bot token.");
+		expect(message).not.toContain('SECRET');
+	});
 });
 
 describe('key users and pickers', () => {

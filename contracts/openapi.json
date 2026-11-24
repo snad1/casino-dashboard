@@ -1926,13 +1926,14 @@
       "JsonValue": {},
       "KeyIn": {
         "additionalProperties": false,
-        "description": "A new vault entry: a casino `key`, or a `proxy` URL that carries a password.",
+        "description": "A new vault entry: a casino `key`, a `proxy` URL that carries a password, or the\nTelegram bot token.",
         "properties": {
           "kind": {
             "default": "key",
             "enum": [
               "key",
-              "proxy"
+              "proxy",
+              "telegram"
             ],
             "title": "Kind",
             "type": "string"
@@ -1970,7 +1971,8 @@
           "kind": {
             "enum": [
               "key",
-              "proxy"
+              "proxy",
+              "telegram"
             ],
             "title": "Kind",
             "type": "string"
@@ -9980,7 +9982,7 @@
         ]
       },
       "post": {
-        "description": "Store a new key under its label's slug, owned by the caller.",
+        "description": "Store a new key under its label's slug, owned by the caller; the Telegram bot token\nalways goes under `telegram`.",
         "operationId": "add_key__service__keys_post",
         "parameters": [
           {

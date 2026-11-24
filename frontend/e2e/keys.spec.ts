@@ -146,3 +146,78 @@ test('/wolfbet/keys has no serious accessibility issues', async ({ page }) => {
 		.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`);
 	expect(blocking).toEqual([]);
 });
+
+const TG_TOKEN = '123456789:AAH-telegram-bot-token-x9Yz0123456789ab';
+const ownerMe = {
+	...adminMe,
+	email: 'owner@example.test',
+	roles: [{ service: null, role: 'owner' }]
+};
+const withTgRestart = {
+	...controlMenu,
+	actions: [
+		...controlMenu.actions,
+		{
+			name: 'tg_restart',
+			label: 'Restart',
+			title: 'Restart the Telegram bot?',
+			effect: 'The Telegram bot is down for a few seconds. Betting is not touched.',
+			confirm: 'Restart',
+			perm: 'control.basic',
+			typed_confirm: false,
+			confirm_first: true,
+			job: false
+		}
+	]
+};
+const tgRow = row('telegram', { label: 'Telegram bot', kind: 'telegram', last4: '89ab' });
+
+test('the owner stores the Telegram bot token and is offered a bot restart', async ({ page }) => {
+	const posted: string[] = [];
+	const sent = await rig(page, ownerMe, {
+		'GET /wolfbet/control': () => ({ status: 200, json: withTgRestart }),
+		'POST /wolfbet/keys': () => ({
+			status: 201,
+			json: { key: tgRow, note: 'Restart the Telegram bot to use the new token.' }
+		}),
+		'POST /wolfbet/control/tg_restart': () => {
+			posted.push('tg_restart');
+			return { status: 200, json: { status: 'succeeded', exit_code: 0, job_id: null } };
+		}
+	});
+	await page.goto('/wolfbet/keys');
+	const add = page.getByRole('region', { name: 'Add a key' });
+	await add.getByRole('combobox', { name: 'Kind' }).selectOption('telegram');
+	await expect(add.getByRole('textbox', { name: 'Name' })).toHaveValue('Telegram bot');
+	await add.getByLabel('Bot token', { exact: true }).fill('not-a-token');
+	await expect(add.getByText("That doesn't look like a Telegram bot token.")).toBeVisible();
+	await expect(add.getByRole('button', { name: 'Add key' })).toBeDisabled();
+	await add.getByLabel('Bot token', { exact: true }).fill(TG_TOKEN);
+	await add.getByRole('button', { name: 'Add key' }).click();
+	await expect(
+		page.getByText('Restart the Telegram bot to use the new token.').first()
+	).toBeVisible();
+	expect(sent.map((s) => s.body)).toEqual([
+		{ label: 'Telegram bot', kind: 'telegram', secret: TG_TOKEN }
+	]);
+	expect(await page.content()).not.toContain(TG_TOKEN);
+	await page.getByRole('button', { name: 'Restart Telegram bot' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Restart the Telegram bot?' });
+	await dialog.getByRole('button', { name: 'Restart' }).click();
+	await expect.poll(() => posted).toEqual(['tg_restart']);
+});
+
+test('an admin sees the Telegram row but cannot add, rotate or delete it', async ({ page }) => {
+	await rig(page, adminMe, {
+		'GET /wolfbet/keys': () => ({ status: 200, json: { keys: [...LIST, tgRow] } })
+	});
+	await page.goto('/wolfbet/keys');
+	const add = page.getByRole('region', { name: 'Add a key' });
+	await expect(add.getByRole('combobox', { name: 'Kind' }).locator('option')).toHaveText([
+		'Casino key',
+		'Proxy with a password'
+	]);
+	const telegram = page.getByRole('row').filter({ hasText: 'Telegram bot' });
+	await expect(telegram.getByText('••••89ab')).toBeVisible();
+	await expect(telegram.getByRole('button')).toHaveCount(0);
+});

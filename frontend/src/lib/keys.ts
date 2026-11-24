@@ -9,6 +9,9 @@ const SECRET = /^[\x21-\x7e]{8,4096}$/;
 // eslint-disable-next-line no-control-regex -- a label must not carry control characters
 const CONTROL = /[\x00-\x1f\x7f]/;
 const PROXY_SCHEMES = ['http://', 'https://', 'socks5://'];
+const TG_TOKEN = /^\d{5,12}:[A-Za-z0-9_-]{30,64}$/;
+export const TG_KEY_ID = 'telegram';
+export const TG_LABEL = 'Telegram bot';
 
 /** `Friend A` -> `friend-a`: the vault id the api stores a label under, or null if none fits. */
 export function keyIdFor(label: string): string | null {
@@ -35,6 +38,8 @@ export function secretError(kind: KeyKind, value: string): string | null {
 	if (!SECRET.test(value)) return 'Use 8-4096 printable characters with no spaces.';
 	if (kind === 'proxy' && !PROXY_SCHEMES.some((scheme) => value.startsWith(scheme)))
 		return 'A proxy starts with http://, https:// or socks5://.';
+	if (kind === 'telegram' && !TG_TOKEN.test(value))
+		return "That doesn't look like a Telegram bot token.";
 	return null;
 }
 

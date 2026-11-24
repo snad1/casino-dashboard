@@ -137,6 +137,24 @@ ARGV_CASES: list[tuple[str, dict[str, Any], list[str]]] = [
         [PY, BOT, "--key-put", "fp", "--key-label=Proxy", "--key-kind=proxy", "--json"],
     ),
     (
+        "key_put",
+        {
+            "key_id": "telegram",
+            "label": "Telegram bot",
+            "secret": "123456789:AAH-telegram-bot-token-x9Yz0123456789ab",
+            "kind": "telegram",
+        },
+        [
+            PY,
+            BOT,
+            "--key-put",
+            "telegram",
+            "--key-label=Telegram bot",
+            "--key-kind=telegram",
+            "--json",
+        ],
+    ),
+    (
         "key_rotate",
         {"key_id": "friend-a", "secret": KEY_SECRET},
         [PY, BOT, "--key-rotate", "friend-a", "--json"],

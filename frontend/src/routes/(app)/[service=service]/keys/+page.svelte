@@ -5,11 +5,14 @@
 		keyIdFor,
 		labelError,
 		secretError,
+		TG_KEY_ID,
+		TG_LABEL,
 		usedBy,
 		type KeyKind,
 		type VaultKey
 	} from '#lib/keys';
-	import { api } from '#lib/session.svelte';
+	import { control } from '#lib/control.svelte';
+	import { api, session } from '#lib/session.svelte';
 	import Button from '#ui/Button';
 	import ConfirmDialog from '#ui/ConfirmDialog';
 	import Field from '#ui/Field';
@@ -20,10 +23,12 @@
 	type Write = () => Promise<string>;
 
 	const service = $derived(page.params.service ?? '');
-	const KINDS: { value: KeyKind; label: string }[] = [
+	const isOwner = $derived(session.me?.roles.some((r) => r.role === 'owner') ?? false);
+	const KINDS = $derived<{ value: KeyKind; label: string }[]>([
 		{ value: 'key', label: 'Casino key' },
-		{ value: 'proxy', label: 'Proxy with a password' }
-	];
+		{ value: 'proxy', label: 'Proxy with a password' },
+		...(isOwner ? [{ value: 'telegram' as const, label: 'Telegram bot token' }] : [])
+	]);
 
 	let keys = $state<VaultKey[] | null>(null);
 	let loadError = $state<string | null>(null);
@@ -38,7 +43,13 @@
 	let stepUpOpen = $state(false);
 	let busy = $state(false);
 	let notice = $state<{ tone: 'success' | 'error'; text: string } | null>(null);
+	let offerTgRestart = $state(false);
+	let retryTelegram = false;
 	let retry: Write | null = null;
+
+	$effect(() => {
+		if (kind === 'telegram') label = TG_LABEL;
+	});
 
 	const nameError = $derived(label === '' ? null : labelError(label));
 	const keyError = $derived(secret === '' ? null : secretError(kind, secret));
@@ -69,17 +80,20 @@
 		if (service) void load();
 	});
 
-	async function perform(write: Write) {
+	async function perform(write: Write, telegram = false) {
 		busy = true;
 		notice = null;
+		offerTgRestart = false;
 		try {
 			const text = await write();
 			retry = null;
 			notice = { tone: 'success', text };
+			offerTgRestart = telegram;
 			await load();
 		} catch (e) {
 			if (e instanceof ApiError && e.flags.has('step_up_required')) {
 				retry = write;
+				retryTelegram = telegram;
 				stepUpOpen = true;
 				return;
 			}
@@ -101,7 +115,7 @@
 			label = '';
 			secret = '';
 			return `${out.key.label} saved as ${out.key.id}.`;
-		});
+		}, kind === 'telegram');
 	}
 
 	function rotate(event: SubmitEvent, key: VaultKey) {
@@ -118,7 +132,7 @@
 			newSecret = '';
 			rotating = null;
 			return out.note ?? `${out.key.label} replaced.`;
-		});
+		}, key.kind === 'telegram');
 	}
 
 	function remove() {
@@ -152,6 +166,12 @@
 		{#if notice}
 			<Notice tone={notice.tone}>{notice.text}</Notice>
 		{/if}
+		{#if offerTgRestart}
+			<div class="flex flex-wrap items-center gap-3">
+				<p class="text-sm">Restart the Telegram bot to use the new token.</p>
+				<Button onclick={() => void control.ask('tg_restart')}>Restart Telegram bot</Button>
+			</div>
+		{/if}
 
 		<section class={section} aria-labelledby="add-title">
 			<h2 id="add-title" class="mb-3 font-semibold">Add a key</h2>
@@ -161,6 +181,7 @@
 					bind:value={label}
 					maxlength={64}
 					autocomplete="off"
+					disabled={kind === 'telegram'}
 					error={nameError}
 					hint={keyIdFor(label) ? `Saved as ${keyIdFor(label)}` : undefined}
 				/>
@@ -174,7 +195,7 @@
 				</label>
 				<div class="sm:col-span-2">
 					<Field
-						label={kind === 'proxy' ? 'Proxy URL' : 'Key'}
+						label={kind === 'proxy' ? 'Proxy URL' : kind === 'telegram' ? 'Bot token' : 'Key'}
 						type="password"
 						bind:value={secret}
 						autocomplete="off"
@@ -231,19 +252,21 @@
 									<td>{date(key.rotated_at)}</td>
 									<td class="py-2">
 										<div class="flex flex-wrap justify-end gap-2">
-											<Button
-												onclick={() => {
-													rotating = rotating === key.id ? null : key.id;
-													newSecret = '';
-												}}>Rotate</Button
-											>
-											<Button
-												variant="danger"
-												onclick={() => {
-													removing = key;
-													confirmOpen = true;
-												}}>Delete</Button
-											>
+											{#if key.id !== TG_KEY_ID || isOwner}
+												<Button
+													onclick={() => {
+														rotating = rotating === key.id ? null : key.id;
+														newSecret = '';
+													}}>Rotate</Button
+												>
+												<Button
+													variant="danger"
+													onclick={() => {
+														removing = key;
+														confirmOpen = true;
+													}}>Delete</Button
+												>
+											{/if}
 										</div>
 									</td>
 								</tr>
@@ -293,5 +316,5 @@
 		onconfirm={remove}
 		oncancel={() => (removing = null)}
 	/>
-	<StepUpPrompt bind:open={stepUpOpen} onverified={() => retry && perform(retry)} />
+	<StepUpPrompt bind:open={stepUpOpen} onverified={() => retry && perform(retry, retryTelegram)} />
 </Guard>

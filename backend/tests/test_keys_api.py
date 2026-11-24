@@ -229,3 +229,42 @@ def test_a_proxy_entry_is_sent_with_its_kind(signed_in_as: Any, fake_agent: Fake
     assert response.status_code == 201 and response.json()["key"]["kind"] == "proxy"
     assert fake_agent.calls[-1]["args"]["kind"] == "proxy"
     assert _add(client, {**body, "kind": "cookie"}).status_code == 422
+
+
+TG_TOKEN = "123456789:AAH-telegram-bot-token-x9Yz0123456789ab"  # noqa: S105  # a fake token
+
+
+def test_the_owner_stores_the_telegram_token_as_telegram(
+    signed_in_as: Any, fake_agent: FakeAgent
+) -> None:
+    client = signed_in_as(Role.OWNER)
+    note = "Restart the Telegram bot to use the new token."
+    fake_agent.reply = _bot({"v": 1, "key": _row("telegram", kind="telegram"), "note": note})
+    body = {"label": "Telegram bot", "secret": TG_TOKEN, "kind": "telegram"}
+    response = _add(client, body)
+    assert response.status_code == 201
+    assert (response.json()["key"]["kind"], response.json()["note"]) == ("telegram", note)
+    assert TG_TOKEN not in response.text
+    args = fake_agent.calls[-1]["args"]
+    assert (args["key_id"], args["kind"]) == ("telegram", "telegram")
+    bad = _add(client, {**body, "secret": "not-a-telegram-token"})
+    assert (bad.status_code, bad.json()["detail"]) == (
+        422,
+        "That doesn't look like a Telegram bot token.",
+    )
+
+
+def test_an_admin_cannot_touch_the_telegram_token(signed_in_as: Any, fake_agent: FakeAgent) -> None:
+    client = signed_in_as(Role.ADMIN)
+    refusal = (403, "Only the owner can change the Telegram bot token.")
+    added = _add(client, {"label": "Telegram bot", "secret": TG_TOKEN, "kind": "telegram"})
+    assert (added.status_code, added.json()["detail"]) == refusal
+    rotated = client.post(
+        "/wolfbet/keys/telegram/rotate", json={"secret": TG_TOKEN}, headers=_csrf(client)
+    )
+    assert (rotated.status_code, rotated.json()["detail"]) == refusal
+    deleted = client.delete("/wolfbet/keys/telegram", headers=_csrf(client))
+    assert (deleted.status_code, deleted.json()["detail"]) == refusal
+    assert fake_agent.calls == []
+    fake_agent.reply = _bot({"v": 1, "key": _row(), "note": None})
+    assert _add(client).status_code == 201

@@ -1693,7 +1693,8 @@ export interface paths {
 		put?: never;
 		/**
 		 * Add Key
-		 * @description Store a new key under its label's slug, owned by the caller.
+		 * @description Store a new key under its label's slug, owned by the caller; the Telegram bot token
+		 *     always goes under `telegram`.
 		 */
 		post: operations['add_key__service__keys_post'];
 		delete?: never;
@@ -2417,7 +2418,8 @@ export interface components {
 		JsonValue: unknown;
 		/**
 		 * KeyIn
-		 * @description A new vault entry: a casino `key`, or a `proxy` URL that carries a password.
+		 * @description A new vault entry: a casino `key`, a `proxy` URL that carries a password, or the
+		 *     Telegram bot token.
 		 */
 		KeyIn: {
 			/**
@@ -2425,7 +2427,7 @@ export interface components {
 			 * @default key
 			 * @enum {string}
 			 */
-			kind: 'key' | 'proxy';
+			kind: 'key' | 'proxy' | 'telegram';
 			/** Label */
 			label: string;
 			/** Secret */
@@ -2441,7 +2443,7 @@ export interface components {
 			 * Kind
 			 * @enum {string}
 			 */
-			kind: 'key' | 'proxy';
+			kind: 'key' | 'proxy' | 'telegram';
 			/** Label */
 			label: string;
 			/** Last4 */

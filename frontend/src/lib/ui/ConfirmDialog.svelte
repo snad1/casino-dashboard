@@ -26,6 +26,7 @@
 		onconfirm,
 		oncancel
 	}: Props = $props();
+	const titleId = $props.id();
 
 	let dialog: HTMLDialogElement | undefined = $state();
 	let entered = $state('');
@@ -51,10 +52,10 @@
 		if (!dialog?.open) open = false;
 	}}
 	oncancel={() => oncancel?.()}
-	aria-labelledby="confirm-title"
+	aria-labelledby={titleId}
 	class="m-auto w-full max-w-md rounded-lg border border-line bg-surface p-6 text-ink backdrop:bg-canvas/80"
 >
-	<h2 id="confirm-title" class="text-lg font-semibold">{title}</h2>
+	<h2 id={titleId} class="text-lg font-semibold">{title}</h2>
 	<p class="mt-2 text-sm text-muted">{body}</p>
 	{#if typed}
 		<div class="mt-4">

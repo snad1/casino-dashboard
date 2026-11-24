@@ -116,7 +116,7 @@ class KeyPutArgs(Args):
     label: KeyLabel
     secret: KeySecret
     owner_user_id: int | None = Field(default=None, ge=1)
-    kind: Literal["key", "proxy"] = "key"
+    kind: Literal["key", "proxy", "telegram"] = "key"
 
 
 class KeyRotateArgs(Args):
