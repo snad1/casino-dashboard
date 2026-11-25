@@ -87,6 +87,7 @@
 	let shownSessions: Session[] = [];
 	let step = 1;
 
+	const SESSION_MARKS_MAX = 20;
 	const nowSeconds = () => Math.floor(Date.now() / 1000);
 	const iso = (seconds: number) => new Date(seconds * 1000).toISOString();
 	const token = (name: string) =>
@@ -135,7 +136,11 @@
 					text: 'Note'
 				});
 		}
-		for (const s of shownSessions) {
+		// Sessions last seconds, so over all lanes their marks bury the line: show them for one
+		// lane, and only while few enough to read.
+		const sessionMarks =
+			lane !== 'all' && shownSessions.length <= SESSION_MARKS_MAX ? shownSessions : [];
+		for (const s of sessionMarks) {
 			if (s.started_at)
 				list.push({
 					time: snap(s.started_at),

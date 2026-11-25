@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
 	exportUrl,
 	filterQuery,
+	inputValue,
+	presetRange,
 	formatCount,
 	formatDuration,
 	formatTime,
@@ -22,7 +24,9 @@ describe('filter', () => {
 	});
 
 	it('drops values the form could not send', () => {
-		const params = new URLSearchParams('since=yesterday&until=2026-11-01T10:00&lane=100&epoch=0');
+		const params = new URLSearchParams(
+			'since=yesterday&until=2026-11-01 10:00 PM&lane=100&epoch=0'
+		);
 		const none = { since: null, until: null, lane: null, epoch: null };
 		expect(parseFilter(params)).toEqual(none);
 		expect(filterQuery(none)).toEqual({});
@@ -99,5 +103,46 @@ describe('session stats', () => {
 			peak_bpm: 0
 		});
 		expect(Object.fromEntries(rows)['Peak balance']).toBe('n/a');
+	});
+});
+
+describe('time windows', () => {
+	const now = new Date('2026-11-25T15:54:00Z');
+
+	it('reads dates and times from the address', () => {
+		const params = new URLSearchParams('since=2026-11-25T13:00&until=2026-11-25T16:00:30');
+		expect(parseFilter(params)).toMatchObject({
+			since: '2026-11-25T13:00',
+			until: '2026-11-25T16:00:30'
+		});
+		expect(parseFilter(new URLSearchParams('since=2026-11-25T1')).since).toBeNull();
+	});
+
+	it('builds the quick windows on the bot clock', () => {
+		expect(presetRange('today', 'Europe/Berlin', now)).toEqual({
+			since: '2026-11-25T00:00',
+			until: null
+		});
+		expect(presetRange('yesterday', 'Europe/Berlin', now)).toEqual({
+			since: '2026-11-24T00:00',
+			until: '2026-11-24'
+		});
+		expect(presetRange('week', 'Europe/Berlin', now)).toEqual({
+			since: '2026-11-18T16:54',
+			until: null
+		});
+		expect(presetRange('month', 'UTC', now).since).toBe('2026-10-26T15:54');
+		const lateUtc = new Date('2026-11-25T23:30:00Z');
+		expect(presetRange('today', 'Europe/Berlin', lateUtc).since).toBe('2026-11-26T00:00');
+		expect(presetRange('yesterday', 'UTC', new Date('2026-03-01T08:00:00Z')).until).toBe(
+			'2026-02-28'
+		);
+	});
+
+	it('shows a bare date in the picker as the whole day', () => {
+		expect(inputValue(null, false)).toBe('');
+		expect(inputValue('2026-11-24', false)).toBe('2026-11-24T00:00');
+		expect(inputValue('2026-11-24', true)).toBe('2026-11-24T23:59:59');
+		expect(inputValue('2026-11-24T13:00', true)).toBe('2026-11-24T13:00');
 	});
 });

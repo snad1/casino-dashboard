@@ -97,6 +97,8 @@ class AnalyticsOut(BaseModel):
     report: AnalyticsReport
     charts: Charts
     sessions: SessionStats
+    # The bot's clock, which `since` and `until` are read in.
+    zone: str
 
 
 def _bound(value: str | None) -> str | None:
@@ -310,6 +312,7 @@ async def get_analytics(
         report=report,
         charts=await chart_data(db, window, view),
         sessions=await session_stats(db, window),
+        zone=zone.key,
     )
     cache.put(cache_key, out, None if source == "bot" else HISTORY_SECONDS)
     return out

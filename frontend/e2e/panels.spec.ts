@@ -132,3 +132,61 @@ test('the system panel shows host, units, drops and history lag', async ({ page 
 	await expect(host).toContainText('Host metrics unavailable');
 	await expect(page.getByRole('region', { name: 'Events and history' })).toContainText('Connected');
 });
+
+test('on a laptop the chart leads and session rows never run into each other', async ({ page }) => {
+	await page.setViewportSize({ width: 1200, height: 800 });
+	await rig(page);
+	const long = (id: number) => ({
+		epoch_id: 1,
+		id,
+		lane: 14,
+		started_at: '2026-01-05T09:00:00Z',
+		ended_at: '2026-01-05T09:00:30Z',
+		currency: 'usdt',
+		game: 'limbo-auto-with-a-very-long-game-name',
+		strategy: 'Martingale with a long strategy name too',
+		total_bets: 4,
+		wins: 2,
+		losses: 2,
+		profit: 0.00000933,
+		wagered: 0.0001,
+		start_balance: 10,
+		end_balance: 10.00000933
+	});
+	await page.route('**/api/wolfbet/sessions?**', (route) =>
+		route.fulfill({
+			status: 200,
+			json: { items: [long(30), long(29), long(28)], next_cursor: null }
+		})
+	);
+	await page.goto('/wolfbet');
+	const sessions = page.getByRole('region', { name: 'Sessions' });
+	const rows = sessions.getByRole('row');
+	await expect(rows).toHaveCount(5);
+
+	const boxes = await rows.evaluateAll((els) =>
+		els.map((row) => {
+			const own = row.getBoundingClientRect();
+			const inner = [...row.querySelectorAll('a, span')].map((el) => el.getBoundingClientRect());
+			return {
+				top: own.top,
+				bottom: own.bottom,
+				inside: inner.every((b) => b.top >= own.top - 1 && b.bottom <= own.bottom + 1)
+			};
+		})
+	);
+	expect(boxes.every((b) => b.inside)).toBe(true);
+	boxes.slice(1).forEach((box, i) => {
+		expect(box.top).toBeGreaterThanOrEqual((boxes[i]?.bottom ?? 0) - 1);
+	});
+
+	const box = async (id: string) => {
+		const found = await page.locator(`section#${id}`).boundingBox();
+		if (!found) throw new Error(`${id} is not on the page`);
+		return found;
+	};
+	const [chart, list, tape] = [await box('chart'), await box('sessions'), await box('tape')];
+	expect(chart.y + chart.height).toBeLessThanOrEqual(list.y);
+	expect(Math.abs(list.y - tape.y)).toBeLessThan(2);
+	expect(tape.x + tape.width).toBeLessThanOrEqual(1200);
+});

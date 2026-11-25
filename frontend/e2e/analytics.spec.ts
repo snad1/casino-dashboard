@@ -71,7 +71,7 @@ const SESSIONS = {
 };
 const answer = (source = 'bot') => ({
 	status: 200,
-	json: { source, report: REPORT, charts: CHARTS, sessions: SESSIONS }
+	json: { source, report: REPORT, charts: CHARTS, sessions: SESSIONS, zone: 'Europe/Berlin' }
 });
 
 async function rig(page: Page, me: object, analytics: Handler = () => answer()) {
@@ -109,12 +109,13 @@ test('the report shows formatted like the bot and Apply filters by URL', async (
 	await expect(page.getByRole('table', { name: 'Top 5 worst sessions' })).toContainText('9');
 	await expect(page.getByRole('img', { name: /Profit by hour of day: 2 bars/ })).toBeVisible();
 
-	await page.getByLabel('From', { exact: true }).fill('2026-11-01');
-	await page.getByLabel('To', { exact: true }).fill('2026-11-15');
+	await page.getByLabel('From', { exact: true }).fill('2026-11-01T00:00');
+	await page.getByLabel('To', { exact: true }).fill('2026-11-15T18:30');
 	await page.getByRole('combobox', { name: 'Lane' }).selectOption('2');
 	await page.getByRole('button', { name: 'Apply' }).click();
-	await expect(page).toHaveURL(/\/wolfbet\/analytics\?since=2026-11-01&until=2026-11-15&lane=2$/);
-	await expect.poll(() => urls.at(-1)?.search).toBe('?since=2026-11-01&until=2026-11-15&lane=2');
+	const query = 'since=2026-11-01T00%3A00&until=2026-11-15T18%3A30&lane=2';
+	await expect(page).toHaveURL(new RegExp(`/wolfbet/analytics\\?${query}$`));
+	await expect.poll(() => urls.at(-1)?.search).toBe(`?${query}`);
 });
 
 test('a history answer says the bot was unreachable', async ({ page }) => {
@@ -122,6 +123,27 @@ test('a history answer says the bot was unreachable', async ({ page }) => {
 	await page.goto('/wolfbet/analytics');
 	await expect(page.getByText('Bot unreachable: numbers rebuilt from history.')).toBeVisible();
 	await expect(page.getByRole('region', { name: 'Overall' })).toContainText('49.0%');
+});
+
+test('quick ranges fill the window on the bot clock', async ({ page }) => {
+	await page.clock.setFixedTime(new Date('2026-11-25T23:30:00Z'));
+	const urls = await rig(page, viewerMe);
+	await page.goto('/wolfbet/analytics');
+	await expect(page.getByText('Times in Europe/Berlin (bot time)')).toBeVisible();
+	await page.getByRole('button', { name: 'Yesterday' }).click();
+	await expect.poll(() => urls.at(-1)?.search).toBe('?since=2026-11-25T00%3A00&until=2026-11-25');
+	await expect(page.getByLabel('From', { exact: true })).toHaveValue('2026-11-25T00:00');
+	await expect(page.getByLabel('To', { exact: true })).toHaveValue('2026-11-25T23:59:59');
+	await page.getByRole('button', { name: 'Today' }).click();
+	await expect.poll(() => urls.at(-1)?.search).toBe('?since=2026-11-26T00%3A00');
+});
+
+test('a key read from history is not called unreachable', async ({ page }) => {
+	await page.addInitScript(() => localStorage.setItem('casino.key.wolfbet', 'lakai'));
+	await rig(page, viewerMe, () => answer('history'));
+	await page.goto('/wolfbet/analytics');
+	await expect(page.getByText('Numbers for this key, from history.')).toBeVisible();
+	await expect(page.getByText('Bot unreachable')).toHaveCount(0);
 });
 
 test('a refused range shows the api message', async ({ page }) => {

@@ -107,13 +107,18 @@
             ],
             "title": "Source",
             "type": "string"
+          },
+          "zone": {
+            "title": "Zone",
+            "type": "string"
           }
         },
         "required": [
           "source",
           "report",
           "charts",
-          "sessions"
+          "sessions",
+          "zone"
         ],
         "title": "AnalyticsOut",
         "type": "object"

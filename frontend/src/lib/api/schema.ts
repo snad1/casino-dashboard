@@ -1906,6 +1906,8 @@ export interface components {
 			 * @enum {string}
 			 */
 			source: 'bot' | 'history';
+			/** Zone */
+			zone: string;
 		};
 		/** AnalyticsReport */
 		AnalyticsReport: {

@@ -5,6 +5,10 @@
 	import BarChart from '#components/BarChart';
 	import EpochPicker from '#components/EpochPicker';
 	import {
+		inputValue,
+		PRESETS,
+		presetRange,
+		type Preset,
 		exportUrl,
 		filterQuery,
 		formatCount,
@@ -72,8 +76,8 @@
 	let request = 0;
 
 	$effect(() => {
-		since = filter.since ?? '';
-		until = filter.until ?? '';
+		since = inputValue(filter.since, false);
+		until = inputValue(filter.until, true);
 		lane = filter.lane === null ? 'all' : String(filter.lane);
 		epoch = filter.epoch;
 		if (service) void load(service, filter, key);
@@ -103,12 +107,24 @@
 		}
 	}
 
+	/** The bot's clock: the window is read in it, whatever this browser's zone is. */
+	const zone = $derived(data?.zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
+
 	function apply(event: SubmitEvent) {
 		event.preventDefault();
+		show(since || null, until || null);
+	}
+
+	function quick(preset: Preset) {
+		const range = presetRange(preset, zone);
+		show(range.since, range.until);
+	}
+
+	function show(from: string | null, to: string | null) {
 		const query = new URLSearchParams(
 			filterQuery({
-				since: since || null,
-				until: until || null,
+				since: from,
+				until: to,
 				lane: lane === 'all' ? null : Number(lane),
 				epoch
 			})
@@ -189,11 +205,25 @@
 	>
 		<label class="flex flex-col gap-1 text-sm font-medium">
 			From
-			<input type="date" class={input} bind:value={since} max={until || undefined} />
+			<input
+				type="datetime-local"
+				step="1"
+				class={input}
+				aria-describedby="analytics-zone"
+				bind:value={since}
+				max={until || undefined}
+			/>
 		</label>
 		<label class="flex flex-col gap-1 text-sm font-medium">
 			To
-			<input type="date" class={input} bind:value={until} min={since || undefined} />
+			<input
+				type="datetime-local"
+				step="1"
+				class={input}
+				aria-describedby="analytics-zone"
+				bind:value={until}
+				min={since || undefined}
+			/>
 		</label>
 		<label class="flex flex-col gap-1 text-sm font-medium">
 			Lane
@@ -209,6 +239,16 @@
 			type="submit"
 			class="min-h-11 rounded-md bg-accent px-4 text-sm font-medium text-on-accent">Apply</button
 		>
+		<div class="flex w-full flex-wrap items-center gap-2" role="group" aria-label="Quick ranges">
+			{#each PRESETS as preset (preset.id)}
+				<button
+					type="button"
+					class="min-h-9 rounded-md border border-line-strong px-3 text-sm"
+					onclick={() => quick(preset.id)}>{preset.label}</button
+				>
+			{/each}
+			<span id="analytics-zone" class="text-xs text-muted">Times in {zone} (bot time)</span>
+		</div>
 	</form>
 
 	{#if error}
@@ -218,7 +258,13 @@
 	{/if}
 
 	{#if data?.source === 'history'}
-		<Notice>Bot unreachable: numbers rebuilt from history.</Notice>
+		<Notice
+			>{key
+				? 'Numbers for this key, from history.'
+				: filter.epoch !== null
+					? 'Numbers from a previous reset, from history.'
+					: 'Bot unreachable: numbers rebuilt from history.'}</Notice
+		>
 	{/if}
 
 	{#if report && life}

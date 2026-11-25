@@ -158,29 +158,32 @@
 		<VirtualList items={rows} key={(r) => r.key} rowHeight={ROW} label="Sessions" onend={more}>
 			{#snippet row(s: Row)}
 				{@const href = s.epoch === null ? null : source.sessionHref(s.epoch, s.id)}
+				{@const title = `#${s.id} · ${laneLabel(s.lane, live.lanes)}`}
+				{@const detail = [s.live ? 'Live' : when(s.started), `${s.bets} bets`, s.game, s.strategy]
+					.filter(Boolean)
+					.join(' · ')}
+				<!-- Each line is cut to one row: the list scrolls by a fixed row height, so a wrapped
+				     line would spill over the next row. The full text stays in the tooltip. -->
 				<div
 					role="row"
 					class="flex h-full items-center justify-between gap-2 border-b border-line text-sm"
 				>
-					<span role="cell" class="flex flex-col">
+					<span role="cell" class="flex min-w-0 flex-1 flex-col">
 						{#if href}
 							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the source builds it with resolve() -->
-							<a {href} class="text-ink underline-offset-2 hover:underline"
-								>#{s.id} · {laneLabel(s.lane, live.lanes)}</a
+							<a {href} {title} class="truncate text-ink underline-offset-2 hover:underline"
+								>{title}</a
 							>
 						{:else}
-							<span>#{s.id} · {laneLabel(s.lane, live.lanes)}</span>
+							<span class="truncate" {title}>{title}</span>
 						{/if}
-						<span class="text-xs text-muted"
-							>{[s.live ? 'Live' : when(s.started), `${s.bets} bets`, s.game, s.strategy]
-								.filter(Boolean)
-								.join(' · ')}</span
-						>
+						<span class="truncate text-xs text-muted" title={detail}>{detail}</span>
 					</span>
 					<span
 						role="cell"
-						class="font-mono text-xs tabular-nums {s.profit < 0 ? 'text-loss' : 'text-profit'}"
-						>{formatProfit(s.profit)}</span
+						class="shrink-0 font-mono text-xs tabular-nums {s.profit < 0
+							? 'text-loss'
+							: 'text-profit'}">{formatProfit(s.profit)}</span
 					>
 				</div>
 			{/snippet}

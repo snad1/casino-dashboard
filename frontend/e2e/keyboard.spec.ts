@@ -49,7 +49,7 @@ async function focused(page: Page): Promise<{ label: string; visible: boolean }>
 test.describe('keyboard', () => {
 	test.skip(({ isMobile }) => isMobile, 'keyboard order is checked at desktop width');
 
-	test('Tab reaches skip link, nav, chart and tape controls in order, always visibly', async ({
+	test('Tab reaches skip link, nav, chart, tape and lane controls in order, always visibly', async ({
 		page
 	}) => {
 		await rig(page);
@@ -63,10 +63,16 @@ test.describe('keyboard', () => {
 			expect(visible, `focus on "${label}" is not visible`).toBe(true);
 			seen.push(label);
 		}
-		const wanted = ['Skip to content', 'Live totals', 'Sign out', 'Live', 'profit', 'Time Lane'];
-		const order = wanted.map((want) =>
-			seen.findIndex((label) => label === want || (want === 'Time Lane' && label.startsWith(want)))
-		);
+		const wanted = [
+			'Skip to content',
+			'Live totals',
+			'Sign out',
+			'Live',
+			'profit',
+			'0 new',
+			'Configure lane 1'
+		];
+		const order = wanted.map((want) => seen.findIndex((label) => label === want));
 		expect(
 			order.every((index) => index >= 0),
 			`focus order was: ${seen.join(' | ')}`

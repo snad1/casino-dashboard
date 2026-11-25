@@ -20,13 +20,16 @@
 	import { laneScope } from '#lib/permissions';
 	import { session } from '#lib/session.svelte';
 
+	// The chart leads on every width; on narrower screens Sessions and the tape share the row
+	// under it, as three side-by-side columns were too narrow to read. Page order is screen
+	// order, so the keyboard follows what is seen.
 	const allPanels = [
-		{ id: 'sessions', title: 'Sessions', area: 'lg:col-span-3 lg:row-span-3' },
-		{ id: 'chart', title: 'Chart', area: 'lg:col-span-6' },
-		{ id: 'tape', title: 'Bet tape', area: 'lg:col-span-3 lg:row-span-3' },
-		{ id: 'lanes', title: 'Lanes', area: 'lg:col-span-6' },
-		{ id: 'streaks', title: 'Streaks', area: 'lg:col-span-6' },
-		{ id: 'system', title: 'System', area: 'lg:col-span-12' }
+		{ id: 'chart', title: 'Chart', area: 'md:col-span-2 2xl:col-span-6' },
+		{ id: 'sessions', title: 'Sessions', area: '2xl:col-span-3 2xl:row-span-3' },
+		{ id: 'tape', title: 'Bet tape', area: '2xl:col-span-3 2xl:row-span-3' },
+		{ id: 'lanes', title: 'Lanes', area: 'md:col-span-2 2xl:col-span-6' },
+		{ id: 'streaks', title: 'Streaks', area: 'md:col-span-2 2xl:col-span-6' },
+		{ id: 'system', title: 'System', area: 'md:col-span-2 2xl:col-span-12' }
 	];
 
 	const laneOnly = $derived(laneScope(session.me, 'view', page.params.service ?? '') !== null);
@@ -60,12 +63,12 @@
 		{/if}
 	</div>
 {/if}
-<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-12">
+<div class="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-12">
 	{#each panels as panel (panel.id)}
 		<section
 			id={panel.id}
 			aria-labelledby="{panel.id}-title"
-			class="min-h-40 rounded-lg border border-line bg-surface p-4 {panel.area}"
+			class="min-h-40 min-w-0 rounded-lg border border-line bg-surface p-4 {panel.area}"
 		>
 			<h2 id="{panel.id}-title" class="text-sm font-semibold text-muted">{panel.title}</h2>
 			{#if panel.id === 'chart' && page.params.service}

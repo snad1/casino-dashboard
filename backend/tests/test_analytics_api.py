@@ -71,6 +71,7 @@ def test_viewers_get_the_bots_report_once_a_minute(
     assert first.status_code == 200
     body = first.json()
     assert body["source"] == "bot"
+    assert body["zone"] == "UTC"
     assert body["report"] == REPORT
     assert set(body["charts"]) == {"by_hour", "by_day", "profit_bins", "duration_bins"}
     assert viewer.get(URL).json() == body
