@@ -347,7 +347,9 @@ class Tailer:
             if rows:
                 await self._upsert_sessions(source, rows)
                 source.max_session_id = max(source.max_session_id, max(r["id"] for r in rows))
-                source.open_sessions = {r["id"] for r in rows if r["ended_at"] is None}
+                source.open_sessions = {
+                    r["id"] for r in rows if r["ended_at"] is None or r["lane_newest"]
+                }
             if len(rows) < BATCH_SIZE:
                 break
         source.last_session_sync = time.monotonic()
@@ -571,6 +573,10 @@ def _read_bets(
     return rows, newest_id, newest_ts
 
 
+NEWEST_PER_LANE = "SELECT max(id) FROM sessions GROUP BY lane"
+NEWEST = "SELECT max(id) FROM sessions"
+
+
 def _read_sessions(
     connection: sqlite3.Connection, after_id: int, still_open: set[int]
 ) -> list[dict[str, Any]]:
@@ -581,9 +587,13 @@ def _read_sessions(
         selected = selected.replace("NULL AS lane", "1 AS lane")
     marks = ", ".join("?" * len(still_open))
     reopen = f" OR id IN ({marks})" if still_open else ""
+    # The bot stamps ended_at on every save while a session runs, so a set ended_at does not
+    # mean final. A lane's session is final once a newer one starts on that lane, which the
+    # bot does only after its last save; until then it is re-read on every sync.
+    newest = NEWEST_PER_LANE if "lane" in present else NEWEST
     cursor = connection.execute(
-        f"SELECT id, {selected} FROM sessions"  # noqa: S608  # nosec B608: fixed column names
-        f" WHERE id > ? OR ended_at IS NULL{reopen} ORDER BY id LIMIT ?",
+        f"SELECT id, {selected}, id IN ({newest}) AS lane_newest FROM sessions"  # noqa: S608  # nosec B608: fixed column names
+        f" WHERE id > ? OR ended_at IS NULL OR id IN ({newest}){reopen} ORDER BY id LIMIT ?",
         (after_id, *sorted(still_open), BATCH_SIZE),
     )
     names = [d[0] for d in cursor.description]

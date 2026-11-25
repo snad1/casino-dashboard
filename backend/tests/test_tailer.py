@@ -222,6 +222,69 @@ async def test_changed_session_totals_are_synced(
     bot.close()
 
 
+def _save(bot: BotDb, session: int, total_bets: int, profit: float, ended: str) -> None:
+    """The bot's periodic save: it always stamps ended_at, even while the session runs."""
+    bot.conn.execute(
+        "UPDATE sessions SET total_bets = ?, profit = ?, ended_at = ? WHERE id = ?",
+        (total_bets, profit, ended, session),
+    )
+    bot.conn.commit()
+
+
+async def _totals(pg: asyncpg.Connection, service: str, session: int) -> tuple[int, float]:
+    row = await pg.fetchrow(
+        "SELECT total_bets, profit FROM sessions WHERE service = $1 AND src_id = $2",
+        service,
+        session,
+    )
+    return row["total_bets"], row["profit"]
+
+
+async def test_a_session_copied_mid_run_gets_its_final_totals(
+    wolfbet: ModuleType,
+    tmp_path: Path,
+    pg: asyncpg.Connection,
+    service: str,
+    make_tailer: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(tailer_module, "SESSION_SYNC_SECONDS", 0.0)
+    bot = BotDb(wolfbet, tmp_path / LIVE_DB)
+    session = bot.session(lane=12)
+    _save(bot, session, 3, -1.901e-05, "2026-01-05T10:00:02.813")
+    tailer = await make_tailer()
+    await drain(tailer)
+    assert await _totals(pg, service, session) == (3, -1.901e-05)
+    _save(bot, session, 6, 2.035e-05, "2026-01-05T10:00:02.943")
+    await drain(tailer)
+    assert await _totals(pg, service, session) == (6, 2.035e-05)
+    bot.close()
+
+
+async def test_an_older_session_is_read_once_more_then_left_alone(
+    wolfbet: ModuleType,
+    tmp_path: Path,
+    pg: asyncpg.Connection,
+    service: str,
+    make_tailer: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(tailer_module, "SESSION_SYNC_SECONDS", 0.0)
+    bot = BotDb(wolfbet, tmp_path / LIVE_DB)
+    first = bot.session(lane=3)
+    _save(bot, first, 2, 0.1, "2026-01-05T10:00:01")
+    tailer = await make_tailer()
+    await drain(tailer)
+    _save(bot, first, 5, 0.4, "2026-01-05T10:00:03")
+    second = bot.session(lane=3, started="2026-01-05T10:00:04")
+    await drain(tailer)
+    assert await _totals(pg, service, first) == (5, 0.4)
+    source = await tailer._live_source()
+    assert source is not None
+    assert source.open_sessions == {second}
+    bot.close()
+
+
 def _fingerprint(path: Path) -> tuple[str, int]:
     return hashlib.sha256(path.read_bytes()).hexdigest(), path.stat().st_mtime_ns
 
