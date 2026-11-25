@@ -460,3 +460,15 @@ async def test_ticker_refuses_rates_outside_4_to_10_hz() -> None:
 
     with pytest.raises(ValueError, match="between 4 and 10"):
         await run_ticker(Aggregator("wolfbet"), emit, asyncio.Event(), hz=20)
+
+
+def test_forgetting_a_lane_drops_it_once_and_never_announces_an_unknown_one() -> None:
+    aggregator = Aggregator("wolfbet")
+    aggregator.apply(bet(lane=1, session_id=1))
+    aggregator.apply(bet(lane=3, session_id=1))
+    aggregator.tick()
+    aggregator.forget({3, 9})
+    tick = aggregator.tick()
+    assert tick.gone == [3] and not tick.empty
+    assert set(aggregator.snapshot()[0]) == {1}
+    assert aggregator.tick().gone == []

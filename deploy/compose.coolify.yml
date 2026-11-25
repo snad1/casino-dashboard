@@ -148,6 +148,9 @@ services:
       POSTGRES_USER: dashboard_app
       HOST_TZ: ${HOST_TZ:?set HOST_TZ in deploy/.env}
       INGEST_TG_DATA_DIR: ${INGEST_TG_DATA_DIR:-}
+      # The container path the volume below mounts; a deploy-wide BOT_DATA_DIR names the host
+      # side and must never reach the app, or ingest reads an empty folder.
+      BOT_DATA_DIR: /botdata
     secrets:
       - source: postgres_app_password
         target: postgres_password

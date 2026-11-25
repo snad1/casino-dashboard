@@ -72,3 +72,8 @@ export function tgSource(uid: number): HistorySource {
 			})
 	};
 }
+
+/** Whether a live lane still holds an open session: a stopped or down lane's id is history. */
+export function hasLiveSession(lane: { session_id?: unknown; status?: unknown }): boolean {
+	return typeof lane.session_id === 'number' && lane.status !== 'stopped' && lane.status !== 'down';
+}

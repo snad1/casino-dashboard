@@ -53,6 +53,8 @@ class Resync:
         self._gaps_seen: dict[int, int] = {}
         self._last: dict[int, float] = {}
         self._config_at: float | None = None
+        self._registry_at: float | None = None
+        self._lanes: set[int] | None = None
         self._agent_failing = False
 
     def _wanted(self, now: float) -> set[int]:
@@ -75,6 +77,11 @@ class Resync:
         async with self.sessionmaker() as db:
             rows = await current_sessions(db, self.aggregator.svc)
         stored = {row.lane: _session(row) for row in rows}
+        registry = await self._registry(now)
+        if registry is not None:
+            self.aggregator.forget(set(self.aggregator.lanes) - registry)
+            stored = {n: s for n, s in stored.items() if n in registry}
+            wanted &= registry
         if self._everything:
             wanted |= stored.keys() | self.aggregator.lanes.keys()
             self._everything = False
@@ -85,6 +92,30 @@ class Resync:
         for number in sorted(due):
             self._last[number] = now
             await self._resync_lane(number, stored.get(number))
+
+    async def _registry(self, now: float) -> set[int] | None:
+        """The bot's registered lanes, read at the config cadence; None when the agent can't
+        say, so no lane is ever dropped on a failed read."""
+        if self.agent is None:
+            return None
+        fresh = self._registry_at is not None and now - self._registry_at < CONFIG_EVERY_S
+        if fresh and self._lanes is not None and set(self.aggregator.lanes) <= self._lanes:
+            return self._lanes
+        if fresh and self._lanes is None:
+            return None
+        self._registry_at = now
+        data = await self._ask(self.agent, f"{self.aggregator.svc}.lane_ids", {})
+        words = str((data or {}).get("stdout") or "").split()
+        if (
+            data is None
+            or data.get("exit_code") != 0
+            or not words
+            or not all(w.isdigit() for w in words)
+        ):
+            self._lanes = None
+            return None
+        self._lanes = {int(w) for w in words}
+        return self._lanes
 
     async def _read_config(self, now: float) -> None:
         if self.agent is None:

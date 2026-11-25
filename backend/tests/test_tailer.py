@@ -283,3 +283,66 @@ async def test_old_backfill_reaches_the_minute_rollup(
         await owner.close()
     assert refreshed == 3
     bot.close()
+
+
+async def test_an_archive_made_while_the_live_file_was_missing_is_found(
+    wolfbet: ModuleType,
+    tmp_path: Path,
+    pg: asyncpg.Connection,
+    service: str,
+    make_tailer: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(tailer_module, "RESCAN_SECONDS", 0.0)
+    tailer = await make_tailer()
+    await drain(tailer)
+    archive = tmp_path / ARCHIVE_GLOB.replace("*", "20260105-120000")
+    bot = BotDb(wolfbet, archive)
+    bot.bets(bot.session(started="2026-01-04T09:00:00"), 9, T0)
+    bot.close()
+    await drain(tailer)
+    paths = await pg.fetch("SELECT source_path FROM db_epochs WHERE service = $1", service)
+    assert [r["source_path"] for r in paths] == [str(archive)]
+    assert await count(pg, service) == 9
+
+
+async def test_a_stopped_bots_closed_live_database_is_copied(
+    wolfbet: ModuleType, tmp_path: Path, pg: asyncpg.Connection, service: str
+) -> None:
+    data = tmp_path / "botdata"
+    data.mkdir()
+    live = data / LIVE_DB
+    bot = BotDb(wolfbet, live)
+    bot.bets(bot.session(), 5, T0)
+    bot.close()
+    before = _fingerprint(live)
+    data.chmod(0o555)
+    try:
+        tailer = Tailer(pg, service, data, "UTC", closed_ok=True)
+        await tailer.prepare()
+        await drain(tailer)
+    finally:
+        data.chmod(0o755)
+    assert await count(pg, service) == 5
+    assert _fingerprint(live) == before
+    paths = await pg.fetch("SELECT source_path FROM db_epochs WHERE service = $1", service)
+    assert [r["source_path"] for r in paths] == [str(live)]
+
+
+async def test_a_folder_without_a_bot_database_is_reported_again_and_again(
+    tmp_path: Path,
+    make_tailer: Any,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    empty = tmp_path / "home"
+    empty.mkdir()
+    tailer = await make_tailer(directory=empty)
+    caplog.set_level("ERROR", logger=tailer_module.logger.name)
+    await tailer.step()
+    await tailer.step()
+    missing = [r for r in caplog.records if "no bot database in" in r.getMessage()]
+    assert len(missing) == 1 and missing[0].levelname == "ERROR"
+    monkeypatch.setattr(tailer_module, "MISSING_LOG_SECONDS", 0.0)
+    await tailer.step()
+    assert len([r for r in caplog.records if "no bot database in" in r.getMessage()]) == 2

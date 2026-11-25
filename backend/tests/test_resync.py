@@ -25,6 +25,7 @@ class FakeAgent:
         self.running: dict[int, bool] = {}
         self.state: dict[int, dict[str, Any]] = {}
         self.events_enabled = True
+        self.registry: str | None = None
         self.failing = False
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
@@ -34,6 +35,10 @@ class FakeAgent:
             raise AgentError("unreachable")
         if cmd == "wolfbet.config_show":
             return {"json": {"v": 1, "config": {"events_enabled": self.events_enabled}}}
+        if cmd.endswith(".lane_ids"):
+            if self.registry is None:
+                return {"exit_code": 1, "stdout": "", "stderr": "boom"}
+            return {"exit_code": 0, "stdout": self.registry + "\n", "stderr": ""}
         lane = (args or {})["lane"]
         return {
             "json": {
@@ -159,3 +164,60 @@ def test_a_reconnect_resyncs_every_lane(rig: Rig, seed: Seed) -> None:
     rig.reconnects += 1
     rig.sync()
     assert rig.agent.status_calls() == 4
+
+
+def test_lanes_the_bot_no_longer_has_leave_the_live_view(rig: Rig, seed: Seed) -> None:
+    epoch = seed.epoch()
+    seed.session(epoch, 7, lane=2, ended=False)
+    for lane in (1, 2, 4):
+        rig.aggregator.apply(bet(lane=lane, session_id=lane))
+    rig.aggregator.tick()
+    rig.agent.registry = "1"
+    rig.clock.now += STALE_AFTER_S + 1
+    rig.sync()
+    assert set(rig.aggregator.lanes) == {1}
+    tick = rig.aggregator.tick()
+    assert tick.gone == [2, 4]
+    assert set(rig.aggregator.snapshot()[0]) == {1}
+    assert all(args.get("lane") in (None, 1) for _, args in rig.agent.calls)
+
+
+@pytest.mark.parametrize("trouble", ["failing", "exit", "garbage"])
+def test_no_lane_is_dropped_when_the_registry_cannot_be_read(
+    rig: Rig, seed: Seed, trouble: str
+) -> None:
+    for lane in (1, 2):
+        rig.aggregator.apply(bet(lane=lane, session_id=lane))
+    if trouble == "failing":
+        rig.agent.failing = True
+    elif trouble == "garbage":
+        rig.agent.registry = "lanes: 1"
+    rig.clock.now += STALE_AFTER_S + 1
+    rig.sync()
+    assert set(rig.aggregator.lanes) == {1, 2}
+    assert rig.aggregator.tick().gone == []
+
+
+def test_a_lane_added_after_the_last_registry_read_is_kept(rig: Rig, seed: Seed) -> None:
+    rig.agent.registry = "1"
+    rig.aggregator.apply(bet(lane=1, session_id=1))
+    rig.clock.now += STALE_AFTER_S + 1
+    rig.sync()
+    rig.agent.registry = "1 5"
+    rig.aggregator.apply(bet(lane=5, session_id=1))
+    rig.clock.now += 1
+    rig.aggregator.apply(bet(lane=1, session_id=1))
+    rig.clock.now += STALE_AFTER_S + 1
+    rig.sync()
+    assert set(rig.aggregator.lanes) == {1, 5}
+
+
+def test_a_stopped_lane_without_a_current_session_forgets_its_old_session(
+    rig: Rig, seed: Seed
+) -> None:
+    rig.aggregator.apply(bet(lane=1, session_id=10553))
+    rig.agent.running[1] = False
+    rig.agent.state[1] = None  # type: ignore[assignment]  # the reset removed the state file
+    rig.clock.now += STALE_AFTER_S + 1
+    rig.sync()
+    assert rig.lane(1)["session_id"] is None

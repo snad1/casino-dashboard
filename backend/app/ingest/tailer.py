@@ -43,6 +43,8 @@ BUSY_TIMEOUT_MS = 2000
 USER_DB = "wolfbet.db"
 USER_DIR = re.compile(r"[1-9][0-9]{0,18}")
 DISCOVER_SECONDS = 60.0
+RESCAN_SECONDS = 30.0
+MISSING_LOG_SECONDS = 300.0
 
 BET_COLUMNS = (
     "service",
@@ -154,6 +156,9 @@ class Tailer:
         self.lag = Lag()
         self.max_read_seconds = 0.0
         self._unavailable_logged = False
+        self._rescanned_at: float | None = None
+        self._finished: set[Path] = set()
+        self._missing_logged_at: float | None = None
 
     async def prepare(self) -> None:
         """Session setup for this connection: history may lag a crash by a moment, never the
@@ -172,13 +177,19 @@ class Tailer:
         busy = False
         live = await self._live_source()
         if live is not None:
-            busy = await self._copy_bets(live)
-            if time.monotonic() - live.last_session_sync >= SESSION_SYNC_SECONDS:
-                await self._sync_sessions(live)
+            try:
+                busy = await self._copy_bets(live)
+                if time.monotonic() - live.last_session_sync >= SESSION_SYNC_SECONDS:
+                    await self._sync_sessions(live)
+            except SourceUnavailable as error:
+                logger.info("live database read skipped: %s", error)
+        else:
+            await self._while_live_missing()
         if not busy and self.archives:
             archive = self.archives[0]
             if not await self._copy_bets(archive):
                 await self._sync_sessions(archive)
+                self._finished.add(archive.path)
                 self.archives.pop(0)
             busy = True
         return busy
@@ -207,6 +218,24 @@ class Tailer:
             await self._rescan_archives()
         return self.live
 
+    async def _while_live_missing(self) -> None:
+        """Keep finding archives while the live file can't be read, so a reset made meanwhile is
+        still recorded; say loudly when the folder holds no bot database at all."""
+        now = time.monotonic()
+        if self._rescanned_at is None or now - self._rescanned_at >= RESCAN_SECONDS:
+            self._rescanned_at = now
+            await self._rescan_archives()
+        found = (self.data_dir / self.live_name).exists() or (
+            self.archive_glob is not None and any(self.data_dir.glob(self.archive_glob))
+        )
+        if found:
+            self._missing_logged_at = None
+        elif (
+            self._missing_logged_at is None or now - self._missing_logged_at >= MISSING_LOG_SECONDS
+        ):
+            self._missing_logged_at = now
+            logger.error("no bot database in %s: is the bot data mounted?", self.data_dir)
+
     async def _live_moved(self) -> None:
         """A reset leaves the live path empty or missing until the bot's next session; find
         the archive now, so the old epoch is recorded under its archive name at once."""
@@ -218,9 +247,9 @@ class Tailer:
     async def _rescan_archives(self) -> None:
         if self.archive_glob is None:
             return
-        pending = {a.path for a in self.archives}
+        skip = {a.path for a in self.archives} | self._finished
         for path in sorted(self.data_dir.glob(self.archive_glob)):
-            if path in pending:
+            if path in skip:
                 continue
             source = Source(path, archived=True)
             try:

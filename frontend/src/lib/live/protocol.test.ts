@@ -11,8 +11,12 @@ describe('parseMessage', () => {
 			topic: 'svc:wolfbet',
 			lanes: { 1: { profit: 1 } },
 			candles: [],
-			tape: []
+			tape: [],
+			gone: []
 		});
+		expect(
+			parseMessage('{"op":"tick","topic":"svc:wolfbet","lanes":{},"tape":[],"gone":[2,"x",4.5]}')
+		).toMatchObject({ gone: [2] });
 	});
 
 	it('keeps only well-formed tape rows', () => {

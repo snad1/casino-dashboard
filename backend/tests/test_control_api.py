@@ -581,3 +581,27 @@ def test_a_running_log_follow_never_holds_up_the_buttons(
     assert client.get("/wolfbet/control").json()["running_job"] is None
     asked = [call["cmd"] for call in fake_agent.calls if call["cmd"] == "job.get"]
     assert len(asked) == 1
+
+
+def test_a_removed_lane_leaves_the_live_view_at_once() -> None:
+    from types import SimpleNamespace
+
+    from app.api.control import _forget_removed_lane
+    from app.live.aggregator import Aggregator
+    from app.ws.hub import Hub
+    from tests.test_aggregator import bet
+
+    aggregator = Aggregator("wolfbet")
+    for lane in (1, 4):
+        aggregator.apply(bet(lane=lane, session_id=lane))
+    aggregator.tick()
+    request: Any = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(hubs={"wolfbet": Hub("wolfbet", aggregator)}))
+    )
+    body = ACTIONS["lane_remove"].body.model_validate({"lane": 4})
+    _forget_removed_lane(request, "wolfbet", "lane_rename", body)
+    assert set(aggregator.lanes) == {1, 4}
+    _forget_removed_lane(request, "wolfbet", "lane_remove", body)
+    assert set(aggregator.lanes) == {1}
+    assert aggregator.tick().gone == [4]
+    _forget_removed_lane(request, "goated", "lane_remove", body)

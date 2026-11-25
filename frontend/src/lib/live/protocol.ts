@@ -80,7 +80,14 @@ export type ServerMessage =
 	| JobMessage
 	| ({ op: 'comment'; topic: string } & CommentEvent)
 	| { op: 'snapshot'; topic: string; lanes: Lanes; tape: TapeRow[] }
-	| { op: 'tick'; topic: string; lanes: Lanes; candles: Candle[]; tape: TapeRow[] }
+	| {
+			op: 'tick';
+			topic: string;
+			lanes: Lanes;
+			candles: Candle[];
+			tape: TapeRow[];
+			gone: number[];
+	  }
 	| { op: 'hb' }
 	| { op: 'error'; topic?: string; detail: string }
 	| ({ op: 'system'; topic: string } & SystemMessage);
@@ -239,7 +246,8 @@ export function parseMessage(raw: string): ServerMessage | null {
 		case 'tick': {
 			if (typeof m.topic !== 'string' || !isLanes(m.lanes)) return null;
 			const candles = Array.isArray(m.candles) ? m.candles.filter(isCandle) : [];
-			return { op: 'tick', topic: m.topic, lanes: m.lanes, candles, tape: tapeOf(m.tape) };
+			const gone = Array.isArray(m.gone) ? m.gone.filter(Number.isInteger) : [];
+			return { op: 'tick', topic: m.topic, lanes: m.lanes, candles, tape: tapeOf(m.tape), gone };
 		}
 		case 'error':
 			return typeof m.detail === 'string'

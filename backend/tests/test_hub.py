@@ -126,6 +126,31 @@ async def test_lane_and_session_topics_only_carry_their_lane() -> None:
     assert list(json.loads(session11.sent[1])["lanes"]) == ["1"]
 
 
+async def test_a_forgotten_lane_is_announced_gone_to_who_could_see_it() -> None:
+    hub, aggregator = _hub()
+    for lane in (1, 2, 4):
+        aggregator.apply(bet(lane=lane, seq=0, session_id=lane))
+    aggregator.tick()
+    whole, lane2, lane1, session4 = Socket(), Socket(), Socket(), Socket()
+    _join(hub, whole, "svc:wolfbet")
+    _join(hub, lane2, "svc:wolfbet:lane:2")
+    _join(hub, lane1, "svc:wolfbet:lane:1")
+    _join(hub, session4, "svc:wolfbet:session:4")
+    await _settle()
+    aggregator.forget({2, 4})
+    await hub.publish(aggregator.tick())
+    await _settle()
+    assert json.loads(whole.sent[-1])["gone"] == [2, 4]
+    assert json.loads(lane2.sent[-1])["gone"] == [2]
+    assert lane1.ops() == ["snapshot"]
+    assert session4.ops() == ["snapshot"]
+    assert set(json.loads(whole.sent[0])["lanes"]) == {"1", "2", "4"}
+    late = Socket()
+    _join(hub, late, "svc:wolfbet")
+    await _settle()
+    assert set(json.loads(late.sent[0])["lanes"]) == {"1"}
+
+
 async def test_system_subscribers_get_the_last_sample_then_each_new_one() -> None:
     hub, _ = _hub()
     early, lane_only = Socket(), Socket()

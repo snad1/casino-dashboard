@@ -60,6 +60,7 @@ from app.auth.sessions import current_user
 from app.auth.stepup import require_fresh
 from app.db.engine import get_session
 from app.db.models import Base
+from app.live.aggregator import Aggregator
 from app.logging import current_request_id
 
 IDEMPOTENCY_TTL = timedelta(hours=24)
@@ -394,11 +395,21 @@ def _endpoint(name: str, spec: ControlAction) -> Callable[..., Awaitable[Control
             raise HTTPException(status_code, stored["detail"])
         if out.status == "succeeded":
             await _after_lane_change(db, user, service, name, payload, out, refused)
+            _forget_removed_lane(request, service, name, payload)
         response.status_code = status_code
         return out
 
     control.__name__ = f"control_{name}"
     return control
+
+
+def _forget_removed_lane(request: Request, service: str, name: str, body: BaseModel) -> None:
+    """A removed lane leaves the live view now, not at the next registry read."""
+    lane = getattr(body, "lane", None)
+    hub = request.app.state.hubs.get(service)
+    if name == "lane_remove" and isinstance(lane, int) and hub is not None:
+        if isinstance(hub.aggregator, Aggregator):
+            hub.aggregator.forget({lane})
 
 
 async def _after_lane_change(

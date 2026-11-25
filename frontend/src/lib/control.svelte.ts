@@ -1,5 +1,6 @@
 import { ApiError, unwrap } from '#lib/api/client';
 import {
+	failureMessage,
 	fill,
 	newKey,
 	type Action,
@@ -104,7 +105,7 @@ class Control {
 			} else if (out.status === 'succeeded') {
 				toast('success', `${label}: done.`);
 			} else {
-				toast('error', `${label} failed (exit code ${out.exit_code ?? 'unknown'}).`);
+				toast('error', failureMessage(label, out));
 			}
 			void this.load(service);
 		} catch (e) {

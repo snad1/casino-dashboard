@@ -187,9 +187,16 @@ class Hub:
         lanes = {n: f for n, f in tick.snapshot_diff.items() if n in keep}
         tape = [row for row in tick.tape_new if row["lane"] in keep]
         candles = [c for c in tick.candles_new if c["lane"] in keep]
-        if not (lanes or tape or candles):
+        gone = [
+            n
+            for n in tick.gone
+            if topic.kind == "service" or (topic.kind == "lane" and topic.key == n)
+        ]
+        if not (lanes or tape or candles or gone):
             return None
         body = {"op": "tick", "topic": topic.name, "lanes": lanes, "tape": tape, "candles": candles}
+        if gone:
+            body["gone"] = gone
         return encode(body)
 
     async def publish(self, tick: Tick | UserTicks) -> None:

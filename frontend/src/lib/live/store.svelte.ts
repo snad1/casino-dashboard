@@ -254,7 +254,11 @@ export class LiveStore {
 					const lane = Number(key);
 					next[lane] = { ...lanes[lane], ...diff };
 				}
-				lanes = next;
+				lanes = message.gone.length
+					? Object.fromEntries(
+							Object.entries(next).filter(([key]) => !message.gone.includes(Number(key)))
+						)
+					: next;
 				candles.push(...message.candles);
 				if (message.tape.length) tape = prependRows(tape, message.tape, TAPE_MAX);
 				fresh = true;

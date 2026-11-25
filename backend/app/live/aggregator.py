@@ -123,7 +123,7 @@ class Lane:
     latency_p99: float | None = None
     latency_dirty: bool = False
 
-    def new_session(self, session_id: int) -> None:
+    def new_session(self, session_id: int | None) -> None:
         self.session_id = session_id
         self.total_bets = self.wins = self.losses = 0
         self.wagered = self.profit = 0.0
@@ -136,10 +136,11 @@ class Tick:
     snapshot_diff: dict[int, dict[str, Any]]
     tape_new: list[dict[str, Any]]
     candles_new: list[dict[str, Any]]
+    gone: list[int] = field(default_factory=list)
 
     @property
     def empty(self) -> bool:
-        return not (self.snapshot_diff or self.tape_new or self.candles_new)
+        return not (self.snapshot_diff or self.tape_new or self.candles_new or self.gone)
 
 
 def _is_number(value: Any) -> bool:
@@ -176,6 +177,7 @@ class Aggregator:
         self._tape_new: deque[dict[str, Any]] = deque(maxlen=TAPE_SIZE)
         self._candles_new: dict[tuple[int, int], Candle] = {}
         self._sent: dict[int, dict[str, Any]] = {}
+        self._gone: set[int] = set()
         self._last_tick: float | None = None
         self._conflict_fields: set[str] = set()
         self.events_enabled: bool | None = None
@@ -185,6 +187,14 @@ class Aggregator:
         if lane is None:
             lane = self.lanes[number] = Lane(number)
         return lane
+
+    def forget(self, numbers: set[int]) -> None:
+        """Drop lanes the bot no longer has; the next tick tells subscribers they are gone."""
+        for number in numbers:
+            seen = self.lanes.pop(number, None) is not None
+            sent = self._sent.pop(number, None) is not None
+            if seen or sent:
+                self._gone.add(number)
 
     async def accept(self, item: Event | Gap) -> None:
         """Sink for the stream consumer."""
@@ -275,6 +285,8 @@ class Aggregator:
             self._state(lane, state, count_conflicts=False)
         if running is not None:
             lane.agent_running = running
+        if session is None and state is None and running is False and lane.session_id is not None:
+            lane.new_session(None)
 
     def _state(self, lane: Lane, state: dict[str, Any], count_conflicts: bool = True) -> None:
         session_id = state.get("session_id")
@@ -421,7 +433,9 @@ class Aggregator:
         self._tape_new.clear()
         candles = [candle.as_dict() for candle in self._candles_new.values()]
         self._candles_new.clear()
-        return Tick(diff, tape_new, candles)
+        gone = sorted(self._gone)
+        self._gone.clear()
+        return Tick(diff, tape_new, candles, gone)
 
     @property
     def tape(self) -> list[dict[str, Any]]:

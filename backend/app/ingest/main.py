@@ -60,7 +60,11 @@ async def tail(stop: asyncio.Event, settings: IngestSettings, retry: float = RET
             db = await connect(settings)
             try:
                 tailer = Tailer(
-                    db, settings.ingest_service, settings.bot_data_dir, settings.host_tz
+                    db,
+                    settings.ingest_service,
+                    settings.bot_data_dir,
+                    settings.host_tz,
+                    closed_ok=True,
                 )
                 await tailer.prepare()
                 await tailer.run(stop)

@@ -14,6 +14,20 @@ export type ActionBody = Record<string, unknown>;
 export const BUSY_REASON = 'Wait for the running action to finish.';
 export const MAX_JOB_LINES = 5000;
 
+const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[A-Za-z]`, 'g');
+const FAILURE_LINE_MAX = 200;
+
+/** A failed action's toast: the first line the bot printed (its own message, such as
+ * "No lane 2."), else the exit code. */
+export function failureMessage(label: string, out: ControlOut): string {
+	const line = (out.output ?? '')
+		.split('\n')
+		.map((l) => l.replace(ANSI, '').trim())
+		.find((l) => l !== '');
+	if (line) return `${label} failed: ${line.slice(0, FAILURE_LINE_MAX)}`;
+	return `${label} failed (exit code ${out.exit_code ?? 'unknown'}).`;
+}
+
 /** How a lane target reads in a sentence: `all` is "all lanes", 2 is "lane 2". */
 export function targetLabel(target: unknown): string {
 	return typeof target === 'number' ? `lane ${target}` : 'all lanes';

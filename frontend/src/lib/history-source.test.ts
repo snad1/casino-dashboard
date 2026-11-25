@@ -90,3 +90,19 @@ describe('history sources', () => {
 		expect(source.sessionHref(7, 3)).toBe('/tg/42/sessions/7/3');
 	});
 });
+
+describe('hasLiveSession', () => {
+	it('keeps an open session on a running, paused or quiet lane', async () => {
+		const { hasLiveSession } = await import('./history-source');
+		for (const status of ['running', 'paused', 'stale', 'events_off']) {
+			expect(hasLiveSession({ session_id: 4, status })).toBe(true);
+		}
+	});
+
+	it('drops a stopped or down lane and a lane with no session', async () => {
+		const { hasLiveSession } = await import('./history-source');
+		expect(hasLiveSession({ session_id: 74063, status: 'stopped' })).toBe(false);
+		expect(hasLiveSession({ session_id: 10553, status: 'down' })).toBe(false);
+		expect(hasLiveSession({ session_id: null, status: 'running' })).toBe(false);
+	});
+});

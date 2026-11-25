@@ -3,6 +3,7 @@ import {
 	addLine,
 	BUSY_REASON,
 	disabledReason,
+	failureMessage,
 	fill,
 	MAX_JOB_LINES,
 	newKey,
@@ -80,5 +81,25 @@ describe('newKey', () => {
 		const key = newKey();
 		expect(key).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
 		expect(newKey()).not.toBe(key);
+	});
+});
+
+describe('failureMessage', () => {
+	const out = (output: string | null, exit_code: number | null = 2) =>
+		({ status: 'failed', output, exit_code }) as Parameters<typeof failureMessage>[1];
+
+	it("shows the bot's own first line", () => {
+		expect(failureMessage('Remove lane 2', out('\n\x1b[31mNo lane 2.\x1b[0m\nmore\n'))).toBe(
+			'Remove lane 2 failed: No lane 2.'
+		);
+	});
+
+	it('falls back to the exit code when nothing was printed', () => {
+		expect(failureMessage('Remove lane 2', out(null))).toBe('Remove lane 2 failed (exit code 2).');
+		expect(failureMessage('Stop', out('  \n', null))).toBe('Stop failed (exit code unknown).');
+	});
+
+	it('caps a long line', () => {
+		expect(failureMessage('X', out('a'.repeat(500))).length).toBe('X failed: '.length + 200);
 	});
 });

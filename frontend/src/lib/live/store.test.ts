@@ -105,6 +105,19 @@ describe('live store', () => {
 		expect(store.connection).toBe('live');
 	});
 
+	it('drops the lanes a tick says are gone', async () => {
+		const { store, socket, flush, settle } = rig();
+		store.start('svc:wolfbet');
+		await settle();
+		socket(0).open();
+		socket(0).receive(snapshot);
+		flush();
+		expect(Object.keys(store.lanes)).toEqual(['1', '2']);
+		socket(0).receive({ op: 'tick', topic: 'svc:wolfbet', lanes: {}, gone: [2, 'x'] });
+		flush();
+		expect(Object.keys(store.lanes)).toEqual(['1']);
+	});
+
 	it('reconnects with a fresh ticket and resubscribes after a growing delay', async () => {
 		let n = 0;
 		const { store, sockets, socket, flush, advance, settle, getTicket } = rig(

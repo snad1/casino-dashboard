@@ -2,7 +2,12 @@
 	import { onMount } from 'svelte';
 	import type { components } from '#lib/api/schema';
 	import { formatProfit } from '#lib/format';
-	import { serviceSource, type HistorySource, type SessionsQuery } from '#lib/history-source';
+	import {
+		hasLiveSession,
+		serviceSource,
+		type HistorySource,
+		type SessionsQuery
+	} from '#lib/history-source';
 	import type { LiveStore } from '#lib/live/store.svelte';
 	import Button from '#ui/Button';
 	import Notice from '#ui/Notice';
@@ -55,7 +60,7 @@
 
 	const liveRows = $derived(
 		Object.entries(showsLive ? live.lanes : {})
-			.filter(([, lane]) => typeof lane.session_id === 'number')
+			.filter(([, lane]) => hasLiveSession(lane))
 			.filter(([n]) => filters.lane === undefined || Number(n) === filters.lane)
 			.map(([n, lane]): Row => {
 				const id = lane.session_id as number;
