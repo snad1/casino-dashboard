@@ -21,6 +21,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ingest.tailer import aware
 
+MAIN_KEY = "default"
+"""The main key's vault id; a session recorded before the bot kept the key counts as it."""
+
 TOP_SESSIONS = 5
 
 
@@ -111,26 +114,35 @@ class SessionWindow:
         lane: int | None,
         zone: ZoneInfo,
         epochs: list[int],
+        key: str | None = None,
     ) -> None:
-        self.since, self.until, self.lane = since, until, lane
+        self.since, self.until, self.lane, self.key = since, until, lane, key
         self.zone = zone
         self.epochs = epochs
         self.start = aware(since, zone) if since else None
         self.end = (
             aware(until if len(until) > 10 else until + "T23:59:59.999999", zone) if until else None
         )
-        conds = ["service = :service"]
+        self._conds = ["{t}service = :service"]
         self.params: dict[str, Any] = {"service": service, "epochs": epochs}
         if self.start is not None:
-            conds.append("started_at >= :start")
+            self._conds.append("{t}started_at >= :start")
             self.params["start"] = self.start
         if self.end is not None:
-            conds.append("started_at <= :end")
+            self._conds.append("{t}started_at <= :end")
             self.params["end"] = self.end
         if lane is not None:
-            conds.append("lane = :lane")
+            self._conds.append("{t}lane = :lane")
             self.params["lane"] = lane
-        self.conditions = " AND ".join(conds)
+        if key is not None:
+            self._conds.append("coalesce({t}key_ref, :main_key) = :key")
+            self.params["key"] = key
+            self.params["main_key"] = MAIN_KEY
+        self.conditions = self.on("")
+
+    def on(self, alias: str) -> str:
+        """The window's conditions on the sessions table, its columns prefixed with `alias`."""
+        return " AND ".join(c.format(t=alias) for c in self._conds)
 
     @property
     def in_epochs(self) -> str:

@@ -2,6 +2,9 @@
 	import { page } from '$app/state';
 	import SessionsList from '#components/SessionsList';
 	import type { SessionsQuery } from '#lib/history-source';
+	import { lanesOf } from '#lib/accounts';
+	import { keyFilter } from '#lib/key-filter.svelte';
+	import { laneLabel } from '#lib/lanes';
 	import { liveFor } from '#lib/live/index';
 	import { laneScope } from '#lib/permissions';
 	import { session } from '#lib/session.svelte';
@@ -17,9 +20,10 @@
 	let total = $state<number | null>(null);
 
 	const ownLanes = $derived(laneScope(session.me, 'view', service));
+	const key = $derived(keyFilter.get(service));
 	const lanes = $derived(
 		ownLanes ??
-			Object.keys(live.lanes)
+			Object.keys(lanesOf(live.lanes, key))
 				.map(Number)
 				.filter((n) => Number.isInteger(n))
 				.sort((a, b) => a - b)
@@ -36,6 +40,7 @@
 
 	const filters = $derived<Omit<SessionsQuery, 'limit' | 'cursor'>>({
 		...(lane ? { lane: Number(lane) } : {}),
+		...(key ? { key } : {}),
 		...(status === 'running' || status === 'ended' ? { status } : {}),
 		...(from ? { since: startOfDay(from) } : {}),
 		...(to ? { until: startOfDay(to, 1) } : {})
@@ -68,7 +73,7 @@
 			<select bind:value={lane} class={selectClass}>
 				{#if ownLanes === null}<option value="">All lanes</option>{/if}
 				{#each lanes as n (n)}
-					<option value={String(n)}>Lane {n}</option>
+					<option value={String(n)}>{laneLabel(n, live.lanes)}</option>
 				{/each}
 			</select>
 		</label>

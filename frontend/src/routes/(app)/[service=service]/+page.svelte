@@ -14,6 +14,8 @@
 	import type { CommentOut } from '#lib/comments';
 	import { parseEpoch } from '#lib/epochs';
 	import { serviceSource } from '#lib/history-source';
+	import { lanesOf } from '#lib/accounts';
+	import { keyFilter } from '#lib/key-filter.svelte';
 	import { liveFor } from '#lib/live/index';
 	import { laneScope } from '#lib/permissions';
 	import { session } from '#lib/session.svelte';
@@ -113,7 +115,7 @@
 					</div>
 				{/if}
 				<div class="mt-2 grid gap-3 sm:grid-cols-2">
-					{#each Object.entries(live.lanes)
+					{#each Object.entries(lanesOf(live.lanes, keyFilter.get(page.params.service)))
 						.map(([n, lane]) => [Number(n), lane] as const)
 						.filter(([n]) => n >= 1)
 						.sort(([a], [b]) => a - b) as [n, lane] (n)}

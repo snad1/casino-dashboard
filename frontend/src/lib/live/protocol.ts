@@ -21,6 +21,8 @@ export interface LaneFields {
 	last_reload?: { ts_ms: number; keys: string[] } | null;
 	balance?: number | null;
 	currency?: string | null;
+	/** The vault key the lane bets with; `default` is the main key. */
+	key_ref?: string | null;
 	bps_1s?: number;
 	api_ms_p50?: number | null;
 	api_ms_p99?: number | null;

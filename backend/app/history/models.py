@@ -54,6 +54,7 @@ class HistorySession(Base):
     """A bot session with its running totals, as last read from SQLite."""
 
     __tablename__ = "sessions"
+    __table_args__ = (Index("ix_sessions_service_epoch_key", "service", "epoch_id", "key_ref"),)
 
     service: Mapped[str] = mapped_column(Text, primary_key=True)
     epoch_id: Mapped[int] = mapped_column(
@@ -64,6 +65,7 @@ class HistorySession(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     currency: Mapped[str | None] = mapped_column(Text)
+    key_ref: Mapped[str | None] = mapped_column(Text)
     game: Mapped[str | None] = mapped_column(Text)
     strategy: Mapped[str | None] = mapped_column(Text)
     base_bet: Mapped[float | None] = mapped_column(Double)

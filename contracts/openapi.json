@@ -6451,7 +6451,7 @@
     },
     "/{service}/analytics": {
       "get": {
-        "description": "The report for sessions started in the window (a bare `until` date counts whole), from\nthe bot for the current epoch, or from history for an archived `epoch`. A lane-only user\ngets one of their lanes, never a report over others.",
+        "description": "The report for sessions started in the window (a bare `until` date counts whole), from\nthe bot for the current epoch, or from history for an archived `epoch` or one `key` (the\nbot cannot split by key). A lane-only user gets one of their lanes, never a report over\nothers.",
         "operationId": "get_analytics__service__analytics_get",
         "parameters": [
           {
@@ -6531,6 +6531,23 @@
                 }
               ],
               "title": "Epoch"
+            }
+          },
+          {
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Key"
             }
           }
         ],
@@ -6658,6 +6675,23 @@
                 }
               ],
               "title": "Epoch"
+            }
+          },
+          {
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Key"
             }
           }
         ],
@@ -10494,7 +10528,7 @@
     },
     "/{service}/sessions": {
       "get": {
-        "description": "Newest first, from the current epoch or `epoch`; pass `next_cursor` back as `cursor`.",
+        "description": "Newest first, from the current epoch or `epoch`; pass `next_cursor` back as `cursor`.\n`key` keeps only the sessions that bet with that vault key.",
         "operationId": "list_sessions__service__sessions_get",
         "parameters": [
           {
@@ -10622,6 +10656,23 @@
                 }
               ],
               "title": "Epoch"
+            }
+          },
+          {
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Key"
             }
           }
         ],

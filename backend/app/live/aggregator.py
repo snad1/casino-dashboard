@@ -100,6 +100,7 @@ class Lane:
     paused: bool | None = None
     stopped: bool = False
     currency: str | None = None
+    key_ref: str | None = None
     strategy: str | None = None
     bps_avg: float | None = None
     bps_ewma: float = 0.0
@@ -278,7 +279,7 @@ class Aggregator:
                     setattr(lane, attr, type(getattr(lane, attr))(session[attr]))
             if session.get("end_balance") is not None:
                 lane.balance = session["end_balance"]
-            for key in ("currency", "strategy"):
+            for key in ("currency", "strategy", "key_ref"):
                 if session.get(key) is not None:
                     setattr(lane, key, session[key])
         if state is not None:
@@ -308,7 +309,7 @@ class Aggregator:
         lane.running = state.get("running") if isinstance(state.get("running"), bool) else None
         lane.paused = state.get("paused") if isinstance(state.get("paused"), bool) else None
         lane.stopped = lane.running is False
-        for key in ("currency", "strategy"):
+        for key in ("currency", "strategy", "key_ref"):
             if isinstance(state.get(key), str):
                 setattr(lane, key, state[key])
         events = state.get("events")
@@ -391,6 +392,7 @@ class Aggregator:
             "max_loss_streak": lane.max_loss_streak,
             "balance": lane.balance,
             "currency": lane.currency,
+            "key_ref": lane.key_ref,
             "strategy": lane.strategy,
             "bps_avg": lane.bps_avg,
             "bps_ewma": round(lane.bps_ewma, 3),

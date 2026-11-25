@@ -8,6 +8,7 @@ the report must match to 1e-12. The charts are checked against the same fixture.
 import hashlib
 import json
 import os
+import sqlite3
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -134,10 +135,11 @@ async def window(
     since: str | None = None,
     until: str | None = None,
     lane: int | None = None,
+    key: str | None = None,
 ) -> SessionWindow:
     """A window over the current epoch, as the api builds one without `epoch`."""
     view = await epoch_view(db, service)
-    return SessionWindow(service, since, until, lane, UTC_ZONE, view.ids)
+    return SessionWindow(service, since, until, lane, UTC_ZONE, view.ids, key)
 
 
 def flags(since: str | None, until: str | None, lane: int | None) -> list[str]:
@@ -226,6 +228,44 @@ async def test_charts_cover_the_same_sessions_and_bets(
     )
     assert sum(b.sessions for b in lane_two.profit_bins) == 3
     assert sum(h.bets for h in lane_two.by_hour) == 3 * BETS_PER_SESSION
+
+
+async def test_a_key_counts_only_its_own_sessions_and_unrecorded_ones_count_as_main(
+    wolfbet: ModuleType,
+    tmp_path: Path,
+    pg: asyncpg.Connection,
+    service: str,
+    db_session: AsyncSession,
+) -> None:
+    live = tmp_path / LIVE_DB
+    build(wolfbet, live, SESSIONS)
+    conn = sqlite3.connect(live)
+    conn.execute("UPDATE sessions SET key_ref = 'lakai' WHERE lane = 2")
+    conn.execute("UPDATE sessions SET key_ref = 'default' WHERE lane = 1")
+    conn.commit()
+    conn.close()
+    await copy_all(pg, service, tmp_path)
+    copied = await pg.fetch(
+        "SELECT lane, key_ref FROM sessions WHERE service = $1 ORDER BY src_id", service
+    )
+    assert [(r["lane"], r["key_ref"]) for r in copied][:3] == [
+        (1, "default"),
+        (2, "lakai"),
+        (3, None),
+    ]
+
+    view = await epoch_view(db_session, service)
+    lakai = await window(db_session, service, key="lakai")
+    report = await history_report(db_session, lakai)
+    assert report.lifetime.sessions_total == 3
+    charts = await chart_data(db_session, lakai, view)
+    assert sum(h.bets for h in charts.by_hour) == 3 * BETS_PER_SESSION
+    assert sum(b.sessions for b in charts.profit_bins) == 3
+
+    main = await history_report(db_session, await window(db_session, service, key="default"))
+    assert main.lifetime.sessions_total == 3
+    stats = await session_stats(db_session, await window(db_session, service, key="lakai"))
+    assert stats.max_bets == 200
 
 
 STATS_KEYS = (

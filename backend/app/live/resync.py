@@ -182,6 +182,7 @@ def _session(row: HistorySession) -> dict[str, Any]:
         "end_balance": row.end_balance,
         "currency": row.currency,
         "strategy": row.strategy,
+        "key_ref": row.key_ref,
     }
 
 

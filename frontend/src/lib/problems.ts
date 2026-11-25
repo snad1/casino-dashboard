@@ -1,3 +1,4 @@
+import { laneLabel } from '#lib/lanes';
 import type { Lanes, SystemMessage } from '#lib/live/protocol';
 
 export interface Problem {
@@ -17,7 +18,7 @@ export function problems(lanes: Lanes, agent: SystemMessage['agent'] | undefined
 	if (!betting) return out;
 	for (const [key, lane] of Object.entries(lanes).sort(([a], [b]) => Number(a) - Number(b))) {
 		if (lane.status === 'down')
-			out.push({ text: `Lane ${key} is not betting.`, lane: Number(key) });
+			out.push({ text: `${laneLabel(Number(key), lanes)} is not betting.`, lane: Number(key) });
 	}
 	return out;
 }

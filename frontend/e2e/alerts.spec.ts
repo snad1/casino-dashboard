@@ -53,6 +53,7 @@ async function rig(page: Page, me: object, extra: Record<string, Handler> = {}):
 		'POST /ws-ticket': () => ({ status: 200, json: { ticket: 'one-time', expires_in: 30 } }),
 		'GET /wolfbet/control': () => ({ status: 200, json: controlMenu }),
 		'GET /wolfbet/alerts/rules': () => ({ status: 200, json: [RULE] }),
+		'GET /wolfbet/config': () => ({ status: 200, json: { lane_ids: [1, 2] } }),
 		'GET /wolfbet/alerts/events': () => ({ status: 200, json: EVENTS }),
 		'GET /alerts/me/channels': () => ({ status: 200, json: CHANNELS }),
 		...extra

@@ -822,8 +822,9 @@ export interface paths {
 		/**
 		 * Get Analytics
 		 * @description The report for sessions started in the window (a bare `until` date counts whole), from
-		 *     the bot for the current epoch, or from history for an archived `epoch`. A lane-only user
-		 *     gets one of their lanes, never a report over others.
+		 *     the bot for the current epoch, or from history for an archived `epoch` or one `key` (the
+		 *     bot cannot split by key). A lane-only user gets one of their lanes, never a report over
+		 *     others.
 		 */
 		get: operations['get_analytics__service__analytics_get'];
 		put?: never;
@@ -1808,6 +1809,7 @@ export interface paths {
 		/**
 		 * List Sessions
 		 * @description Newest first, from the current epoch or `epoch`; pass `next_cursor` back as `cursor`.
+		 *     `key` keeps only the sessions that bet with that vault key.
 		 */
 		get: operations['list_sessions__service__sessions_get'];
 		put?: never;
@@ -4510,6 +4512,7 @@ export interface operations {
 				until?: string | null;
 				lane?: number | null;
 				epoch?: number | null;
+				key?: string | null;
 			};
 			header?: never;
 			path: {
@@ -4547,6 +4550,7 @@ export interface operations {
 				lane?: number | null;
 				format?: 'csv' | 'json';
 				epoch?: number | null;
+				key?: string | null;
 			};
 			header?: never;
 			path: {
@@ -6885,6 +6889,7 @@ export interface operations {
 				cursor?: string | null;
 				limit?: number;
 				epoch?: number | null;
+				key?: string | null;
 			};
 			header?: never;
 			path: {

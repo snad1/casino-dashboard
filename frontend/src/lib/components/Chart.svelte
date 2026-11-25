@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { laneLabel } from '#lib/lanes';
 	import { onMount } from 'svelte';
 	import type {
 		IChartApi,
@@ -141,7 +142,7 @@
 					position: 'belowBar',
 					shape: 'arrowUp',
 					color,
-					text: `Lane ${s.lane} start`
+					text: `${laneLabel(s.lane, live.lanes)} start`
 				});
 			if (s.ended_at)
 				list.push({
@@ -149,7 +150,7 @@
 					position: 'aboveBar',
 					shape: 'arrowDown',
 					color,
-					text: `Lane ${s.lane} stop`
+					text: `${laneLabel(s.lane, live.lanes)} stop`
 				});
 		}
 		markers.setMarkers(list.sort((a, b) => Number(a.time) - Number(b.time)));
@@ -298,7 +299,8 @@
 				class="min-h-9 rounded-md border border-line-strong bg-surface px-2 text-ink"
 			>
 				<option value="all">All lanes</option>
-				{#each laneNumbers as n (n)}<option value={String(n)}>Lane {n}</option>{/each}
+				{#each laneNumbers as n (n)}<option value={String(n)}>{laneLabel(n, live.lanes)}</option
+					>{/each}
 			</select>
 		</label>
 		{#if res}<span class="font-mono text-xs text-muted" title="Resolution">{res}</span>{/if}

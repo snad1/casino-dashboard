@@ -17,7 +17,9 @@
 		type RuleBody,
 		type RuleForm
 	} from '#lib/alerts';
-	import { LANES, formatTime } from '#lib/analytics';
+	import { formatTime } from '#lib/analytics';
+	import { laneLabel } from '#lib/lanes';
+	import { liveFor } from '#lib/live/index';
 	import { ApiError, unwrap } from '#lib/api/client';
 	import { can } from '#lib/permissions';
 	import { DEFAULT_SERVICE, api, session } from '#lib/session.svelte';
@@ -29,6 +31,7 @@
 	import Notice from '#ui/Notice';
 
 	const service = DEFAULT_SERVICE;
+	const live = $derived(liveFor(service));
 	const path = { service };
 	const manage = $derived(can(session.me, 'alerts.manage', service));
 
@@ -38,6 +41,18 @@
 	let loadError = $state<string | null>(null);
 	let editing = $state<Rule | null>(null);
 	let form = $state<RuleForm | null>(null);
+	let registry = $state<number[]>([]);
+	const laneChoices = $derived(
+		[
+			...new Set([
+				...registry,
+				...Object.keys(live.lanes).map(Number),
+				...(form?.lane ? [Number(form.lane)] : [])
+			])
+		]
+			.filter((n) => Number.isInteger(n) && n >= 1)
+			.sort((a, b) => a - b)
+	);
 	let formError = $state<string | null>(null);
 	let pending = $state<RuleBody | null>(null);
 	let confirmSave = $state(false);
@@ -65,11 +80,18 @@
 			]);
 			rules = ruleList;
 			events = page.items;
+			if (can(session.me, 'config.write', service)) void loadLanes();
 			nextBefore = page.next_before ?? null;
 			loadError = null;
 		} catch (e) {
 			loadError = message(e);
 		}
+	}
+
+	/** The bot's lanes, so a rule can name one that is not betting right now. */
+	async function loadLanes() {
+		const { data } = await api.GET('/{service}/config', { params: { path } });
+		if (data) registry = data.lane_ids;
 	}
 
 	async function older() {
@@ -240,8 +262,8 @@
 						Lane
 						<select class={input} bind:value={form.lane}>
 							<option value="all">All lanes</option>
-							{#each LANES as n (n)}
-								<option value={String(n)}>Lane {n}</option>
+							{#each laneChoices as n (n)}
+								<option value={String(n)}>{laneLabel(n, live.lanes)}</option>
 							{/each}
 						</select>
 					</label>
@@ -348,7 +370,8 @@
 							<tr class="border-t border-line">
 								<th scope="row" class="{cell} font-medium">{rule.name}</th>
 								<td class={cell}>{describe(rule)}</td>
-								<td class={cell}>{rule.lane === null ? 'All' : `Lane ${rule.lane}`}</td>
+								<td class={cell}>{rule.lane === null ? 'All' : laneLabel(rule.lane, live.lanes)}</td
+								>
 								<td class={cell}>{cooldownLabel(rule.cooldown_s)}</td>
 								<td class={cell}>{rule.enabled ? 'On' : 'Off'}</td>
 								{#if manage}

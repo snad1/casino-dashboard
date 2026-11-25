@@ -61,12 +61,18 @@ class Seed:
         return epoch_id
 
     def session(
-        self, epoch_id: int, src_id: int, lane: int = 1, ended: bool = True, profit: float = 1.0
+        self,
+        epoch_id: int,
+        src_id: int,
+        lane: int = 1,
+        ended: bool = True,
+        profit: float = 1.0,
+        key_ref: str | None = None,
     ) -> None:
         self._run(
             "INSERT INTO sessions (service, epoch_id, src_id, lane, started_at, ended_at,"
-            " currency, game, total_bets, profit)"
-            " VALUES (:s, :e, :id, :lane, :start, :end, 'btc', 'dice', 10, :p)",
+            " currency, game, total_bets, profit, key_ref)"
+            " VALUES (:s, :e, :id, :lane, :start, :end, 'btc', 'dice', 10, :p, :key)",
             {
                 "s": self.service,
                 "e": epoch_id,
@@ -75,6 +81,7 @@ class Seed:
                 "start": T0 + timedelta(minutes=src_id),
                 "end": T0 + timedelta(minutes=src_id, seconds=30) if ended else None,
                 "p": profit,
+                "key": key_ref,
             },
         )
 
@@ -177,6 +184,28 @@ def test_sessions_filter_by_lane_and_status(viewer: TestClient, seed: Seed) -> N
     assert [s["id"] for s in running["items"]] == [3]
     bad = viewer.get(f"/{seed.service}/sessions", params={"cursor": "not-a-cursor"})
     assert bad.status_code == 422
+
+
+def test_sessions_filter_by_key_counts_unrecorded_keys_as_the_main_one(
+    viewer: TestClient, seed: Seed
+) -> None:
+    epoch = seed.epoch()
+    seed.session(epoch, 1, lane=1)
+    seed.session(epoch, 2, lane=5, key_ref="lakai")
+    seed.session(epoch, 3, lane=1, key_ref="default")
+    seed.session(epoch, 4, lane=5, key_ref="lakai")
+
+    def ids(key: str) -> list[int]:
+        page = viewer.get(f"/{seed.service}/sessions", params={"key": key}).json()
+        return [s["id"] for s in page["items"]]
+
+    assert ids("lakai") == [4, 2]
+    assert ids("default") == [3, 1]
+    assert ids("nobody") == []
+    total = viewer.get(f"/{seed.service}/sessions", params={"key": "lakai"}).json()["total"]
+    assert total == 2
+    for bad in ("Lakai", "-x", "a" * 33, "a b"):
+        assert viewer.get(f"/{seed.service}/sessions", params={"key": bad}).status_code == 422
 
 
 def test_sessions_filter_takes_lane_ids_up_to_99(viewer: TestClient, seed: Seed) -> None:

@@ -23,7 +23,7 @@ const SNAPSHOT = {
 	tape: []
 };
 
-async function liveRig(page: import('@playwright/test').Page) {
+async function liveRig(page: import('@playwright/test').Page, snapshot: object = SNAPSHOT) {
 	await stubApi(page, {
 		'GET /auth/me': () => ({ status: 200, json: viewerMe }),
 		'POST /ws-ticket': () => ({ status: 200, json: { ticket: 'one-time', expires_in: 30 } }),
@@ -37,7 +37,7 @@ async function liveRig(page: import('@playwright/test').Page) {
 		sockets.push(ws);
 		ws.onMessage((raw) => {
 			const message = JSON.parse(String(raw));
-			if (message.op === 'subscribe') ws.send(JSON.stringify(SNAPSHOT));
+			if (message.op === 'subscribe') ws.send(JSON.stringify(snapshot));
 		});
 	});
 	return (i: number): WebSocketRoute => {
@@ -58,13 +58,58 @@ test('the header shows live totals and each lane state, and follows ticks', asyn
 	await expect(header).toContainText('Balance 100.12 btc');
 	await expect(header).toContainText('ROI 1.60%');
 	await expect(header).toContainText('API 40/90 ms');
+	await expect(header).toContainText('Lanes: 1 betting, 1 need a look');
+	await header.getByText('Lanes: 1 betting').click();
 	const lanes = header.getByRole('list', { name: 'Lanes' });
-	await expect(lanes.getByRole('listitem')).toHaveText(['Lane 1: Running', 'Lane 2: Events off']);
+	await expect(lanes.getByRole('listitem')).toHaveText([/Lane 1\s*Running/, /Lane 2\s*Events off/]);
 
 	socket(0).send(
 		JSON.stringify({ op: 'tick', topic: 'svc:wolfbet', lanes: { 1: { profit: 1.0 } }, tape: [] })
 	);
 	await expect(header).toContainText('+0.90');
+});
+
+test('the header shows each key on its own and narrows to the key picked', async ({ page }) => {
+	await liveRig(page, {
+		...SNAPSHOT,
+		lanes: {
+			1: {
+				status: 'running',
+				key_ref: 'default',
+				currency: 'usdt',
+				balance: 3.65,
+				profit: 0.1,
+				total_bets: 10
+			},
+			5: {
+				status: 'running',
+				key_ref: 'lakai',
+				currency: 'usdt',
+				balance: 12.5,
+				profit: -0.2,
+				total_bets: 4,
+				name: 'friend'
+			}
+		}
+	});
+	await page.goto('/wolfbet');
+	const header = page.getByRole('banner');
+	await expect(header.getByRole('status')).toHaveText('Live');
+	const totals = header.getByRole('group', { name: 'Live totals' });
+	await expect(totals).toContainText('default');
+	await expect(totals).toContainText('3.65');
+	await expect(totals).toContainText('lakai');
+	await expect(totals).toContainText('12.5');
+	await expect(totals).not.toContainText('Bets');
+
+	await header.getByRole('combobox', { name: 'Key' }).selectOption('lakai');
+	await expect(totals).toContainText('Bets 4');
+	await expect(totals).toContainText('Balance 12.5');
+	await expect(totals).not.toContainText('3.65');
+	await header.getByText(/^Lanes:/).click();
+	await expect(header.getByRole('list', { name: 'Lanes' }).getByRole('listitem')).toHaveText([
+		/Lane 5 · friend\s*Running/
+	]);
 });
 
 test('a signed-out socket sends the viewer to sign-in', async ({ page }) => {

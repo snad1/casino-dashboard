@@ -128,7 +128,10 @@
 		</div>
 	</header>
 	<div class="flex">
-		<nav aria-label="Main" class="hidden w-40 shrink-0 border-r border-line md:block">
+		<nav
+			aria-label="Main"
+			class="hidden w-40 shrink-0 border-r border-line md:sticky md:top-14 md:block md:h-[calc(100dvh-3.5rem)] md:self-start md:overflow-y-auto"
+		>
 			<ul class="flex flex-col gap-1 p-2">
 				{#each links as link (link.href)}
 					<li>

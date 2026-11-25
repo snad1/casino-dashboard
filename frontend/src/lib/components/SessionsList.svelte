@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { accountOf } from '#lib/accounts';
+	import { laneLabel } from '#lib/lanes';
 	import { onMount } from 'svelte';
 	import type { components } from '#lib/api/schema';
 	import { formatProfit } from '#lib/format';
@@ -62,6 +64,7 @@
 		Object.entries(showsLive ? live.lanes : {})
 			.filter(([, lane]) => hasLiveSession(lane))
 			.filter(([n]) => filters.lane === undefined || Number(n) === filters.lane)
+			.filter(([, lane]) => filters.key === undefined || accountOf(lane) === filters.key)
 			.map(([n, lane]): Row => {
 				const id = lane.session_id as number;
 				const stored = history.find((s) => s.id === id && s.lane === Number(n) && !s.ended_at);
@@ -163,10 +166,10 @@
 						{#if href}
 							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the source builds it with resolve() -->
 							<a {href} class="text-ink underline-offset-2 hover:underline"
-								>#{s.id} · Lane {s.lane}</a
+								>#{s.id} · {laneLabel(s.lane, live.lanes)}</a
 							>
 						{:else}
-							<span>#{s.id} · Lane {s.lane}</span>
+							<span>#{s.id} · {laneLabel(s.lane, live.lanes)}</span>
 						{/if}
 						<span class="text-xs text-muted"
 							>{[s.live ? 'Live' : when(s.started), `${s.bets} bets`, s.game, s.strategy]

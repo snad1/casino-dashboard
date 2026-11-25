@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { lanesOf } from '#lib/accounts';
+	import { keyFilter } from '#lib/key-filter.svelte';
 	import { page } from '$app/state';
 	import ActionButton from '#components/ActionButton';
 	import ConfigDiff from '#components/ConfigDiff';
@@ -11,6 +13,7 @@
 		laneNameError,
 		lanePlan,
 		laneShares,
+		laneLabel,
 		laneTitle,
 		parseArchives,
 		type Split
@@ -59,7 +62,7 @@
 	const archives = $derived(archivesText === null ? null : parseArchives(archivesText));
 	const configReason = $derived(denialReason(session.me, 'config.write', service));
 	const laneRows = $derived(
-		Object.entries(live.lanes)
+		Object.entries(lanesOf(live.lanes, keyFilter.get(service)))
 			.map(([n, lane]) => ({ n: Number(n), lane }))
 			.sort((a, b) => a.n - b.n)
 	);
@@ -192,7 +195,7 @@
 
 			{#if preview && previewFresh}
 				<div class="mt-4 flex flex-col gap-4">
-					<ConfigDiff {preview} />
+					<ConfigDiff {preview} lanes={live.lanes} />
 					{#if plan}
 						<Notice>
 							Running lanes keep betting.
@@ -216,7 +219,7 @@
 						<tbody>
 							{#each shares as share (share.lane)}
 								<tr class="border-t border-line">
-									<td class="py-2">Lane {share.lane}</td>
+									<td class="py-2">{laneLabel(share.lane, live.lanes)}</td>
 									<td class="font-mono"
 										>{amount(share.baseBet)}{share.ownBet ? ' (its own setting)' : ''}</td
 									>

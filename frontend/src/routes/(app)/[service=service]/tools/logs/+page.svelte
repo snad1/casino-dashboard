@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import { page } from '$app/state';
+	import { laneLabel } from '#lib/lanes';
+	import { liveFor } from '#lib/live/index';
 	import ActionButton from '#components/ActionButton';
 	import { control } from '#lib/control.svelte';
 	import { ToolJob } from '#lib/tool-job.svelte';
@@ -31,6 +34,7 @@
 	let nextId = 0;
 	let lastSeq = -1;
 	const follow = new ToolJob(true);
+	const live = $derived(liveFor(page.params.service ?? ''));
 
 	const shown = $derived(filterLines(lines, { level, lane, search }));
 	const lanes = $derived(
@@ -131,7 +135,9 @@
 				bind:value={lane}
 			>
 				<option value="all">All lanes</option>
-				{#each lanes as option (option)}<option value={option}>Lane {option}</option>{/each}
+				{#each lanes as option (option)}<option value={option}
+						>{laneLabel(option, live.lanes)}</option
+					>{/each}
 			</select>
 		</label>
 		<label class="flex flex-1 flex-col gap-1 text-sm font-medium">

@@ -6,6 +6,9 @@
 	import { pendingText, type ConfigOut } from '#lib/config';
 	import type { ActionBody, ActionName } from '#lib/control';
 	import { control } from '#lib/control.svelte';
+	import { lanesOf } from '#lib/accounts';
+	import { keyFilter } from '#lib/key-filter.svelte';
+	import { laneLabel } from '#lib/lanes';
 	import { liveFor } from '#lib/live/index';
 	import { can } from '#lib/permissions';
 	import { problems } from '#lib/problems';
@@ -16,7 +19,7 @@
 	const service = $derived(page.params.service ?? '');
 	const live = $derived(liveFor(service));
 	const lanes = $derived(
-		Object.keys(live.lanes)
+		Object.keys(lanesOf(live.lanes, keyFilter.get(service)))
 			.map(Number)
 			.sort((a, b) => a - b)
 	);
@@ -147,7 +150,7 @@
 					{@const pending = config?.pending?.[String(lane)] ?? []}
 					<li class={row}>
 						<span class="min-w-20 pt-3 text-sm">
-							Lane {lane}
+							{laneLabel(lane, live.lanes)}
 							<span class="block text-xs text-muted">{live.lanes[lane]?.status ?? 'unknown'}</span>
 						</span>
 						<ActionButton name="pause" body={{ target: lane }} />

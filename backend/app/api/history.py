@@ -22,6 +22,7 @@ from sqlalchemy import Select, func, select, text, tuple_
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.wolfbet.analytics import MAIN_KEY
 from app.adapters.wolfbet.control import LANE_ID_MAX
 from app.auth.permissions import FORBIDDEN, LaneScope, Perm, scoped
 from app.db.engine import get_session
@@ -44,6 +45,7 @@ EMPTY_RANGE = "The start of the range must be before its end."
 
 Resolution = Literal["1s", "1m", "1h", "1d"]
 CURSOR = r"^\d{1,18}:\d{1,18}$"
+KEY_ID = r"^[a-z0-9][a-z0-9_-]{0,31}$"
 
 router = APIRouter(prefix="/{service}", tags=["history"])
 Viewer = Annotated[LaneScope, Depends(scoped(Perm.VIEW))]
@@ -206,11 +208,13 @@ async def list_sessions(
     cursor: Annotated[str | None, Query(pattern=CURSOR)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     epoch: Annotated[int | None, Query(ge=1)] = None,
+    key: Annotated[str | None, Query(pattern=KEY_ID)] = None,
 ) -> BaseModel:
-    """Newest first, from the current epoch or `epoch`; pass `next_cursor` back as `cursor`."""
+    """Newest first, from the current epoch or `epoch`; pass `next_cursor` back as `cursor`.
+    `key` keeps only the sessions that bet with that vault key."""
     scope.check(lane)
-    cache, key = _cache(request, scope)
-    if (hit := cache.get(key)) is not None:
+    cache, cache_key = _cache(request, scope)
+    if (hit := cache.get(cache_key)) is not None:
         return hit
     view = await epoch_view(db, service, epoch)
     page = await session_page(
@@ -225,8 +229,9 @@ async def list_sessions(
         limit,
         with_total=cursor is None,
         lanes=scope.lanes,
+        key=key,
     )
-    cache.put(key, page)
+    cache.put(cache_key, page)
     return page
 
 
@@ -242,6 +247,7 @@ async def session_page(
     limit: int,
     with_total: bool = False,
     lanes: Collection[int] | None = None,
+    key: str | None = None,
 ) -> SessionPage:
     """One page of sessions, newest first; `epochs` limits it to those databases and `lanes`
     to those lanes.
@@ -255,6 +261,8 @@ async def session_page(
         filters.append(HistorySession.lane == lane)
     if lanes is not None:
         filters.append(HistorySession.lane.in_(lanes))
+    if key is not None:
+        filters.append(func.coalesce(HistorySession.key_ref, MAIN_KEY) == key)
     if since is not None:
         filters.append(HistorySession.started_at >= since)
     if until is not None:

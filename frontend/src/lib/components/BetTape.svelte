@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { laneLabel } from '#lib/lanes';
 	import { formatAmount, formatProfit } from '#lib/format';
 	import type { TapeRow } from '#lib/live/protocol';
 	import type { LiveStore } from '#lib/live/store.svelte';
@@ -66,7 +67,8 @@
 				class="min-h-9 rounded-md border border-line-strong bg-surface px-2 text-ink"
 			>
 				<option value="all">All lanes</option>
-				{#each laneNumbers as n (n)}<option value={String(n)}>Lane {n}</option>{/each}
+				{#each laneNumbers as n (n)}<option value={String(n)}>{laneLabel(n, live.lanes)}</option
+					>{/each}
 			</select>
 		</label>
 		{#if paused}

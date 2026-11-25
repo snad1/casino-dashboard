@@ -472,3 +472,13 @@ def test_forgetting_a_lane_drops_it_once_and_never_announces_an_unknown_one() ->
     assert tick.gone == [3] and not tick.empty
     assert set(aggregator.snapshot()[0]) == {1}
     assert aggregator.tick().gone == []
+
+
+def test_the_lane_key_comes_from_the_state_and_the_stored_session() -> None:
+    aggregator = Aggregator("wolfbet")
+    aggregator.apply(state(lane=5, seq=0, session_id=3, key_ref="lakai"))
+    aggregator.seed(6, {"id": 9, "key_ref": "default"})
+    aggregator.tick()
+    lanes, _ = aggregator.snapshot()
+    assert lanes[5]["key_ref"] == "lakai"
+    assert lanes[6]["key_ref"] == "default"

@@ -6,7 +6,6 @@ export type AnalyticsOut = components['schemas']['AnalyticsOut'];
 export type Report = AnalyticsOut['report'];
 export type SessionStats = AnalyticsOut['sessions'];
 
-export const LANES = Array.from({ length: 10 }, (_, i) => i + 1);
 const LANE_ID_MAX = 99;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 

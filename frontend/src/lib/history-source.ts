@@ -13,6 +13,8 @@ export type SessionsQuery = {
 	status?: 'running' | 'ended';
 	cursor?: string;
 	lane?: number;
+	/** Only the sessions that bet with this vault key. */
+	key?: string;
 };
 
 const serviceSeries = (service: string, query: SeriesQuery & { epoch?: number }) =>

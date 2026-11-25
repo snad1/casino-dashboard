@@ -39,7 +39,7 @@ from app.adapters.wolfbet.analytics import (
 from app.adapters.wolfbet.control import LANE_ID_MAX
 from app.agent_client import AgentError
 from app.api.control import CONTROLS, NOT_CONTROLLABLE, ServiceName, agent_or_error
-from app.api.history import SessionDetail, _cache, _session_out
+from app.api.history import KEY_ID, SessionDetail, _cache, _session_out
 from app.auth.permissions import LaneScope, Perm, scoped
 from app.db.engine import get_session
 from app.history.epochs import EpochView, epoch_view
@@ -195,7 +195,41 @@ async def _bins(
     ]
 
 
+async def _key_hours_and_days(
+    db: AsyncSession, window: SessionWindow
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The hourly and daily figures for one key, from the bets of that key's sessions: the
+    rollups are kept per lane, and a lane may have bet with another key before."""
+    join = (
+        "FROM bets b JOIN sessions s ON s.service = b.service AND s.epoch_id = b.epoch_id"
+        f" AND s.src_id = b.session_src_id WHERE {window.on('s.')} AND s.epoch_id = ANY(:epochs)"
+    )
+    params = {**window.params, "tz": window.zone.key}
+    hours = await _rows(
+        db,
+        (
+            "SELECT extract(hour FROM b.ts AT TIME ZONE :tz)::int AS hour,"  # noqa: S608  # nosec B608: fixed SQL, values are bound
+            " count(*)::bigint AS bets, count(*) FILTER (WHERE b.state = 'win')::bigint AS wins,"
+            " coalesce(sum(b.amount), 0) AS wagered, coalesce(sum(b.profit), 0) AS profit"
+            f" {join} GROUP BY 1 ORDER BY 1"
+        ),
+        params,
+    )
+    days = await _rows(
+        db,
+        (
+            "SELECT (b.ts AT TIME ZONE :tz)::date AS day,"  # nosec B608: fixed SQL, values are bound
+            f" coalesce(sum(b.profit), 0) AS profit {join} GROUP BY 1 ORDER BY 1"
+        ),
+        params,
+    )
+    return hours, days
+
+
 async def chart_data(db: AsyncSession, window: SessionWindow, view: EpochView) -> Charts:
+    if window.key is not None:
+        hours, days = await _key_hours_and_days(db, window)
+        return await _charts(db, window, hours, days)
     where, params = _rollup_filter(window, view)
     hours = await _rows(
         db,
@@ -216,6 +250,15 @@ async def chart_data(db: AsyncSession, window: SessionWindow, view: EpochView) -
         ),
         params,
     )
+    return await _charts(db, window, hours, days)
+
+
+async def _charts(
+    db: AsyncSession,
+    window: SessionWindow,
+    hours: Sequence[dict[str, Any]],
+    days: Sequence[dict[str, Any]],
+) -> Charts:
     profit = await _bins(db, "coalesce(profit, 0)", window)
     length = await _bins(
         db, "extract(epoch FROM coalesce(ended_at, now()) - started_at)::float8", window
@@ -238,24 +281,26 @@ async def get_analytics(
     until: Bound = None,
     lane: Annotated[int | None, Query(ge=1, le=LANE_ID_MAX)] = None,
     epoch: Annotated[int | None, Query(ge=1)] = None,
+    key: Annotated[str | None, Query(pattern=KEY_ID)] = None,
 ) -> BaseModel:
     """The report for sessions started in the window (a bare `until` date counts whole), from
-    the bot for the current epoch, or from history for an archived `epoch`. A lane-only user
-    gets one of their lanes, never a report over others."""
+    the bot for the current epoch, or from history for an archived `epoch` or one `key` (the
+    bot cannot split by key). A lane-only user gets one of their lanes, never a report over
+    others."""
     if service not in CONTROLS:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
     lane = scope.one(lane)
     since, until = _bound(since), _bound(until)
-    cache, key = _cache(request, scope, "analytics_cache", BOT_SECONDS)
-    if (hit := cache.get(key)) is not None:
+    cache, cache_key = _cache(request, scope, "analytics_cache", BOT_SECONDS)
+    if (hit := cache.get(cache_key)) is not None:
         return hit
     args = {
         k: v for k, v in {"since": since, "until": until, "lane": lane}.items() if v is not None
     }
     view = await epoch_view(db, service, epoch)
     zone = ZoneInfo(request.app.state.host_tz)
-    window = SessionWindow(service, since, until, lane, zone, view.ids)
-    report = await _bot_report(request, service, args) if epoch is None else None
+    window = SessionWindow(service, since, until, lane, zone, view.ids, key)
+    report = await _bot_report(request, service, args) if epoch is None and key is None else None
     source: Literal["bot", "history"] = "bot" if report is not None else "history"
     if report is None:
         report = await history_report(db, window)
@@ -265,7 +310,7 @@ async def get_analytics(
         charts=await chart_data(db, window, view),
         sessions=await session_stats(db, window),
     )
-    cache.put(key, out, None if source == "bot" else HISTORY_SECONDS)
+    cache.put(cache_key, out, None if source == "bot" else HISTORY_SECONDS)
     return out
 
 
@@ -297,6 +342,7 @@ async def export_analytics(
     lane: Annotated[int | None, Query(ge=1, le=LANE_ID_MAX)] = None,
     file_format: Annotated[Literal["csv", "json"], Query(alias="format")] = "csv",
     epoch: Annotated[int | None, Query(ge=1)] = None,
+    key: Annotated[str | None, Query(pattern=KEY_ID)] = None,
 ) -> Response:
     """The window's sessions, the ones the report counts, oldest first, as a download."""
     if service not in CONTROLS:
@@ -305,7 +351,7 @@ async def export_analytics(
     since, until = _bound(since), _bound(until)
     view = await epoch_view(db, service, epoch)
     window = SessionWindow(
-        service, since, until, lane, ZoneInfo(request.app.state.host_tz), view.ids
+        service, since, until, lane, ZoneInfo(request.app.state.host_tz), view.ids, key
     )
     query = (
         select(HistorySession)

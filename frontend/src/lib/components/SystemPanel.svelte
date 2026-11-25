@@ -26,7 +26,10 @@
 			.map(([lane, counters]) => ({ lane: Number(lane), ...counters }))
 			.sort((a, b) => a.lane - b.lane)
 	);
-	const warnings = $derived([...publisherWarnings(live.dropSamples), ...ingestWarnings(run)]);
+	const warnings = $derived([
+		...publisherWarnings(live.dropSamples, live.lanes),
+		...ingestWarnings(run)
+	]);
 	const memUsed = $derived(
 		host && typeof host.mem_total === 'number' && typeof host.mem_available === 'number'
 			? host.mem_total - host.mem_available

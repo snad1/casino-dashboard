@@ -11,7 +11,6 @@
 		formatDuration,
 		formatTime,
 		hourLabel,
-		LANES,
 		parseFilter,
 		sessionStatRows,
 		winRate,
@@ -22,10 +21,16 @@
 	import { formatAmount, formatProfit } from '#lib/format';
 	import { denialReason, laneScope } from '#lib/permissions';
 	import { api, session } from '#lib/session.svelte';
+	import { lanesOf } from '#lib/accounts';
+	import { keyFilter } from '#lib/key-filter.svelte';
+	import { laneLabel } from '#lib/lanes';
+	import { liveFor } from '#lib/live/index';
 	import Notice from '#ui/Notice';
 
 	const service = $derived(page.params.service ?? '');
 	const ownLanes = $derived(laneScope(session.me, 'view', service));
+	const live = $derived(liveFor(service));
+	const key = $derived(keyFilter.get(service));
 	const asked = $derived(parseFilter(page.url.searchParams));
 	const filter = $derived<Filter>(
 		ownLanes === null || ownLanes.includes(asked.lane ?? 0)
@@ -41,6 +46,23 @@
 	let until = $state('');
 	let lane = $state('all');
 	let epoch = $state<number | null>(null);
+	const reportLanes = $derived(
+		(data?.report.by_lane ?? [])
+			.map((r) => Number(String(r.lane).match(/\d+/)?.[0]))
+			.filter((n) => Number.isInteger(n))
+	);
+	const laneChoices = $derived(
+		ownLanes ??
+			[
+				...new Set([
+					...Object.keys(lanesOf(live.lanes, key)).map(Number),
+					...reportLanes,
+					...(filter.lane ? [filter.lane] : [])
+				])
+			]
+				.filter((n) => Number.isInteger(n))
+				.sort((a, b) => a - b)
+	);
 	let request = 0;
 
 	$effect(() => {
@@ -48,16 +70,19 @@
 		until = filter.until ?? '';
 		lane = filter.lane === null ? 'all' : String(filter.lane);
 		epoch = filter.epoch;
-		if (service) void load(service, filter);
+		if (service) void load(service, filter, key);
 	});
 
-	async function load(name: string, wanted: Filter) {
+	async function load(name: string, wanted: Filter, account: string | null) {
 		const mine = ++request;
 		loading = true;
 		try {
 			const out = await unwrap(
 				api.GET('/{service}/analytics', {
-					params: { path: { service: name }, query: filterQuery(wanted) }
+					params: {
+						path: { service: name },
+						query: { ...filterQuery(wanted), ...(account ? { key: account } : {}) }
+					}
 				})
 			);
 			if (mine !== request) return;
@@ -103,7 +128,10 @@
 								{
 									title: 'By lane',
 									key: 'Lane',
-									rows: report.by_lane.map((r) => ({ ...r, name: r.lane }))
+									rows: report.by_lane.map((r) => ({
+										...r,
+										name: laneName(r.lane)
+									}))
 								}
 							]
 						: []),
@@ -134,6 +162,12 @@
 		return `${show(lo)} to ${show(hi)}`;
 	}
 
+	/** The bot names a lane `Lane 3`; show the lane's own name when it has one. */
+	function laneName(value: string | number): string {
+		const n = Number(String(value).match(/\d+/)?.[0]);
+		return Number.isInteger(n) ? laneLabel(n, live.lanes) : String(value);
+	}
+
 	const cell = 'p-2 text-right font-mono tabular-nums';
 	const input = 'min-h-11 rounded-md border border-line-strong bg-surface px-3';
 </script>
@@ -159,8 +193,8 @@
 			Lane
 			<select class={input} bind:value={lane}>
 				{#if ownLanes === null}<option value="all">All</option>{/if}
-				{#each ownLanes ?? LANES as n (n)}
-					<option value={String(n)}>Lane {n}</option>
+				{#each laneChoices as n (n)}
+					<option value={String(n)}>{laneLabel(n, live.lanes)}</option>
 				{/each}
 			</select>
 		</label>
@@ -358,7 +392,7 @@
 				valueLabel="P/L"
 				signed
 				bars={report.by_lane.map((r) => ({
-					label: r.lane,
+					label: laneName(r.lane),
 					value: r.profit,
 					text: signed(r.profit)
 				}))}

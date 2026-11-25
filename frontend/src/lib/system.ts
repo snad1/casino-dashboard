@@ -1,5 +1,6 @@
 import type { components } from '#lib/api/schema';
-import type { PublisherCounters } from '#lib/live/protocol';
+import { laneLabel } from '#lib/lanes';
+import type { Lanes, PublisherCounters } from '#lib/live/protocol';
 
 export const DROP_WINDOW_MS = 60_000;
 export type DropSamples = Record<number, Array<{ at: number; dropped: number }>>;
@@ -36,12 +37,13 @@ export function droppedLastMinute(samples: DropSamples): Record<number, number> 
 	return out;
 }
 
-export function publisherWarnings(samples: DropSamples): string[] {
+export function publisherWarnings(samples: DropSamples, lanes: Lanes = {}): string[] {
 	return Object.entries(droppedLastMinute(samples))
 		.filter(([, dropped]) => dropped > 0)
 		.sort(([a], [b]) => Number(a) - Number(b))
 		.map(
-			([lane, dropped]) => `Lane ${lane} publisher dropped ${dropped} events in the last minute.`
+			([lane, dropped]) =>
+				`${laneLabel(Number(lane), lanes)} publisher dropped ${dropped} events in the last minute.`
 		);
 }
 

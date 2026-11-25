@@ -145,6 +145,11 @@ export function laneTitle(n: number, name?: string | null): string {
 	return name ? `Lane ${n} · ${name}` : `Lane ${n}`;
 }
 
+/** Lane `n` as the live view knows it: with its own name when it has one. */
+export function laneLabel(n: number, lanes: Lanes): string {
+	return laneTitle(n, lanes[n]?.name);
+}
+
 const LANE_NAME = /^[A-Za-z0-9_]([A-Za-z0-9 _-]{0,30}[A-Za-z0-9_-])?$/;
 export const LANE_NAME_HELP = '1-32 letters, digits, space, _ or -, not starting with - or a space';
 

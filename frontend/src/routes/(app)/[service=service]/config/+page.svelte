@@ -28,6 +28,7 @@
 		type Scope
 	} from '#lib/config';
 	import ConfigDiff from '#components/ConfigDiff';
+	import { laneLabel } from '#lib/lanes';
 	import RulesBuilder from '#components/RulesBuilder';
 	import { withVaultChoices, type VaultKey } from '#lib/keys';
 	import { BAD_JSON, parseRules } from '#lib/rules';
@@ -210,7 +211,7 @@
 		return parts.join(', ');
 	}
 
-	const scopeLabel = (s: Scope) => (s === BASE ? 'Base' : `Lane ${s}`);
+	const scopeLabel = (s: Scope) => (s === BASE ? 'Base' : laneLabel(Number(s), live.lanes));
 	const input =
 		'min-h-11 w-full rounded-md border border-line-strong bg-surface px-3 text-base text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-60';
 </script>
@@ -421,7 +422,7 @@
 			{/if}
 
 			{#if preview && previewFresh}
-				<ConfigDiff {preview} costs />
+				<ConfigDiff {preview} costs lanes={live.lanes} />
 			{/if}
 		{/if}
 	</div>

@@ -62,7 +62,7 @@ BET_COLUMNS = (
     "profit",
     "balance_after",
 )
-SESSION_TEXT = ("currency", "game", "strategy")
+SESSION_TEXT = ("currency", "game", "strategy", "key_ref")
 SESSION_INT = ("total_bets", "wins", "losses", "max_win_streak", "max_loss_streak")
 SESSION_REAL = (
     "base_bet",
