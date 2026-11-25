@@ -27,12 +27,31 @@ function loginQuery(next: string): string {
 	return `?next=${encodeURIComponent(safeNext(next))}`;
 }
 
+const LOGIN_PATH = '/login';
+const MAX_UNWRAP = 5;
+
+function nextParam(link: string): string | null {
+	const value = /[?&]next=([^&#]*)/.exec(link)?.[1];
+	if (value === undefined) return null;
+	try {
+		return decodeURIComponent(value);
+	} catch {
+		return null;
+	}
+}
+
 /** A local path to return to after sign-in; anything else falls back to the dashboard. */
 export function safeNext(next: string | null): string {
-	if (!next || !next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) {
-		return `/${DEFAULT_SERVICE}`;
+	// Several requests failing at once on an expired session each build a sign-in link, and the
+	// later ones see /login as the current page. Returning there would loop, so follow its own next.
+	for (let depth = 0; depth <= MAX_UNWRAP; depth++) {
+		if (!next || !next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) {
+			break;
+		}
+		if (next.split(/[?#]/, 1)[0] !== LOGIN_PATH) return next;
+		next = nextParam(next);
 	}
-	return next;
+	return `/${DEFAULT_SERVICE}`;
 }
 
 /** Load the current user; returns null when there is no valid session. */

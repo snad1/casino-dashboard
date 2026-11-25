@@ -30,6 +30,31 @@ test('sign-in with a 2FA code returns to the page that was asked for', async ({ 
 	await expect(page.getByRole('heading', { name: 'Bet tape' })).toBeVisible();
 });
 
+test('a sign-in link that points back at sign-in still lands on the dashboard', async ({
+	page
+}) => {
+	let signedIn = false;
+	await stubApi(page, {
+		'GET /auth/me': () =>
+			signedIn ? { status: 200, json: viewerMe } : { status: 401, json: { detail: 'x' } },
+		'POST /auth/login': (body) => {
+			const { code } = body as { code: string | null };
+			if (!code) return { status: 401, json: { detail: CODE_NEEDED, totp_required: true } };
+			signedIn = true;
+			return { status: 204 };
+		}
+	});
+	// Several requests failing at once on an expired session used to leave this nested link.
+	await page.goto('/login?next=%2Flogin%3Fnext%3D%252Fwolfbet');
+	await page.getByLabel('Email').fill('viewer@example.test');
+	await page.getByLabel('Password').fill('correct horse battery staple');
+	await page.getByRole('button', { name: 'Sign in' }).click();
+	await page.getByLabel('Authenticator code').fill('123456');
+	await page.getByRole('button', { name: 'Sign in' }).click();
+	await expect(page).toHaveURL('/wolfbet');
+	await expect(page.getByRole('heading', { name: 'Chart' })).toBeVisible();
+});
+
 test('too many attempts shows the wait message and keeps the form usable', async ({ page }) => {
 	await stubApi(page, {
 		'GET /auth/me': () => ({ status: 401, json: { detail: 'x' } }),
