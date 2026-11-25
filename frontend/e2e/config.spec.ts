@@ -56,6 +56,7 @@ const CONFIG = {
 		})
 	],
 	lane_count: 2,
+	lane_ids: [1, 2],
 	override_lanes: { min: 2, max: 10 },
 	split_choices: ['none', 'budget', 'bet', 'both'],
 	lane_split: 'none',
@@ -150,14 +151,16 @@ test('the form is built from the schema, with lane tabs that can use the base', 
 	await expect(page.getByLabel('lane_split')).toHaveValue('none');
 	await expect(page.getByText('min 1.01, max 9900')).toBeVisible();
 	const multiplierRow = page.getByRole('listitem').filter({ has: page.getByLabel('multiplier') });
-	await expect(multiplierRow.getByText('Restarts the service')).toBeVisible();
+	await expect(
+		multiplierRow.getByText('Restarts each lane that uses it at its session end')
+	).toBeVisible();
 	const maxLossRow = page.getByRole('listitem').filter({ has: page.getByLabel('max_loss') });
 	await expect(maxLossRow.getByText('Applies live')).toBeVisible();
 
 	await page.getByRole('tab', { name: 'Lane 2' }).click();
 	await expect(page.getByLabel('game')).toHaveCount(0);
 	const laneMultiplier = page.getByRole('listitem').filter({ has: page.getByLabel('multiplier') });
-	await expect(laneMultiplier.getByText('Restarts lane 2')).toBeVisible();
+	await expect(laneMultiplier.getByText('Restarts lane 2 at its session end')).toBeVisible();
 	await expect(laneMultiplier.getByLabel('Use base')).not.toBeChecked();
 	await expect(page.getByLabel('multiplier')).toHaveValue('3');
 	await expect(page.getByLabel('max_loss')).toBeDisabled();
@@ -222,76 +225,72 @@ test('no reload within 10 s shows a warning', async ({ page }) => {
 	await expect(page.getByText("No reload seen after 10 s. Check the bot's logs.")).toBeVisible();
 });
 
-test('a restart-only lane change restarts only that lane after the save', async ({ page }) => {
+test('a restart-only lane change restarts only that lane at its session end', async ({ page }) => {
 	const { posts } = await rig(page, adminMe, {
 		'POST /wolfbet/config/preview': () => ({ status: 200, json: RESTART_DIFF }),
-		'POST /wolfbet/control/lane_restart': () => saved
+		'POST /wolfbet/control/lane_restart_end': () => saved
 	});
 	await page.goto('/wolfbet/config');
 	await page.getByRole('tab', { name: 'Lane 2' }).click();
 	await page.getByLabel('multiplier').fill('4');
 	await page.getByRole('button', { name: 'Preview' }).click();
-	await expect(page.getByRole('region', { name: 'Changes' })).toContainText('Restarts lane 2');
+	await expect(page.getByRole('region', { name: 'Changes' })).toContainText(
+		'Restarts lane 2 at its session end'
+	);
 	await expect(page.getByText('multiplier applies after a restart')).toBeVisible();
-	await page.getByRole('button', { name: 'Save + restart' }).click();
+	await page.getByRole('button', { name: 'Save + restart at session end' }).click();
 	await page
 		.getByRole('dialog', { name: 'Save config?' })
 		.getByRole('button', { name: 'Save config' })
 		.click();
-	const restart = page.getByRole('dialog', { name: 'Restart lane 2?' });
+	const restart = page.getByRole('dialog', { name: 'Restart lane 2 at its session end?' });
 	await expect(restart).toBeVisible();
-	await restart.getByRole('button', { name: 'Restart lane 2' }).click();
+	await restart.getByRole('button', { name: 'Restart at session end' }).click();
 	await expect(page.getByText('Saved. These changes apply after a restart.')).toBeVisible();
 	await expect
 		.poll(() => posts.map((p) => p.path))
 		.toEqual([
 			'/wolfbet/config/preview',
 			'/wolfbet/control/config_set',
-			'/wolfbet/control/lane_restart'
+			'/wolfbet/control/lane_restart_end'
 		]);
 	expect(posts[1]?.body).toEqual({ changes: [{ key: 'multiplier', value: '4', lane: 2 }] });
 	expect(posts[2]?.body).toEqual({ lane: 2 });
 });
 
-test('a restart-only base change restarts the service after the save', async ({ page }) => {
+test('a restart-only base change restarts only the lanes that use it, never the service', async ({
+	page
+}) => {
 	const { posts } = await rig(page, adminMe, {
 		'POST /wolfbet/config/preview': () => ({
 			status: 200,
 			json: { base: [row('multiplier', 3, 4, 'restart')], lanes: {}, warnings: [] }
 		}),
-		'POST /wolfbet/control/restart': () => ({
-			status: 202,
-			json: { status: 'running', exit_code: null, job_id: 'ab'.repeat(16) }
-		}),
-		[`GET /wolfbet/jobs/${'ab'.repeat(16)}`]: () => ({
-			status: 200,
-			json: {
-				job_id: 'ab'.repeat(16),
-				cmd: 'wolfbet.restart',
-				status: 'running',
-				exit_code: null,
-				duration_ms: 1,
-				lines: 0
-			}
-		})
+		'POST /wolfbet/control/lane_restart_end': () => saved
 	});
 	await page.goto('/wolfbet/config');
 	await page.getByLabel('multiplier').fill('4');
 	await page.getByRole('button', { name: 'Preview' }).click();
-	await expect(page.getByRole('region', { name: 'Changes' })).toContainText('Restarts the service');
-	await page.getByRole('button', { name: 'Save + restart' }).click();
+	await expect(page.getByRole('region', { name: 'Changes' })).toContainText(
+		'Restarts each lane that uses it at its session end'
+	);
+	await page.getByRole('button', { name: 'Save + restart at session end' }).click();
 	await page
 		.getByRole('dialog', { name: 'Save config?' })
 		.getByRole('button', { name: 'Save config' })
 		.click();
-	const restart = page.getByRole('dialog', { name: 'Restart wolfbet?' });
-	await restart.getByRole('button', { name: 'Restart' }).click();
-	await expect(page.getByText('Restart: started.')).toBeVisible();
-	expect(posts.map((p) => p.path)).toEqual([
-		'/wolfbet/config/preview',
-		'/wolfbet/control/config_set',
-		'/wolfbet/control/restart'
-	]);
+	await page
+		.getByRole('dialog', { name: 'Restart lane 1 at its session end?' })
+		.getByRole('button', { name: 'Restart at session end' })
+		.click();
+	await expect
+		.poll(() => posts.map((p) => [p.path, p.body]))
+		.toEqual([
+			['/wolfbet/config/preview', expect.anything()],
+			['/wolfbet/control/config_set', expect.anything()],
+			['/wolfbet/control/lane_restart_end', { lane: 1 }]
+		]);
+	expect(posts.some((p) => p.path === '/wolfbet/control/restart')).toBe(false);
 });
 
 test('a refused value shows the bot message and nothing is saved', async ({ page }) => {

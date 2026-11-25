@@ -8,6 +8,7 @@ import {
 	display,
 	fieldKind,
 	initialEdits,
+	laneScopes,
 	needsRestart,
 	restartPlan,
 	parsePasted,
@@ -36,6 +37,7 @@ const CONFIG: ConfigOut = {
 		key({ key: 'streak_delay_win', type: 'string', format: 'N:X' })
 	],
 	lane_count: 3,
+	lane_ids: [1, 2, 3],
 	override_lanes: { min: 2, max: 10 },
 	split_choices: ['none', 'budget'],
 	lane_split: 'none',
@@ -123,24 +125,24 @@ describe('preview and reload', () => {
 	it('names what each change costs', () => {
 		expect(costLabel('live', BASE)).toBe('Applies live');
 		expect(costLabel('live', '3')).toBe('Applies live');
-		expect(costLabel('restart', '3')).toBe('Restarts lane 3');
-		expect(costLabel('restart', BASE)).toBe('Restarts the service');
+		expect(costLabel('restart', '3')).toBe('Restarts lane 3 at its session end');
+		expect(costLabel('restart', BASE)).toBe('Restarts each lane that uses it at its session end');
 	});
 
-	it('restarts only the lanes a lane change needs, and the service for a base change', () => {
-		const lanes = { '3': [row('restart')], '2': [row('restart')], '4': [row('live')] };
-		expect(restartPlan({ base: [row('live')], lanes, warnings: [] })).toEqual({
-			service: false,
-			lanes: [2, 3]
-		});
-		expect(restartPlan({ base: [row('restart')], lanes, warnings: [] })).toEqual({
-			service: true,
-			lanes: []
-		});
-		expect(restartPlan({ base: [row('live')], lanes: {}, warnings: [] })).toEqual({
-			service: false,
-			lanes: []
-		});
+	it('restarts only the lanes a change affects, never the whole service', () => {
+		const config = { lane_ids: [1, 5, 6, 7], lanes: { '6': { balance_goal: 9 } } };
+		const lanes = { '7': [row('restart')], '5': [row('live')] };
+		expect(restartPlan({ base: [row('live')], lanes, warnings: [] }, config)).toEqual([7]);
+		const base = [{ ...row('restart'), key: 'balance_goal' }];
+		expect(restartPlan({ base, lanes: {}, warnings: [] }, config)).toEqual([1, 5, 7]);
+		expect(restartPlan({ base, lanes, warnings: [] }, config)).toEqual([1, 5, 7]);
+		expect(restartPlan({ base: [row('live')], lanes: {}, warnings: [] }, config)).toEqual([]);
+	});
+
+	it('builds lane tabs from the real lane ids', () => {
+		expect(laneScopes([7, 1, 5, 6], { min: 2, max: 10 })).toEqual(['5', '6', '7']);
+		expect(laneScopes([1], { min: 2, max: 10 })).toEqual([]);
+		expect(laneScopes([2, 12], { min: 2, max: 10 })).toEqual(['2']);
 	});
 
 	it('reports only reloads that came after the save', () => {

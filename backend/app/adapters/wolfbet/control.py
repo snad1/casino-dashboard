@@ -283,9 +283,10 @@ ACTIONS: dict[str, ControlAction] = {
         _BASIC,
         "stop",
         NoArgs,
-        label="Stop",
-        title="Stop {service}?",
-        effect="All lanes stop after their current bet. Open sessions are saved.",
+        label="Stop all",
+        title="Stop every lane of {service}?",
+        effect="All lanes stop after their current bet. Open sessions are saved. This is the "
+        "emergency stop; to stop one lane, use that lane's own Stop.",
         confirm="Stop",
     ),
     "lane_stop": ControlAction(
@@ -318,6 +319,17 @@ ACTIONS: dict[str, ControlAction] = {
         effect="Lane {lane} saves its session, stops and starts again with its saved config. "
         "Other lanes keep betting.",
         confirm="Restart lane {lane}",
+        lane_field="lane",
+    ),
+    "lane_restart_end": ControlAction(
+        _BASIC,
+        "lane_restart_end",
+        LaneIdArgs,
+        label="Restart at session end",
+        title="Restart lane {lane} at its session end?",
+        effect="Lane {lane} keeps betting until its current session ends, then starts again "
+        "with its saved config. Other lanes keep betting.",
+        confirm="Restart at session end",
         lane_field="lane",
     ),
     "lane_add": ControlAction(
@@ -393,6 +405,16 @@ ACTIONS: dict[str, ControlAction] = {
         effect="Lanes stop and start again. The live view shows them as down for a few seconds.",
         confirm="Restart",
         job=True,
+    ),
+    "restart_rolling": ControlAction(
+        _BASIC,
+        "restart_rolling",
+        NoArgs,
+        label="Restart all at session end",
+        title="Restart every lane at its session end?",
+        effect="Each running lane keeps betting until its own session ends, then starts again "
+        "with its saved config. No lane is cut mid-session.",
+        confirm="Restart at session end",
     ),
     "config_set": ControlAction(
         _CONFIG,

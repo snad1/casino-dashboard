@@ -93,6 +93,8 @@ ARGV_CASES: list[tuple[str, dict[str, Any], list[str]]] = [
     ("lane_start", {"lane": 15}, [CTL, "start", "15"]),
     ("lane_stop", {"lane": 1}, [CTL, "stop", "1"]),
     ("lane_restart", {"lane": 2}, [CTL, "restart", "2"]),
+    ("lane_restart_end", {"lane": 5}, [CTL, "restart", "5", "--at-boundary"]),
+    ("restart_rolling", {}, [CTL, "restart", "--rolling"]),
     ("lane_add", {"name": "friend-A"}, [CTL, "lane", "add", "friend-A"]),
     (
         "lane_add",
@@ -103,6 +105,7 @@ ARGV_CASES: list[tuple[str, dict[str, Any], list[str]]] = [
     ("lane_rename", {"lane": 3, "name": "night-run"}, [CTL, "lane", "rename", "3", "night-run"]),
     ("key_list", {}, [PY, BOT, "--key-list", "--json"]),
     ("lane_ids", {}, [PY, BOT, "--lane-ids", "all"]),
+    ("lane_ids_enabled", {}, [PY, BOT, "--lane-ids", "enabled"]),
     (
         "key_put",
         {"key_id": "friend-a", "label": "Friend A", "secret": KEY_SECRET, "owner_user_id": 7},
@@ -296,6 +299,7 @@ async def test_argv(name: str, args: dict[str, Any], argv: list[str]) -> None:
         ("lane_stop", {"lane": 0}),
         ("lane_stop", {"lane": 100}),
         ("lane_restart", {"lane": 100}),
+        ("lane_restart_end", {"lane": 0}),
         ("lane_add", {}),
         ("lane_add", {"name": "-x"}),
         ("lane_add", {"name": "a;b"}),
@@ -410,6 +414,7 @@ def test_mutating_flags() -> None:
         "version",
         "key_list",
         "lane_ids",
+        "lane_ids_enabled",
     }
 
 

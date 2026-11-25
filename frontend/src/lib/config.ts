@@ -97,24 +97,44 @@ export function needsRestart(preview: Preview): boolean {
 	);
 }
 
-/** What a change costs once saved: applied by a reload, or a restart of its lane or of every lane. */
+/** What a change costs once saved: applied by a reload, or a restart of only the lanes it
+ * affects, each at its own session end, so no other lane is cut short. */
 export function costLabel(apply: string, scope: Scope): string {
 	if (apply === 'live') return 'Applies live';
-	return scope === BASE ? 'Restarts the service' : `Restarts lane ${scope}`;
+	return scope === BASE
+		? 'Restarts each lane that uses it at its session end'
+		: `Restarts lane ${scope} at its session end`;
 }
 
 /**
- * What Save + restart must restart: the service when a restart-only change is on the base,
- * else each lane with one, so the other lanes keep betting.
+ * The lanes a saved change has to restart: each lane changed directly with a restart-only
+ * key, and for a restart-only base key every lane that has no value of its own for it.
+ * Lanes with their own value keep betting untouched.
  */
-export function restartPlan(preview: Preview): { service: boolean; lanes: number[] } {
-	const restarts = (rows: DiffRow[]) => rows.some((row) => row.apply === 'restart');
-	if (restarts(preview.base)) return { service: true, lanes: [] };
-	const lanes = Object.entries(preview.lanes)
-		.filter(([, rows]) => restarts(rows))
-		.map(([lane]) => Number(lane))
-		.sort((a, b) => a - b);
-	return { service: false, lanes };
+export function restartPlan(
+	preview: Preview,
+	config: Pick<ConfigOut, 'lane_ids' | 'lanes'>
+): number[] {
+	const restartKeys = (rows: DiffRow[]) =>
+		rows.filter((row) => row.apply === 'restart').map((row) => row.key);
+	const lanes = new Set<number>();
+	for (const [lane, rows] of Object.entries(preview.lanes)) {
+		if (restartKeys(rows).length) lanes.add(Number(lane));
+	}
+	const baseKeys = restartKeys(preview.base);
+	for (const lane of config.lane_ids) {
+		const own = config.lanes[String(lane)] ?? {};
+		if (baseKeys.some((key) => !(key in own))) lanes.add(lane);
+	}
+	return [...lanes].sort((a, b) => a - b);
+}
+
+/** The lane tabs: each real lane id that may hold its own values, in order. */
+export function laneScopes(ids: number[], range: { min: number; max: number }): Scope[] {
+	return ids
+		.filter((id) => id >= range.min && id <= range.max)
+		.sort((a, b) => a - b)
+		.map(String);
 }
 
 export function hasLiveChange(preview: Preview): boolean {

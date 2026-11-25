@@ -6,6 +6,7 @@ const JOB_ID = 'cd'.repeat(16);
 const CONFIG = {
 	keys: [],
 	lane_count: 3,
+	lane_ids: [1, 2, 3],
 	override_lanes: { min: 2, max: 10 },
 	split_choices: ['none', 'budget', 'bet', 'both'],
 	lane_split: 'none',
@@ -192,7 +193,8 @@ test('each lane is renamed, restarted or removed on its own; lane 1 has no Remov
 	const list = page.getByRole('list', { name: 'Lane controls' });
 	await expect(list.getByRole('listitem')).toHaveCount(3);
 	const one = list.getByRole('listitem', { name: 'Lane 1' });
-	await expect(one.getByRole('button', { name: 'Restart' })).toBeVisible();
+	await expect(one.getByRole('button', { name: 'Restart now' })).toBeVisible();
+	await expect(one.getByRole('button', { name: 'Restart at session end' })).toBeVisible();
 	await expect(one.getByRole('button', { name: 'Remove' })).toHaveCount(0);
 
 	const two = list.getByRole('listitem', { name: 'Lane 2 · friend-A' });
@@ -292,7 +294,7 @@ test('a lane still on an old setting says so, and Apply restarts only that lane'
 	};
 	const { posts } = await rig(page, operatorMe, {
 		'GET /wolfbet/config': () => ({ status: 200, json: { ...CONFIG, pending } }),
-		'POST /wolfbet/control/lane_restart': () => {
+		'POST /wolfbet/control/lane_restart_end': () => {
 			pending = {};
 			return done();
 		}
@@ -302,13 +304,13 @@ test('a lane still on an old setting says so, and Apply restarts only that lane'
 	const two = list.getByRole('listitem', { name: 'Lane 2 · friend-A' });
 	await expect(two.getByText('Waiting for a restart: multiplier 3 -> 4')).toBeVisible();
 	await expect(list.getByText(/Waiting for a restart/)).toHaveCount(1);
-	await two.getByRole('button', { name: 'Apply' }).click();
+	await two.getByRole('button', { name: 'Apply at session end' }).click();
 	await page
-		.getByRole('dialog', { name: 'Restart lane 2?' })
-		.getByRole('button', { name: 'Restart lane 2' })
+		.getByRole('dialog', { name: 'Restart lane 2 at its session end?' })
+		.getByRole('button', { name: 'Restart at session end' })
 		.click();
 	await expect(two.getByText(/Waiting for a restart/)).toHaveCount(0);
-	expect(posts.filter((p) => p.path === '/wolfbet/control/lane_restart')).toEqual([
-		{ path: '/wolfbet/control/lane_restart', body: { lane: 2 } }
+	expect(posts.filter((p) => p.path === '/wolfbet/control/lane_restart_end')).toEqual([
+		{ path: '/wolfbet/control/lane_restart_end', body: { lane: 2 } }
 	]);
 });

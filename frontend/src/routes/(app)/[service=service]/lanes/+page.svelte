@@ -92,8 +92,13 @@
 		if (service && can(session.me, 'config.write', service)) void load();
 	});
 
+	// Each read reloads the control menu, so the archives must not follow it, or they loop.
+	let archivesFor: string | null = null;
 	$effect(() => {
-		if (control.menu && can(session.me, 'control.basic', service)) void loadArchives();
+		if (!control.menu || archivesFor === service || !can(session.me, 'control.basic', service))
+			return;
+		archivesFor = service;
+		void loadArchives();
 	});
 
 	$effect(() => {
@@ -106,9 +111,10 @@
 		void load();
 	});
 
-	/** Restart one lane so it runs on the saved settings, then show what is still waiting. */
+	/** Restart one lane at its session end so it runs on the saved settings; the other lanes
+	 * keep betting. Then show what is still waiting. */
 	async function applyPending(lane: number) {
-		const out = await control.ask('lane_restart', { lane });
+		const out = await control.ask('lane_restart_end', { lane });
 		if (out?.status === 'succeeded') await load();
 	}
 
@@ -307,7 +313,18 @@
 							{:else}
 								<Button variant="secondary" disabled>Rename</Button>
 							{/if}
-							<ActionButton name="lane_restart" body={{ lane: row.n }} label="Restart" compact />
+							<ActionButton
+								name="lane_restart_end"
+								body={{ lane: row.n }}
+								label="Restart at session end"
+								compact
+							/>
+							<ActionButton
+								name="lane_restart"
+								body={{ lane: row.n }}
+								label="Restart now"
+								compact
+							/>
 							{#if row.n > 1}
 								<ActionButton
 									name="lane_remove"
@@ -323,7 +340,7 @@
 							{#if pending.length}
 								<div class="flex w-full flex-wrap items-center gap-3">
 									<p class="text-sm text-warn">Waiting for a restart: {pendingText(pending)}</p>
-									<Button onclick={() => void applyPending(row.n)}>Apply</Button>
+									<Button onclick={() => void applyPending(row.n)}>Apply at session end</Button>
 								</div>
 							{/if}
 						</li>

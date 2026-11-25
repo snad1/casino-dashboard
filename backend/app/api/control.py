@@ -395,7 +395,7 @@ def _endpoint(name: str, spec: ControlAction) -> Callable[..., Awaitable[Control
             raise HTTPException(status_code, stored["detail"])
         if out.status == "succeeded":
             await _after_lane_change(db, user, service, name, payload, out, refused)
-            _forget_removed_lane(request, service, name, payload)
+            _reflect_lane_change(request, service, name, payload, out)
         response.status_code = status_code
         return out
 
@@ -403,13 +403,19 @@ def _endpoint(name: str, spec: ControlAction) -> Callable[..., Awaitable[Control
     return control
 
 
-def _forget_removed_lane(request: Request, service: str, name: str, body: BaseModel) -> None:
-    """A removed lane leaves the live view now, not at the next registry read."""
-    lane = getattr(body, "lane", None)
+def _reflect_lane_change(
+    request: Request, service: str, name: str, body: BaseModel, out: ControlOut
+) -> None:
+    """A removed lane leaves the live view and an added one joins it now, not at the next
+    registry read; resync fills in the added lane's real status."""
     hub = request.app.state.hubs.get(service)
-    if name == "lane_remove" and isinstance(lane, int) and hub is not None:
-        if isinstance(hub.aggregator, Aggregator):
-            hub.aggregator.forget({lane})
+    if hub is None or not isinstance(hub.aggregator, Aggregator):
+        return
+    lane = getattr(body, "lane", None)
+    if name == "lane_remove" and isinstance(lane, int):
+        hub.aggregator.forget({lane})
+    elif name == "lane_add" and (added := added_lane(out.output)) is not None:
+        hub.aggregator.seed(added)
 
 
 async def _after_lane_change(

@@ -31,6 +31,7 @@ BODIES: dict[str, dict[str, Any]] = {
     "lane_stop": {"lane": 2},
     "lane_start": {"lane": 3},
     "lane_restart": {"lane": 1},
+    "lane_restart_end": {"lane": 5},
     "lane_add": {"name": "friend-A", "copy_from": 2},
     "lane_remove": {"lane": 3},
     "lane_rename": {"lane": 15, "name": "night run"},
@@ -58,6 +59,7 @@ ALLOWED: dict[Role, set[str]] = {
         "lane_stop",
         "lane_start",
         "lane_restart",
+        "lane_restart_end",
         "lane_add",
         "lane_remove",
         "lane_rename",
@@ -65,6 +67,7 @@ ALLOWED: dict[Role, set[str]] = {
         "resume",
         "reload",
         "restart",
+        "restart_rolling",
         "config_set",
         "lanes",
         "logs",
@@ -583,10 +586,10 @@ def test_a_running_log_follow_never_holds_up_the_buttons(
     assert len(asked) == 1
 
 
-def test_a_removed_lane_leaves_the_live_view_at_once() -> None:
+def test_added_and_removed_lanes_show_in_the_live_view_at_once() -> None:
     from types import SimpleNamespace
 
-    from app.api.control import _forget_removed_lane
+    from app.api.control import ControlOut, _reflect_lane_change
     from app.live.aggregator import Aggregator
     from app.ws.hub import Hub
     from tests.test_aggregator import bet
@@ -599,9 +602,21 @@ def test_a_removed_lane_leaves_the_live_view_at_once() -> None:
         app=SimpleNamespace(state=SimpleNamespace(hubs={"wolfbet": Hub("wolfbet", aggregator)}))
     )
     body = ACTIONS["lane_remove"].body.model_validate({"lane": 4})
-    _forget_removed_lane(request, "wolfbet", "lane_rename", body)
+    out = ControlOut(status="succeeded", exit_code=0, job_id=None, output="Lane 7 (l2) added.\n")
+    _reflect_lane_change(request, "wolfbet", "lane_rename", body, out)
     assert set(aggregator.lanes) == {1, 4}
-    _forget_removed_lane(request, "wolfbet", "lane_remove", body)
+    _reflect_lane_change(request, "wolfbet", "lane_remove", body, out)
     assert set(aggregator.lanes) == {1}
     assert aggregator.tick().gone == [4]
-    _forget_removed_lane(request, "goated", "lane_remove", body)
+    _reflect_lane_change(request, "goated", "lane_remove", body, out)
+    add = ACTIONS["lane_add"].body.model_validate({"name": "l2"})
+    _reflect_lane_change(request, "wolfbet", "lane_add", add, out)
+    assert set(aggregator.lanes) == {1, 7}
+    _reflect_lane_change(
+        request,
+        "wolfbet",
+        "lane_add",
+        add,
+        ControlOut(status="succeeded", exit_code=0, job_id=None),
+    )
+    assert set(aggregator.lanes) == {1, 7}

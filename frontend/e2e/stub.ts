@@ -83,7 +83,7 @@ export const controlMenu = {
 	running_job: null,
 	actions: [
 		action('start', 'control.basic', 'Start', 'Start {service}?', 'Start'),
-		action('stop', 'control.basic', 'Stop', 'Stop {service}?', 'Stop'),
+		action('stop', 'control.basic', 'Stop all', 'Stop every lane of {service}?', 'Stop'),
 		action('lane_stop', 'control.basic', 'Stop', 'Stop lane {lane}?', 'Stop lane {lane}'),
 		action('lane_start', 'control.basic', 'Start', 'Start lane {lane}?', 'Start lane {lane}'),
 		action(
@@ -93,6 +93,13 @@ export const controlMenu = {
 			'Restart lane {lane}?',
 			'Restart lane {lane}'
 		),
+		action(
+			'lane_restart_end',
+			'control.basic',
+			'Restart at session end',
+			'Restart lane {lane} at its session end?',
+			'Restart at session end'
+		),
 		action('lane_add', 'config.write', 'Add lane', 'Add the lane {name}?', 'Add lane'),
 		action('lane_remove', 'config.write', 'Remove', 'Remove lane {lane}?', 'Remove lane {lane}'),
 		action('lane_rename', 'config.write', 'Rename', 'Rename lane {lane} to {name}?', 'Rename'),
@@ -100,6 +107,13 @@ export const controlMenu = {
 		action('resume', 'control.basic', 'Resume', 'Resume {target}?', 'Resume {target}'),
 		action('reload', 'control.basic', 'Reload', 'Reload {target}?', 'Reload {target}'),
 		action('restart', 'control.basic', 'Restart', 'Restart {service}?', 'Restart', { job: true }),
+		action(
+			'restart_rolling',
+			'control.basic',
+			'Restart all at session end',
+			'Restart every lane at its session end?',
+			'Restart at session end'
+		),
 		action('config_set', 'config.write', 'Save config', 'Save config?', 'Save config'),
 		action('lanes', 'config.write', 'Apply', 'Change lanes to {count}?', 'Change lanes', {
 			job: true

@@ -26,6 +26,7 @@ class FakeAgent:
         self.state: dict[int, dict[str, Any]] = {}
         self.events_enabled = True
         self.registry: str | None = None
+        self.enabled: str | None = None
         self.failing = False
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
@@ -35,10 +36,11 @@ class FakeAgent:
             raise AgentError("unreachable")
         if cmd == "wolfbet.config_show":
             return {"json": {"v": 1, "config": {"events_enabled": self.events_enabled}}}
-        if cmd.endswith(".lane_ids"):
-            if self.registry is None:
+        if cmd.endswith((".lane_ids", ".lane_ids_enabled")):
+            ids = self.registry if cmd.endswith(".lane_ids") else (self.enabled or self.registry)
+            if ids is None:
                 return {"exit_code": 1, "stdout": "", "stderr": "boom"}
-            return {"exit_code": 0, "stdout": self.registry + "\n", "stderr": ""}
+            return {"exit_code": 0, "stdout": ids + "\n", "stderr": ""}
         lane = (args or {})["lane"]
         return {
             "json": {
@@ -221,3 +223,22 @@ def test_a_stopped_lane_without_a_current_session_forgets_its_old_session(
     rig.clock.now += STALE_AFTER_S + 1
     rig.sync()
     assert rig.lane(1)["session_id"] is None
+
+
+def test_an_enabled_lane_that_never_reported_shows_as_down(rig: Rig, seed: Seed) -> None:
+    rig.agent.registry = "1 5 6"
+    rig.agent.enabled = "1 5"
+    rig.agent.running[5] = False
+    rig.agent.state[5] = None  # type: ignore[assignment]  # the lane never wrote a state file
+    rig.aggregator.apply(bet(lane=1, session_id=1))
+    rig.sync()
+    assert set(rig.aggregator.lanes) == {1, 5}
+    assert rig.lane(5)["status"] == "down"
+
+
+def test_the_registry_is_read_while_every_lane_bets(rig: Rig, seed: Seed) -> None:
+    rig.agent.registry = "1 5"
+    rig.agent.running[5] = False
+    rig.aggregator.apply(bet(lane=1, session_id=1))
+    rig.sync()
+    assert 5 in rig.aggregator.lanes

@@ -20,6 +20,7 @@ const job = (status: string, exit_code: number | null = null) => ({
 const CONFIG = {
 	keys: [],
 	lane_count: 2,
+	lane_ids: [1, 2],
 	override_lanes: { min: 2, max: 10 },
 	split_choices: ['none'],
 	lane_split: 'none',
@@ -264,7 +265,8 @@ test('a lane card pauses or stops only its own lane', async ({ page }) => {
 	const two = page.getByRole('article', { name: 'Lane 2' });
 	await expect(one.getByRole('button', { name: 'Pause' })).toBeVisible();
 	await expect(one.getByRole('button', { name: 'Stop' })).toBeVisible();
-	await expect(one.getByRole('button', { name: 'Restart' })).toBeVisible();
+	await expect(one.getByRole('button', { name: 'Restart at session end' })).toBeVisible();
+	await expect(one.getByRole('button', { name: 'Restart now' })).toBeVisible();
 	await expect(two.getByRole('button', { name: 'Resume' })).toBeVisible();
 	await expect(two.getByRole('link', { name: 'Configure lane 2' })).toHaveAttribute(
 		'href',
@@ -299,7 +301,7 @@ test('each lane shows the code it runs and its waiting change, and Apply restart
 	};
 	const sent = await rig(page, operatorMe, {
 		'GET /wolfbet/config': () => ({ status: 200, json: config }),
-		'POST /wolfbet/control/lane_restart': () => {
+		'POST /wolfbet/control/lane_restart_end': () => {
 			config = { ...CONFIG, rollout: { '1': 'new', '2': 'new' } };
 			return done;
 		}
@@ -311,15 +313,15 @@ test('each lane shows the code it runs and its waiting change, and Apply restart
 		lane(page, 'Lane 2').getByText('Waiting for a restart: multiplier 3 -> 4')
 	).toBeVisible();
 	await expect(lane(page, 'Lane 1').getByText(/Waiting for a restart/)).toHaveCount(0);
-	await lane(page, 'Lane 2').getByRole('button', { name: 'Apply' }).click();
+	await lane(page, 'Lane 2').getByRole('button', { name: 'Apply at session end' }).click();
 	await page
-		.getByRole('dialog', { name: 'Restart lane 2?' })
-		.getByRole('button', { name: 'Restart lane 2' })
+		.getByRole('dialog', { name: 'Restart lane 2 at its session end?' })
+		.getByRole('button', { name: 'Restart at session end' })
 		.click();
 	await expect(lane(page, 'Lane 2').getByText('Code: new')).toBeVisible();
 	await expect(lane(page, 'Lane 2').getByText(/Waiting for a restart/)).toHaveCount(0);
 	expect(sent.map((s) => [s.path, s.body])).toEqual([
-		['/wolfbet/control/lane_restart', { lane: 2 }]
+		['/wolfbet/control/lane_restart_end', { lane: 2 }]
 	]);
 });
 

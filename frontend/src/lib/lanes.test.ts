@@ -14,6 +14,7 @@ import {
 const config = (base_bet: number, lanes: ConfigOut['lanes'] = {}): ConfigOut => ({
 	keys: [],
 	lane_count: 3,
+	lane_ids: [1, 2, 3],
 	override_lanes: { min: 2, max: 10 },
 	split_choices: ['none', 'budget', 'bet', 'both'],
 	lane_split: 'none',
@@ -116,9 +117,10 @@ describe('lane card actions', () => {
 		laneActions(n, status).map((a) => a.label);
 
 	it('offers pause or resume, restart and stop on every lane', () => {
-		expect(names(2, 'running')).toEqual(['Pause', 'Restart', 'Stop']);
-		expect(names(2, 'paused')).toEqual(['Resume', 'Restart', 'Stop']);
-		expect(names(1, 'running')).toEqual(['Pause', 'Restart', 'Stop']);
+		const restarts = ['Restart at session end', 'Restart now'];
+		expect(names(2, 'running')).toEqual(['Pause', ...restarts, 'Stop']);
+		expect(names(2, 'paused')).toEqual(['Resume', ...restarts, 'Stop']);
+		expect(names(1, 'running')).toEqual(['Pause', ...restarts, 'Stop']);
 		expect(names(1, 'events_off')).toEqual(['Pause', 'Resume', 'Stop']);
 	});
 
@@ -132,7 +134,8 @@ describe('lane card actions', () => {
 	it('targets its own lane only', () => {
 		expect(laneActions(4, 'running')).toEqual([
 			{ name: 'pause', body: { target: 4 }, label: 'Pause' },
-			{ name: 'lane_restart', body: { lane: 4 }, label: 'Restart' },
+			{ name: 'lane_restart_end', body: { lane: 4 }, label: 'Restart at session end' },
+			{ name: 'lane_restart', body: { lane: 4 }, label: 'Restart now', danger: true },
 			{ name: 'lane_stop', body: { lane: 4 }, label: 'Stop', danger: true }
 		]);
 	});

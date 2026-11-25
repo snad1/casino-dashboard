@@ -1180,6 +1180,23 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/{service}/control/lane_restart_end': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Lane Restart End */
+		post: operations['control_lane_restart_end__service__control_lane_restart_end_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/{service}/control/lane_start': {
 		parameters: {
 			query?: never;
@@ -1327,6 +1344,23 @@ export interface paths {
 		put?: never;
 		/** Control Restart */
 		post: operations['control_restart__service__control_restart_post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/control/restart_rolling': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Control Restart Rolling */
+		post: operations['control_restart_rolling__service__control_restart_rolling_post'];
 		delete?: never;
 		options?: never;
 		head?: never;
@@ -2181,6 +2215,8 @@ export interface components {
 			keys: components['schemas']['ConfigKey'][];
 			/** Lane Count */
 			lane_count: number;
+			/** Lane Ids */
+			lane_ids: number[];
 			/** Lane Split */
 			lane_split: string;
 			/** Lanes */
@@ -5372,6 +5408,52 @@ export interface operations {
 			};
 		};
 	};
+	control_lane_restart_end__service__control_lane_restart_end_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['LaneIdArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
 	control_lane_start__service__control_lane_start_post: {
 		parameters: {
 			query?: never;
@@ -5741,6 +5823,52 @@ export interface operations {
 		};
 	};
 	control_restart__service__control_restart_post: {
+		parameters: {
+			query?: never;
+			header: {
+				'Idempotency-Key': string;
+			};
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['NoArgs'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Accepted */
+			202: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ControlOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	control_restart_rolling__service__control_restart_rolling_post: {
 		parameters: {
 			query?: never;
 			header: {

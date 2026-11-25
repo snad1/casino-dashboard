@@ -55,6 +55,7 @@ class Resync:
         self._config_at: float | None = None
         self._registry_at: float | None = None
         self._lanes: set[int] | None = None
+        self._enabled: set[int] = set()
         self._agent_failing = False
 
     def _wanted(self, now: float) -> set[int]:
@@ -72,7 +73,8 @@ class Resync:
     async def pass_once(self) -> None:
         now = self.aggregator.clock()
         wanted = self._wanted(now)
-        if not (wanted or self._everything):
+        registry_due = self._registry_at is None or now - self._registry_at >= CONFIG_EVERY_S
+        if not (wanted or self._everything or (registry_due and self.agent is not None)):
             return
         async with self.sessionmaker() as db:
             rows = await current_sessions(db, self.aggregator.svc)
@@ -82,6 +84,7 @@ class Resync:
             self.aggregator.forget(set(self.aggregator.lanes) - registry)
             stored = {n: s for n, s in stored.items() if n in registry}
             wanted &= registry
+            wanted |= self._enabled - set(self.aggregator.lanes)
         if self._everything:
             wanted |= stored.keys() | self.aggregator.lanes.keys()
             self._everything = False
@@ -104,17 +107,13 @@ class Resync:
         if fresh and self._lanes is None:
             return None
         self._registry_at = now
-        data = await self._ask(self.agent, f"{self.aggregator.svc}.lane_ids", {})
-        words = str((data or {}).get("stdout") or "").split()
-        if (
-            data is None
-            or data.get("exit_code") != 0
-            or not words
-            or not all(w.isdigit() for w in words)
-        ):
+        every = _ids(await self._ask(self.agent, f"{self.aggregator.svc}.lane_ids", {}))
+        if every is None:
             self._lanes = None
             return None
-        self._lanes = {int(w) for w in words}
+        enabled = _ids(await self._ask(self.agent, f"{self.aggregator.svc}.lane_ids_enabled", {}))
+        self._lanes = every
+        self._enabled = (enabled or set()) & every
         return self._lanes
 
     async def _read_config(self, now: float) -> None:
@@ -184,6 +183,16 @@ def _session(row: HistorySession) -> dict[str, Any]:
         "currency": row.currency,
         "strategy": row.strategy,
     }
+
+
+def _ids(data: dict[str, Any] | None) -> set[int] | None:
+    """Lane ids from a `--lane-ids` reply, or None when the bot didn't print a clean list."""
+    words = str((data or {}).get("stdout") or "").split()
+    if data is None or data.get("exit_code") != 0 or not words:
+        return None
+    if not all(w.isdigit() for w in words):
+        return None
+    return {int(w) for w in words}
 
 
 def _json(data: dict[str, Any] | None) -> dict[str, Any]:

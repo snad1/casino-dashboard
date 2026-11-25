@@ -85,6 +85,7 @@ async function rig(page: Page) {
 					}
 				],
 				lane_count: 2,
+				lane_ids: [1, 2],
 				override_lanes: { min: 2, max: 10 },
 				split_choices: ['none', 'budget'],
 				lane_split: 'none',

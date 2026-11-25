@@ -49,6 +49,8 @@ CHANGES = {
 
 
 def _healthy(request: dict[str, Any]) -> list[dict[str, Any]]:
+    if request["cmd"] == "wolfbet.lane_ids_enabled":
+        return [ok(request, {"exit_code": 0, "stderr": "", "stdout": "1 5 7\n"})]
     doc = {
         "wolfbet.config_schema": SCHEMA,
         "wolfbet.config_show": SHOW,
@@ -79,6 +81,7 @@ def test_writers_get_the_schema_and_saved_values_without_secrets(
     stop = {"key": "stop", "label": "Stop betting", "value": False}
     assert stop in rules["rule_options"]["actions"]
     assert body["lane_count"] == 3
+    assert body["lane_ids"] == [1, 5, 7]
     assert body["override_lanes"] == {"min": 2, "max": 10}
     assert body["split_choices"] == ["none", "budget", "bet", "both"]
     assert body["lane_split"] == "budget"
@@ -89,7 +92,23 @@ def test_writers_get_the_schema_and_saved_values_without_secrets(
     assert "leak" not in response.text
     assert "abcd" not in response.text
     assert ".wolfbet_autobot.json" not in response.text
-    assert sorted(fake_agent.cmds()) == ["wolfbet.config_schema", "wolfbet.config_show"]
+    assert sorted(fake_agent.cmds()) == [
+        "wolfbet.config_schema",
+        "wolfbet.config_show",
+        "wolfbet.lane_ids_enabled",
+    ]
+
+
+def test_lane_ids_fall_back_to_the_count_when_the_bot_prints_none(
+    signed_in_as: Any, fake_agent: FakeAgent
+) -> None:
+    def reply(request: dict[str, Any]) -> list[dict[str, Any]]:
+        if request["cmd"] == "wolfbet.lane_ids_enabled":
+            return [ok(request, {"exit_code": 2, "stderr": "boom", "stdout": ""})]
+        return _healthy(request)
+
+    fake_agent.reply = reply
+    assert signed_in_as(Role.OPERATOR).get("/wolfbet/config").json()["lane_ids"] == [1, 2, 3]
 
 
 def test_viewers_and_other_services_get_nothing(signed_in_as: Any, fake_agent: FakeAgent) -> None:
@@ -187,6 +206,6 @@ def test_a_bot_that_reports_no_rollout_shows_none(signed_in_as: Any, fake_agent:
     older = {k: v for k, v in SHOW.items() if k != "rollout"}
     docs = {"wolfbet.config_schema": SCHEMA, "wolfbet.config_show": older}
     fake_agent.reply = lambda request: [
-        ok(request, {"exit_code": 0, "stderr": "", "json": docs[request["cmd"]]})
+        ok(request, {"exit_code": 0, "stderr": "", "json": docs.get(request["cmd"], {})})
     ]
     assert signed_in_as(Role.OPERATOR).get("/wolfbet/config").json()["rollout"] == {}

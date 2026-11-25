@@ -106,14 +106,24 @@ export interface LaneAction {
 export function laneActions(n: number, status: LaneStatus): LaneAction[] {
 	const pause: LaneAction = { name: 'pause', body: { target: n }, label: 'Pause' };
 	const resume: LaneAction = { name: 'resume', body: { target: n }, label: 'Resume' };
-	const restart: LaneAction = { name: 'lane_restart', body: { lane: n }, label: 'Restart' };
+	const restart: LaneAction = {
+		name: 'lane_restart_end',
+		body: { lane: n },
+		label: 'Restart at session end'
+	};
+	const restartNow: LaneAction = {
+		name: 'lane_restart',
+		body: { lane: n },
+		label: 'Restart now',
+		danger: true
+	};
 	const stop: LaneAction = { name: 'lane_stop', body: { lane: n }, label: 'Stop', danger: true };
 	const start: LaneAction = { name: 'lane_start', body: { lane: n }, label: 'Start' };
 	switch (status) {
 		case 'running':
-			return [pause, restart, stop];
+			return [pause, restart, restartNow, stop];
 		case 'paused':
-			return [resume, restart, stop];
+			return [resume, restart, restartNow, stop];
 		case 'events_off':
 			return [pause, resume, stop];
 		default:

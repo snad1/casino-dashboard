@@ -81,6 +81,7 @@ class PendingRow(BaseModel):
 class ConfigOut(BaseModel):
     keys: list[ConfigKey]
     lane_count: int
+    lane_ids: list[int]
     override_lanes: LaneRange
     split_choices: list[str]
     lane_split: str
@@ -122,14 +123,25 @@ def _agent_failed(error: AgentError) -> HTTPException:
     return HTTPException(status.HTTP_502_BAD_GATEWAY, AGENT_DOWN)
 
 
+def _lane_ids(data: dict[str, object], count: int) -> list[int]:
+    """The enabled lane ids the bot printed; `1..count` when it printed nothing usable, the
+    numbering lanes had before ids could have gaps."""
+    words = str(data.get("stdout") or "").split()
+    if data.get("exit_code") == 0 and words and all(w.isdigit() for w in words):
+        return sorted({int(w) for w in words})
+    return list(range(1, count + 1))
+
+
 @router.get("/{service}/config", response_model=ConfigOut)
 async def get_config(service: ServiceName, request: Request, _: Writer) -> ConfigOut:
     """The settable keys with their rules, and the saved base and per-lane values."""
     _known_service(service)
     agent = agent_or_error(request)
     try:
-        schema_data, show_data = await asyncio.gather(
-            agent.call(f"{service}.config_schema"), agent.call(f"{service}.config_show")
+        schema_data, show_data, ids_data = await asyncio.gather(
+            agent.call(f"{service}.config_schema"),
+            agent.call(f"{service}.config_show"),
+            agent.call(f"{service}.lane_ids_enabled"),
         )
     except AgentError as error:
         raise _agent_failed(error) from None
@@ -147,6 +159,7 @@ async def get_config(service: ServiceName, request: Request, _: Writer) -> Confi
         return ConfigOut(
             keys=keys,
             lane_count=show["lanes"],
+            lane_ids=_lane_ids(ids_data, show["lanes"]),
             override_lanes=LaneRange.model_validate(lanes["override_lanes"]),
             split_choices=lanes["split"]["choices"],
             lane_split=show["lane_split"],

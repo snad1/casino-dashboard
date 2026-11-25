@@ -12,6 +12,7 @@
 		hasLiveChange,
 		initialEdits,
 		LANE_SPLIT,
+		laneScopes,
 		costLabel,
 		needsRestart,
 		restartPlan,
@@ -61,7 +62,7 @@
 	let pasted = $state<{ filled: number; skipped: Pasted['skipped'] } | null>(null);
 	let vault = $state<VaultKey[] | null>(null);
 
-	const scopes = $derived(config ? [BASE, ...laneScopes(config)] : [BASE]);
+	const scopes = $derived(config ? [BASE, ...tabsOf(config)] : [BASE]);
 	const keys = $derived.by(() => {
 		if (!config) return [];
 		const fields = config.keys.filter((k) => scope === BASE || k.lane_overridable);
@@ -92,22 +93,19 @@
 		try {
 			const loaded = await unwrap(api.GET('/{service}/config', { params: { path: { service } } }));
 			edits = Object.fromEntries(
-				[BASE, ...laneScopes(loaded)].map((s) => [s, initialEdits(loaded, s)])
+				[BASE, ...tabsOf(loaded)].map((s) => [s, initialEdits(loaded, s)])
 			);
 			config = loaded;
 			loadError = null;
 			const tab = page.url.searchParams.get('tab');
-			if (tab && [BASE, ...laneScopes(loaded)].includes(tab)) scope = tab;
+			if (tab && [BASE, ...tabsOf(loaded)].includes(tab)) scope = tab;
 		} catch (e) {
 			loadError = e instanceof ApiError ? e.detail : String(e);
 		}
 	}
 
-	function laneScopes(loaded: ConfigOut): Scope[] {
-		const last = Math.min(loaded.lane_count, loaded.override_lanes.max);
-		return Array.from({ length: Math.max(0, last - loaded.override_lanes.min + 1) }, (_, i) =>
-			String(i + loaded.override_lanes.min)
-		);
+	function tabsOf(loaded: ConfigOut): Scope[] {
+		return laneScopes(loaded.lane_ids, loaded.override_lanes);
 	}
 
 	$effect(() => {
@@ -147,7 +145,9 @@
 		}
 	}
 
-	async function save(thenRestart: boolean) {
+	/** Save, then restart only the running lanes the change affects: at each lane's session end
+	 * by default, or now when asked; a stopped lane picks the change up when it starts. */
+	async function save(restart: 'none' | 'end' | 'now') {
 		if (!preview || !previewFresh) return;
 		const shown = preview;
 		saving = true;
@@ -158,16 +158,18 @@
 		waitForReload(before, !hasLiveChange(shown));
 		preview = null;
 		await load();
-		if (!thenRestart) return;
-		const plan = restartPlan(shown);
-		if (plan.service) {
-			await control.ask('restart');
-			return;
-		}
-		for (const lane of plan.lanes) {
-			const done = await control.ask('lane_restart', { lane });
+		if (restart === 'none' || !config) return;
+		const action = restart === 'end' ? 'lane_restart_end' : 'lane_restart';
+		for (const lane of restartPlan(shown, config).filter((n) => !isIdle(n))) {
+			const done = await control.ask(action, { lane });
 			if (!done || done.status === 'failed') return;
 		}
+	}
+
+	/** A lane known not to run picks the change up when it starts, so it needs no restart. */
+	function isIdle(lane: number): boolean {
+		const status = live.lanes[lane]?.status;
+		return status === 'stopped' || status === 'down';
 	}
 
 	function waitForReload(before: Record<number, number | null>, onlyRestart: boolean) {
@@ -394,10 +396,13 @@
 				>
 					{previewing ? 'Checking...' : 'Preview'}
 				</Button>
-				<Button disabled={!previewFresh || saving} onclick={() => void save(false)}>Save</Button>
+				<Button disabled={!previewFresh || saving} onclick={() => void save('none')}>Save</Button>
 				{#if previewFresh && preview && needsRestart(preview)}
-					<Button variant="danger" disabled={saving} onclick={() => void save(true)}>
-						Save + restart
+					<Button disabled={saving} onclick={() => void save('end')}>
+						Save + restart at session end
+					</Button>
+					<Button variant="danger" disabled={saving} onclick={() => void save('now')}>
+						Save + restart now
 					</Button>
 				{/if}
 				<span class="text-sm text-muted" aria-live="polite">

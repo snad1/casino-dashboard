@@ -304,6 +304,22 @@
     "title": "LaneIdArgs",
     "type": "object"
   },
+  "lane_restart_end": {
+    "additionalProperties": false,
+    "properties": {
+      "lane": {
+        "maximum": 99,
+        "minimum": 1,
+        "title": "Lane",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "lane"
+    ],
+    "title": "LaneIdArgs",
+    "type": "object"
+  },
   "lane_start": {
     "additionalProperties": false,
     "properties": {
@@ -460,6 +476,12 @@
     "type": "object"
   },
   "restart": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "restart_rolling": {
     "additionalProperties": false,
     "properties": {},
     "title": "NoArgs",

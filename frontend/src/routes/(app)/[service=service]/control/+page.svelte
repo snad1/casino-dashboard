@@ -8,6 +8,7 @@
 	import { control } from '#lib/control.svelte';
 	import { liveFor } from '#lib/live/index';
 	import { can } from '#lib/permissions';
+	import { problems } from '#lib/problems';
 	import { api, session } from '#lib/session.svelte';
 	import Button from '#ui/Button';
 	import Notice from '#ui/Notice';
@@ -19,6 +20,7 @@
 			.map(Number)
 			.sort((a, b) => a - b)
 	);
+	const issues = $derived(problems(live.lanes, live.system?.agent));
 	let days = $state(7);
 	let report: { title: string; text: string } | null = $state(null);
 	let checking = $state(false);
@@ -39,6 +41,7 @@
 	/** While a lane still waits for its session end, how often to look again. */
 	const ROLLOUT_POLL_MS = 30_000;
 	const LANE_CODE_JOBS = ['update', 'restart', 'lane_restart'];
+	const startLane = (lane: number) => void control.ask('lane_start', { lane });
 	const waiting = $derived(
 		Object.values(config?.rollout ?? {}).includes('waiting for session end')
 	);
@@ -52,9 +55,10 @@
 		}
 	}
 
-	/** Restart one lane so it runs on the saved settings, then show what is still waiting. */
+	/** Restart one lane at its session end so it runs on the saved settings; the other lanes
+	 * keep betting. Then show what is still waiting. */
 	async function applyPending(lane: number) {
-		const out = await control.ask('lane_restart', { lane });
+		const out = await control.ask('lane_restart_end', { lane });
 		if (out?.status === 'succeeded') await loadConfig();
 	}
 
@@ -107,6 +111,25 @@
 			</Notice>
 		{/if}
 
+		<section class={section} aria-labelledby="problems-title">
+			<h2 id="problems-title" class="mb-3 font-semibold">Problems</h2>
+			{#if issues.length === 0}
+				<p class="text-sm text-muted">No problems.</p>
+			{:else}
+				<ul class="flex flex-col gap-3" role="alert">
+					{#each issues as issue (issue.text)}
+						<li class={row}>
+							<span class="pt-3 text-sm text-warn">{issue.text}</span>
+							{#if issue.lane !== undefined}
+								{@const lane = issue.lane}
+								<Button onclick={() => startLane(lane)}>Start lane {lane}</Button>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
+
 		<section class={section} aria-labelledby="lanes-title">
 			<h2 id="lanes-title" class="mb-3 font-semibold">Lanes</h2>
 			{#if configError}
@@ -130,6 +153,8 @@
 						<ActionButton name="pause" body={{ target: lane }} />
 						<ActionButton name="resume" body={{ target: lane }} />
 						<ActionButton name="reload" body={{ target: lane }} />
+						<ActionButton name="lane_restart_end" body={{ lane }} />
+						<ActionButton name="lane_restart" body={{ lane }} />
 						{#if code}
 							<p class="w-full text-sm {code === 'new' ? 'text-muted' : 'text-warn'}">
 								Code: {code}
@@ -138,7 +163,7 @@
 						{#if pending.length}
 							<div class="flex w-full flex-wrap items-center gap-3">
 								<p class="text-sm text-warn">Waiting for a restart: {pendingText(pending)}</p>
-								<Button onclick={() => void applyPending(lane)}>Apply</Button>
+								<Button onclick={() => void applyPending(lane)}>Apply at session end</Button>
 							</div>
 						{/if}
 					</li>
@@ -160,8 +185,8 @@
 			<h2 id="service-title" class="mb-3 font-semibold">Service</h2>
 			<div class={row}>
 				<ActionButton name="start" />
+				<ActionButton name="restart_rolling" />
 				<ActionButton name="stop" />
-				<ActionButton name="restart" />
 			</div>
 		</section>
 

@@ -285,6 +285,7 @@ COMMANDS: dict[str, CommandSpec] = {
     "start": CommandSpec(NoArgs, _ctl_verb("start"), 60, mutating=True),
     "stop": CommandSpec(NoArgs, _ctl_verb("stop"), 60, mutating=True),
     "restart": CommandSpec(NoArgs, _ctl_verb("restart"), 120, mutating=True, long_running=True),
+    "restart_rolling": CommandSpec(NoArgs, _ctl_verb("restart", "--rolling"), 60, mutating=True),
     "status": CommandSpec(
         LaneArgs,
         lambda a, p: _bot(p, "--status", "--json", *_opt("--lane", a.lane)),
@@ -299,6 +300,12 @@ COMMANDS: dict[str, CommandSpec] = {
     ),
     "lane_restart": CommandSpec(
         LaneIdArgs, lambda a, p: _ctl(p, "restart", str(a.lane)), 60, mutating=True
+    ),
+    "lane_restart_end": CommandSpec(
+        LaneIdArgs,
+        lambda a, p: _ctl(p, "restart", str(a.lane), "--at-boundary"),
+        30,
+        mutating=True,
     ),
     "lane_add": CommandSpec(
         LaneAddArgs,
@@ -366,6 +373,7 @@ COMMANDS: dict[str, CommandSpec] = {
         NoArgs, lambda _a, p: _bot(p, "--config-schema"), 30, json_output=True
     ),
     "lane_ids": CommandSpec(NoArgs, lambda _a, p: _bot(p, "--lane-ids", "all"), 30),
+    "lane_ids_enabled": CommandSpec(NoArgs, lambda _a, p: _bot(p, "--lane-ids", "enabled"), 30),
     "run_reset": CommandSpec(NoArgs, _ctl_verb("run-reset", "--yes"), 120, mutating=True),
     "reset": CommandSpec(NoArgs, _ctl_verb("reset", "--yes"), 120, mutating=True),
     "archives": CommandSpec(NoArgs, _ctl_verb("archives"), 30),
