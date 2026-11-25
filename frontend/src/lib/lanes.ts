@@ -145,6 +145,12 @@ export function laneTitle(n: number, name?: string | null): string {
 	return name ? `Lane ${n} · ${name}` : `Lane ${n}`;
 }
 
+/** `lane 3`, `lanes 3, 4`, or empty for no lane, as a role reads in a sentence. */
+export function lanesText(lanes: readonly number[]): string {
+	if (!lanes.length) return '';
+	return `${lanes.length === 1 ? 'lane' : 'lanes'} ${[...lanes].sort((a, b) => a - b).join(', ')}`;
+}
+
 /** Lane `n` as the live view knows it: with its own name when it has one. */
 export function laneLabel(n: number, lanes: Lanes): string {
 	return laneTitle(n, lanes[n]?.name);

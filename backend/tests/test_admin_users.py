@@ -192,7 +192,7 @@ def test_a_lane_on_a_service_the_bot_host_does_not_run_is_refused(
     app_settings: Settings, admin: TestClient, lane_service: str
 ) -> None:
     target = make_user(app_settings, Role.VIEWER, two_factor=False)
-    body = {"role": "viewer", "service": lane_service, "lane": 3}
+    body = {"role": "viewer", "service": lane_service, "lanes": [3]}
     assert _send(admin, "PUT", f"/admin/users/{target.id}/role", body) == 422
     users = {u["id"]: u for u in admin.get("/admin/users").json()["items"]}
     assert users[target.id]["roles"] == [{"service": None, "role": "viewer", "lane": None}]
@@ -219,10 +219,10 @@ def test_me_reports_a_lane_role_that_opens_nothing_service_wide(
 @pytest.mark.parametrize(
     "body",
     [
-        {"role": "admin", "service": "SERVICE", "lane": 3},
-        {"role": "viewer", "lane": 3},
-        {"role": "viewer", "service": "SERVICE", "lane": 0},
-        {"role": "viewer", "service": "SERVICE", "lane": 100},
+        {"role": "admin", "service": "SERVICE", "lanes": [3]},
+        {"role": "viewer", "lanes": [3]},
+        {"role": "viewer", "service": "SERVICE", "lanes": [0]},
+        {"role": "viewer", "service": "SERVICE", "lanes": [100]},
     ],
 )
 def test_bad_lane_roles_are_refused(
@@ -241,5 +241,5 @@ def test_a_lane_manager_is_granted_on_a_service(
     body = {"role": "lane_manager", "service": lane_service}
     assert _send(admin, "PUT", f"/admin/users/{target.id}/role", body) == 204
     assert _send(admin, "PUT", f"/admin/users/{target.id}/role", {"role": "lane_manager"}) == 422
-    with_lane = {"role": "lane_manager", "service": lane_service, "lane": 2}
+    with_lane = {"role": "lane_manager", "service": lane_service, "lanes": [2]}
     assert _send(admin, "PUT", f"/admin/users/{target.id}/role", with_lane) == 422

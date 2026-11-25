@@ -11,19 +11,20 @@ only a lane the bot has can be named. Only the owner sets how many lanes a lane 
 create.
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Annotated, Literal
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent_client import AgentError
 from app.api.control import AGENT_DOWN, CONTROLS, agent_or_error
-from app.api.lane_access import lane_exists
-from app.auth.models import Role, Totp, User, UserRole
+from app.api.lane_access import registered_lanes
+from app.auth.models import INVITE_LANES_MAX, Role, Totp, User, UserRole
 from app.auth.permissions import Perm, require, roles_for
 from app.auth.sessions import revoke_all
 from app.auth.stepup import require_fresh
@@ -38,6 +39,7 @@ TELEGRAM_ROLE = "A Telegram account keeps its own role."
 LANE_NEEDS_SERVICE = "Pick the service the lane belongs to."
 LANE_ROLES = ("viewer", "operator")
 LANE_ROLE = "Only viewer or operator can be given on one lane."
+LANES_TWICE = "Each lane may be picked once."
 MANAGER_NEEDS_SERVICE = "Pick the service a lane manager runs lanes on."
 LANE_UNKNOWN = "That lane does not exist."
 OWNER_ONLY = "Only the owner can change lane quotas."
@@ -71,18 +73,29 @@ class UserList(BaseModel):
     items: list[UserOut]
 
 
-def check_scope(role: str, service: str | None, lane: int | None) -> None:
-    """Refuse a role and scope that can't go together: a lane manager or a lane needs a
-    service, and only viewer or operator can be given on one lane."""
+Lane = Annotated[int, Field(ge=1, le=99)]
+Lanes = Annotated[list[Lane], Field(default_factory=list, max_length=INVITE_LANES_MAX)]
+
+
+def check_scope(role: str, service: str | None, lanes: Sequence[int]) -> None:
+    """Refuse a role and scope that can't go together: a lane manager or lanes need a
+    service, and only viewer or operator can be given on lanes."""
     if role == "lane_manager" and service is None:
         raise ValueError(MANAGER_NEEDS_SERVICE)
-    if lane is not None and service is None:
+    if lanes and service is None:
         raise ValueError(LANE_NEEDS_SERVICE)
-    if lane is not None and role not in LANE_ROLES:
+    if lanes and role not in LANE_ROLES:
         raise ValueError(LANE_ROLE)
 
 
-async def require_lane(request: Request, service: str, lane: int) -> None:
+def distinct_lanes(lanes: list[int]) -> list[int]:
+    """The lanes in order; a lane given twice is refused."""
+    if len(set(lanes)) != len(lanes):
+        raise ValueError(LANES_TWICE)
+    return sorted(lanes)
+
+
+async def require_lanes(request: Request, service: str, lanes: Sequence[int]) -> None:
     """Refuse a lane the bot does not have (422), or 502 when the bot host can't say.
 
     A role on a lane id that doesn't exist yet would open whichever lane gets that id later.
@@ -90,22 +103,24 @@ async def require_lane(request: Request, service: str, lane: int) -> None:
     if service not in CONTROLS:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, LANE_UNKNOWN)
     try:
-        found = await lane_exists(agent_or_error(request), service, lane)
+        known = await registered_lanes(agent_or_error(request), service)
     except AgentError as error:
         log.warning("lane list failed while granting a lane", code=error.code)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, AGENT_DOWN) from None
-    if not found:
+    if not set(lanes) <= known:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, LANE_UNKNOWN)
 
 
 class RoleIn(BaseModel):
     role: Literal["admin", "operator", "viewer", "lane_manager"]
     service: str | None = Field(default=None, max_length=100)
-    lane: int | None = Field(default=None, ge=1, le=99)
+    lanes: Lanes
+
+    _distinct = field_validator("lanes")(distinct_lanes)
 
     @model_validator(mode="after")
-    def _lane_in_a_service(self) -> "RoleIn":
-        check_scope(self.role, self.service, self.lane)
+    def _lanes_in_a_service(self) -> "RoleIn":
+        check_scope(self.role, self.service, self.lanes)
         return self
 
 
@@ -160,7 +175,8 @@ async def _target(db: AsyncSession, actor: User, user_id: int) -> User:
 async def set_role(
     user_id: UserId, body: RoleIn, request: Request, actor: Manager, _: Fresh, db: Db
 ) -> None:
-    """Replace the user's roles with one role: on all services, one service, or one lane of it."""
+    """Replace the user's roles with one role: on all services, one service, or some of its
+    lanes (one row per lane)."""
     user = await _target(db, actor, user_id)
     if user.tg_uid is not None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, TELEGRAM_ROLE)
@@ -169,10 +185,12 @@ async def set_role(
         service_id = await db.scalar(select(Service.id).where(Service.name == body.service))
         if service_id is None:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, UNKNOWN_SERVICE)
-    if body.service is not None and body.lane is not None:
-        await require_lane(request, body.service, body.lane)
+    if body.service is not None and body.lanes:
+        await require_lanes(request, body.service, body.lanes)
     await db.execute(delete(UserRole).where(UserRole.user_id == user.id))
-    db.add(UserRole(user_id=user.id, service_id=service_id, role=Role(body.role), lane=body.lane))
+    scopes: list[int | None] = [*body.lanes] or [None]
+    for lane in scopes:
+        db.add(UserRole(user_id=user.id, service_id=service_id, role=Role(body.role), lane=lane))
     await db.commit()
 
 

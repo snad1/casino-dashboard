@@ -74,8 +74,8 @@ export const ROLE_INFO = {
 	}
 } as const;
 
-export const ON_ONE_LANE =
-	'A role on one lane sees and acts on that lane only; nothing service-wide.';
+export const ON_SOME_LANES =
+	'A viewer or operator given lanes sees and acts on those lanes only; nothing service-wide.';
 
 /**
  * Whether the signed-in user may use `perm` on `service`, mirroring the api's role map. The

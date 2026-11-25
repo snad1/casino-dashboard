@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import { adminMe, stubApi, viewerMe } from './stub';
 
 const CODE_NEEDED = 'Enter the code from your authenticator app.';
@@ -106,7 +106,7 @@ test('an admin invites a user, and a role change asks for 2FA first', async ({ p
 	expect(calls.filter((c) => c === 'PUT /admin/users/2/role')).toHaveLength(2);
 });
 
-test('a role can be limited to one lane', async ({ page }) => {
+test('a role can be limited to several lanes, then changed', async ({ page }) => {
 	const sent: unknown[] = [];
 	const friend: { roles: { service: string | null; role: string; lane: number | null }[] } & Record<
 		string,
@@ -126,24 +126,43 @@ test('a role can be limited to one lane', async ({ page }) => {
 	await stubApi(page, {
 		'GET /auth/me': () => ({ status: 200, json: adminMe }),
 		'GET /admin/users': () => ({ status: 200, json: { items: users } }),
+		'GET /wolfbet/config': () => ({ status: 200, json: { lane_ids: [1, 3, 8, 9] } }),
 		'PUT /admin/users/2/role': (body) => {
 			sent.push(body);
-			friend.roles = [{ service: 'wolfbet', role: 'viewer', lane: 3 }];
+			const { lanes } = body as { lanes: number[] };
+			friend.roles = lanes.map((lane) => ({ service: 'wolfbet', role: 'viewer', lane }));
 			return { status: 204 };
 		}
 	});
+	// The phone tab bar covers the row's bottom edge, where a pointer click scrolls it to.
+	const toggle = (box: Locator) => box.press('Space');
 	await page.goto('/admin/users');
-	await page.getByLabel('Lane for friend@example.test').fill('3');
-	await page.getByLabel('Lane for friend@example.test').press('Tab');
+	const row = page.getByRole('row', { name: /friend@example\.test/ });
+	await row.locator('summary').press('Enter');
+	const lanes = row.getByRole('group', { name: 'Lanes for friend@example.test' });
+	await toggle(lanes.getByLabel('Lane 8'));
+	await toggle(lanes.getByLabel('Lane 9'));
+	await row.getByRole('button', { name: 'Save lanes' }).press('Enter');
 	await expect(
-		page.getByRole('dialog', { name: 'Make friend@example.test viewer on lane 3?' })
+		page.getByRole('dialog', { name: 'Make friend@example.test viewer on lanes 8, 9?' })
 	).toBeVisible();
 	await page.getByRole('button', { name: 'Make viewer' }).click();
 	await expect(page.getByRole('status')).toContainText(
-		'friend@example.test is now viewer on wolfbet lane 3.'
+		'friend@example.test is now viewer on wolfbet lanes 8, 9.'
 	);
-	expect(sent).toEqual([{ role: 'viewer', service: 'wolfbet', lane: 3 }]);
-	await expect(page.getByText('viewer on wolfbet lane 3', { exact: true })).toBeVisible();
+	await expect(page.getByText('viewer on wolfbet lanes 8, 9', { exact: true })).toBeVisible();
+
+	await expect(row.getByText('On lanes 8, 9')).toBeVisible();
+	if (!(await lanes.isVisible())) await row.locator('summary').press('Enter');
+	await toggle(lanes.getByLabel('Lane 8'));
+	await toggle(lanes.getByLabel('Lane 3'));
+	await row.getByRole('button', { name: 'Save lanes' }).press('Enter');
+	await page.getByRole('button', { name: 'Make viewer' }).click();
+	await expect(page.getByText('viewer on wolfbet lanes 3, 9', { exact: true })).toBeVisible();
+	expect(sent).toEqual([
+		{ role: 'viewer', service: 'wolfbet', lanes: [8, 9] },
+		{ role: 'viewer', service: 'wolfbet', lanes: [3, 9] }
+	]);
 });
 
 test('a lane manager is granted on this service', async ({ page }) => {
@@ -173,14 +192,15 @@ test('a lane manager is granted on this service', async ({ page }) => {
 	await expect(page.getByRole('status')).toContainText(
 		'friend@example.test is now lane_manager on wolfbet.'
 	);
-	expect(sent).toEqual([{ role: 'lane_manager', service: 'wolfbet', lane: null }]);
+	expect(sent).toEqual([{ role: 'lane_manager', service: 'wolfbet', lanes: [] }]);
 });
 
-test('an invite can name one lane, or make a lane manager', async ({ page }) => {
+test('an invite can name several lanes, or make a lane manager', async ({ page }) => {
 	const sent: unknown[] = [];
 	await stubApi(page, {
 		'GET /auth/me': () => ({ status: 200, json: adminMe }),
 		'GET /admin/users': () => ({ status: 200, json: { items: [] } }),
+		'GET /wolfbet/config': () => ({ status: 200, json: { lane_ids: [1, 3, 8, 9] } }),
 		'POST /auth/invites': (body) => {
 			sent.push(body);
 			return { status: 204 };
@@ -189,13 +209,15 @@ test('an invite can name one lane, or make a lane manager', async ({ page }) => 
 	await page.goto('/admin/users');
 	await expect(page.getByText('Viewer: Sees the live view')).toBeVisible();
 	await expect(page.getByText('What each role can do')).toBeVisible();
-	for (const name of ['Viewer', 'Operator', 'Admin', 'Lane manager', 'Owner', 'On one lane']) {
+	for (const name of ['Viewer', 'Operator', 'Admin', 'Lane manager', 'Owner', 'On some lanes']) {
 		await expect(page.locator('dt', { hasText: new RegExp(`^${name}$`) })).toBeVisible();
 	}
 	await page.getByLabel('Email to invite').fill('friend@example.test');
-	await page.getByLabel('Lane', { exact: true }).fill('3');
+	const choice = page.getByRole('group', { name: 'Lanes on wolfbet' });
+	await choice.getByLabel('Lane 9').check();
+	await choice.getByLabel('Lane 8').check();
 	await page.getByRole('button', { name: 'Invite' }).click();
-	await expect(page.getByText('join as viewer on wolfbet lane 3')).toBeVisible();
+	await expect(page.getByText('join as viewer on wolfbet lanes 8, 9')).toBeVisible();
 	await page.getByRole('button', { name: 'Send invite' }).click();
 	await expect(page.getByRole('status')).toContainText('Invite sent to friend@example.test.');
 
@@ -203,12 +225,13 @@ test('an invite can name one lane, or make a lane manager', async ({ page }) => 
 	const invite = page.locator('form').filter({ has: page.getByLabel('Email to invite') });
 	await invite.getByRole('combobox').first().selectOption('lane_manager');
 	await expect(page.getByText('Lane manager: Adds lanes of their own')).toBeVisible();
+	await expect(page.getByRole('group', { name: 'Lanes on wolfbet' })).toHaveCount(0);
 	await page.getByRole('button', { name: 'Invite' }).click();
 	await page.getByRole('button', { name: 'Send invite' }).click();
 	await expect(page.getByRole('status')).toContainText('Invite sent to manager@example.test.');
 	expect(sent).toEqual([
-		{ email: 'friend@example.test', role: 'viewer', service: 'wolfbet', lane: 3 },
-		{ email: 'manager@example.test', role: 'lane_manager', service: 'wolfbet', lane: null }
+		{ email: 'friend@example.test', role: 'viewer', service: 'wolfbet', lanes: [8, 9] },
+		{ email: 'manager@example.test', role: 'lane_manager', service: 'wolfbet', lanes: [] }
 	]);
 });
 

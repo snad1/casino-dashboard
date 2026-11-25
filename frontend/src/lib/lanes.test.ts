@@ -8,6 +8,7 @@ import {
 	lanePlan,
 	laneShares,
 	laneTitle,
+	lanesText,
 	parseArchives
 } from './lanes';
 
@@ -160,5 +161,13 @@ describe('lane names', () => {
 		for (const name of ['', '-x', ' x', 'x ', 'a;b', '%(asctime)s', 'a'.repeat(33)]) {
 			expect(laneNameError(name)).toBe(LANE_NAME_HELP);
 		}
+	});
+});
+
+describe('lanesText', () => {
+	it('names one lane, several sorted lanes, or none', () => {
+		expect(lanesText([])).toBe('');
+		expect(lanesText([3])).toBe('lane 3');
+		expect(lanesText([10, 9])).toBe('lanes 9, 10');
 	});
 });

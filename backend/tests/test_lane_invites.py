@@ -1,4 +1,4 @@
-"""Invites onto one lane or as a lane manager, only onto lanes the bot has, and lane quotas."""
+"""Invites onto chosen lanes or as a lane manager, only onto lanes the bot has, and lane quotas."""
 
 import re
 import secrets
@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import delete, select, text, update
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.control import AGENT_DOWN
@@ -33,7 +33,7 @@ def _leave_no_lane_data(control_settings: Settings) -> Iterator[None]:
     yield
 
     async def clean(session: AsyncSession) -> None:
-        await session.execute(delete(Invite).where(Invite.lane.is_not(None)))
+        await session.execute(delete(Invite).where(func.cardinality(Invite.lanes) > 0))
         await session.execute(delete(Invite).where(Invite.role == "lane_manager"))
         await session.execute(delete(UserRole).where(UserRole.lane.is_not(None)))
         await session.execute(delete(UserRole).where(UserRole.role == Role.LANE_MANAGER))
@@ -57,7 +57,7 @@ def lanes(control_settings: Settings, fake_agent: FakeAgent) -> Iterator[list[in
         await session.commit()
 
     run_in_session(control_settings, add)
-    registry = [1, 3]
+    registry = [1, 3, 4]
 
     def reply(request: dict[str, Any]) -> list[dict[str, Any]]:
         if request["cmd"] == "wolfbet.lane_ids":
@@ -91,10 +91,10 @@ def _token_for(settings: Settings, email: str) -> str:
     return run_in_session(settings, run)
 
 
-def _invites(settings: Settings, email: str) -> list[tuple[str, int | None]]:
-    async def run(session: AsyncSession) -> list[tuple[str, int | None]]:
-        rows = await session.execute(select(Invite.role, Invite.lane).where(Invite.email == email))
-        return [(role, lane) for role, lane in rows]
+def _invites(settings: Settings, email: str) -> list[tuple[str, list[int]]]:
+    async def run(session: AsyncSession) -> list[tuple[str, list[int]]]:
+        rows = await session.execute(select(Invite.role, Invite.lanes).where(Invite.email == email))
+        return [(role, list(lanes)) for role, lanes in rows]
 
     return run_in_session(settings, run)
 
@@ -117,15 +117,46 @@ def test_an_invite_onto_a_lane_grants_that_lane_only(
 ) -> None:
     admin = signed_in_as(Role.ADMIN)
     email = new_email()
-    body = {"email": email, "role": "viewer", "service": WOLFBET, "lane": 3}
+    body = {"email": email, "role": "viewer", "service": WOLFBET, "lanes": [3]}
     assert _send(admin, "POST", "/auth/invites", body).status_code == 204
-    assert _invites(control_settings, email) == [("viewer", 3)]
+    assert _invites(control_settings, email) == [("viewer", [3])]
     mail = run_in_session(
         control_settings,
         lambda s: s.scalar(select(OutboxMessage.text_body).where(OutboxMessage.to_email == email)),
     )
     assert "as viewer on wolfbet lane 3" in (mail or "")
     assert _accept(control_settings, email) == [{"service": WOLFBET, "role": "viewer", "lane": 3}]
+
+
+def test_an_invite_onto_several_lanes_grants_each_of_them(
+    control_settings: Settings, signed_in_as: Any, lanes: list[int]
+) -> None:
+    admin = signed_in_as(Role.ADMIN)
+    email = new_email()
+    body = {"email": email, "role": "viewer", "service": WOLFBET, "lanes": [4, 3]}
+    assert _send(admin, "POST", "/auth/invites", body).status_code == 204
+    assert _invites(control_settings, email) == [("viewer", [3, 4])]
+    mail = run_in_session(
+        control_settings,
+        lambda s: s.scalar(select(OutboxMessage.text_body).where(OutboxMessage.to_email == email)),
+    )
+    assert "as viewer on wolfbet lanes 3, 4" in (mail or "")
+    roles = _accept(control_settings, email)
+    assert sorted(roles, key=lambda r: r["lane"]) == [
+        {"service": WOLFBET, "role": "viewer", "lane": 3},
+        {"service": WOLFBET, "role": "viewer", "lane": 4},
+    ]
+
+
+def test_one_unknown_lane_among_several_refuses_the_invite(
+    control_settings: Settings, signed_in_as: Any, lanes: list[int]
+) -> None:
+    admin = signed_in_as(Role.ADMIN)
+    email = new_email()
+    body = {"email": email, "role": "viewer", "service": WOLFBET, "lanes": [3, 42]}
+    response = _send(admin, "POST", "/auth/invites", body)
+    assert (response.status_code, response.json()["detail"]) == (422, LANE_UNKNOWN)
+    assert _invites(control_settings, email) == []
 
 
 def test_a_lane_manager_invite_lands_on_the_service(
@@ -145,7 +176,7 @@ def test_an_unknown_lane_is_refused_and_nothing_is_sent(
 ) -> None:
     admin = signed_in_as(Role.ADMIN)
     email = new_email()
-    body = {"email": email, "role": "viewer", "service": WOLFBET, "lane": 42}
+    body = {"email": email, "role": "viewer", "service": WOLFBET, "lanes": [42]}
     response = _send(admin, "POST", "/auth/invites", body)
     assert (response.status_code, response.json()["detail"]) == (422, LANE_UNKNOWN)
     assert _invites(control_settings, email) == []
@@ -156,7 +187,7 @@ def test_a_lane_removed_before_acceptance_voids_the_invite(
 ) -> None:
     admin = signed_in_as(Role.ADMIN)
     email = new_email()
-    body = {"email": email, "role": "operator", "service": WOLFBET, "lane": 3}
+    body = {"email": email, "role": "operator", "service": WOLFBET, "lanes": [3]}
     assert _send(admin, "POST", "/auth/invites", body).status_code == 204
     lanes.remove(3)
     response = _accept(control_settings, email)
@@ -173,7 +204,7 @@ def test_the_bot_host_down_grants_nothing(
     admin = signed_in_as(Role.ADMIN)
     fake_agent.reply = lambda request: [fail(request, "unavailable")]
     email = new_email()
-    body = {"email": email, "role": "viewer", "service": WOLFBET, "lane": 3}
+    body = {"email": email, "role": "viewer", "service": WOLFBET, "lanes": [3]}
     response = _send(admin, "POST", "/auth/invites", body)
     assert (response.status_code, response.json()["detail"]) == (502, AGENT_DOWN)
     assert _invites(control_settings, email) == []
@@ -182,10 +213,12 @@ def test_the_bot_host_down_grants_nothing(
 @pytest.mark.parametrize(
     "scope",
     [
-        {"role": "admin", "service": WOLFBET, "lane": 3},
-        {"role": "viewer", "lane": 3},
+        {"role": "admin", "service": WOLFBET, "lanes": [3]},
+        {"role": "viewer", "lanes": [3]},
         {"role": "lane_manager"},
-        {"role": "viewer", "service": WOLFBET, "lane": 0},
+        {"role": "viewer", "service": WOLFBET, "lanes": [0]},
+        {"role": "viewer", "service": WOLFBET, "lanes": [3, 3]},
+        {"role": "viewer", "service": WOLFBET, "lanes": list(range(1, 22))},
     ],
 )
 def test_scopes_that_cannot_go_together_are_refused(
@@ -201,12 +234,30 @@ def test_the_users_page_checks_the_lane_exists(
     admin = signed_in_as(Role.ADMIN)
     target = make_user(control_settings, Role.VIEWER, two_factor=False)
     path = f"/admin/users/{target.id}/role"
-    unknown = _send(admin, "PUT", path, {"role": "viewer", "service": WOLFBET, "lane": 42})
+    unknown = _send(admin, "PUT", path, {"role": "viewer", "service": WOLFBET, "lanes": [42]})
     assert (unknown.status_code, unknown.json()["detail"]) == (422, LANE_UNKNOWN)
     assert (
-        _send(admin, "PUT", path, {"role": "viewer", "service": WOLFBET, "lane": 3}).status_code
+        _send(admin, "PUT", path, {"role": "viewer", "service": WOLFBET, "lanes": [3]}).status_code
         == 204
     )
+    assert fake_agent.cmds() == ["wolfbet.lane_ids", "wolfbet.lane_ids"]
+
+
+def test_the_users_page_replaces_a_users_lanes(
+    control_settings: Settings, signed_in_as: Any, lanes: list[int], fake_agent: FakeAgent
+) -> None:
+    admin = signed_in_as(Role.ADMIN)
+    target = make_user(control_settings, Role.VIEWER, two_factor=False)
+    path = f"/admin/users/{target.id}/role"
+    first = {"role": "viewer", "service": WOLFBET, "lanes": [1, 3]}
+    assert _send(admin, "PUT", path, first).status_code == 204
+    second = {"role": "operator", "service": WOLFBET, "lanes": [3, 4]}
+    assert _send(admin, "PUT", path, second).status_code == 204
+    listed = {u["id"]: u for u in admin.get("/admin/users").json()["items"]}
+    assert sorted(listed[target.id]["roles"], key=lambda r: r["lane"]) == [
+        {"service": WOLFBET, "role": "operator", "lane": 3},
+        {"service": WOLFBET, "role": "operator", "lane": 4},
+    ]
     assert fake_agent.cmds() == ["wolfbet.lane_ids", "wolfbet.lane_ids"]
 
 

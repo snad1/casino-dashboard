@@ -21,7 +21,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import CITEXT, INET
+from sqlalchemy.dialects.postgresql import ARRAY, CITEXT, INET
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.models import Base
@@ -94,9 +94,10 @@ class AuditActor:
 
 
 LANE_CHECK = "lane IS NULL OR (service_id IS NOT NULL AND lane BETWEEN 1 AND 99)"
-INVITE_LANE_CHECK = (
-    "lane IS NULL OR (service_id IS NOT NULL AND lane BETWEEN 1 AND 99"
-    " AND role IN ('viewer', 'operator'))"
+INVITE_LANES_MAX = 20
+INVITE_LANES_CHECK = (
+    "cardinality(lanes) = 0 OR (service_id IS NOT NULL AND role IN ('viewer', 'operator')"
+    f" AND cardinality(lanes) <= {INVITE_LANES_MAX} AND 1 <= ALL(lanes) AND 99 >= ALL(lanes))"
 )
 
 
@@ -150,7 +151,7 @@ class Invite(Base):
     __tablename__ = "invites"
     __table_args__ = (
         CheckConstraint(_ROLE_CHECK, name="role"),
-        CheckConstraint(INVITE_LANE_CHECK, name="lane"),
+        CheckConstraint(INVITE_LANES_CHECK, name="lanes"),
     )
 
     id: Mapped[int] = _id()
@@ -160,7 +161,9 @@ class Invite(Base):
     service_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("services.id", ondelete="CASCADE")
     )
-    lane: Mapped[int | None] = mapped_column(SmallInteger)
+    lanes: Mapped[list[int]] = mapped_column(
+        ARRAY(SmallInteger), server_default=text("'{}'"), default=list
+    )
     invited_by: Mapped[int] = _user_fk()
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

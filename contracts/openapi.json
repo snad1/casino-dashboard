@@ -1860,18 +1860,15 @@
             "title": "Email",
             "type": "string"
           },
-          "lane": {
-            "anyOf": [
-              {
-                "maximum": 99.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Lane"
+          "lanes": {
+            "items": {
+              "maximum": 99.0,
+              "minimum": 1.0,
+              "type": "integer"
+            },
+            "maxItems": 20,
+            "title": "Lanes",
+            "type": "array"
           },
           "role": {
             "enum": [
@@ -2856,18 +2853,15 @@
       },
       "RoleIn": {
         "properties": {
-          "lane": {
-            "anyOf": [
-              {
-                "maximum": 99.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Lane"
+          "lanes": {
+            "items": {
+              "maximum": 99.0,
+              "minimum": 1.0,
+              "type": "integer"
+            },
+            "maxItems": 20,
+            "title": "Lanes",
+            "type": "array"
           },
           "role": {
             "enum": [
@@ -4565,7 +4559,7 @@
     },
     "/admin/users/{user_id}/role": {
       "put": {
-        "description": "Replace the user's roles with one role: on all services, one service, or one lane of it.",
+        "description": "Replace the user's roles with one role: on all services, one service, or some of its\nlanes (one row per lane).",
         "operationId": "set_role_admin_users__user_id__role_put",
         "parameters": [
           {

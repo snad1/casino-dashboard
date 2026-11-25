@@ -66,11 +66,15 @@ def over_quota(quota: int) -> str:
     return f"You already run {quota} lane{'' if quota == 1 else 's'}, the most you may have."
 
 
+async def registered_lanes(agent: AgentClient, service: str) -> set[int]:
+    """The lanes in the bot's registry; raises `AgentError` when it can't tell."""
+    data = await agent.call(f"{service}.lane_ids", {})
+    return {int(word) for word in str(data.get("stdout") or "").split() if word.isdigit()}
+
+
 async def lane_exists(agent: AgentClient, service: str, lane: int) -> bool:
     """Whether `lane` is in the bot's lane registry; raises `AgentError` when it can't tell."""
-    data = await agent.call(f"{service}.lane_ids", {})
-    words = str(data.get("stdout") or "").split()
-    return str(lane) in words
+    return lane in await registered_lanes(agent, service)
 
 
 def added_lane(output: str | None) -> int | None:

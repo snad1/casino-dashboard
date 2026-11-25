@@ -2,7 +2,10 @@
 	import { onMount } from 'svelte';
 	import type { components } from '#lib/api/schema';
 	import { ApiError, unwrap } from '#lib/api/client';
-	import { ON_ONE_LANE, ROLE_INFO } from '#lib/permissions';
+	import LaneChecklist from '#components/LaneChecklist';
+	import { laneLabel, lanesText } from '#lib/lanes';
+	import { liveFor } from '#lib/live/index';
+	import { ON_SOME_LANES, ROLE_INFO } from '#lib/permissions';
 	import { api, DEFAULT_SERVICE, session } from '#lib/session.svelte';
 	import Button from '#ui/Button';
 	import ConfirmDialog from '#ui/ConfirmDialog';
@@ -22,11 +25,15 @@
 	};
 
 	const ROLES: Role[] = ['viewer', 'operator', 'admin', 'lane_manager'];
+	const LANE_ROLES = new Set<Role>(['viewer', 'operator']);
+	const live = $derived(liveFor(DEFAULT_SERVICE));
 	let users: User[] = $state([]);
 	let inviteEmail = $state('');
 	let inviteRole: Role = $state('viewer');
 	let inviteScope = $state('all');
-	let inviteLane = $state('');
+	let inviteLanes: number[] = $state([]);
+	let registry: number[] = $state([]);
+	let drafts: Record<string, number[] | undefined> = $state({});
 	let notice: { tone: 'success' | 'error'; text: string } | null = $state(null);
 	let pending: Pending | null = $state(null);
 	let confirmOpen = $state(false);
@@ -36,19 +43,52 @@
 	const isOwner = $derived(session.me?.roles.some((r) => r.role === 'owner') ?? false);
 	const lanes = (n: number) => `${n} lane${n === 1 ? '' : 's'}`;
 
-	const describe = (user: User) =>
-		user.roles
-			.map(
-				(r) => `${r.role}${r.service ? ` on ${r.service}` : ''}${r.lane ? ` lane ${r.lane}` : ''}`
-			)
-			.join(', ') || 'no role';
+	const userLanes = (user: User) =>
+		user.roles.map((r) => r.lane).filter((n): n is number => typeof n === 'number');
+	const laneChoices = $derived(
+		[...new Set([...registry, ...Object.keys(live.lanes).map(Number), ...users.flatMap(userLanes)])]
+			.filter((n) => Number.isInteger(n) && n >= 1)
+			.sort((a, b) => a - b)
+	);
+	const label = (lane: number) => laneLabel(lane, live.lanes);
+	const sameLanes = (a: number[], b: number[]) =>
+		a.length === b.length && a.every((n) => b.includes(n));
+	const scopeText = (role: string, service: string | null | undefined, lanes: number[]) =>
+		`${role}${service ? ` on ${service}` : ''}${lanes.length ? ` ${lanesText(lanes)}` : ''}`;
+
+	/** One phrase per role and service, with that role's lanes gathered: `viewer on wolfbet lanes 9, 10`. */
+	function describe(user: User): string {
+		const groups: Record<string, { role: string; service?: string | null; lanes: number[] }> = {};
+		for (const r of user.roles) {
+			const group = (groups[`${r.role}|${r.service ?? ''}`] ??= {
+				role: r.role,
+				service: r.service,
+				lanes: []
+			});
+			if (typeof r.lane === 'number') group.lanes.push(r.lane);
+		}
+		return (
+			Object.values(groups)
+				.map((g) => scopeText(g.role, g.service, g.lanes))
+				.join(', ') || 'no role'
+		);
+	}
 
 	async function refresh() {
 		users = (await unwrap(api.GET('/admin/users'))).items;
 	}
 
+	/** The bot's lanes, so a friend can be given a lane that is not betting right now. */
+	async function loadLanes() {
+		const { data } = await api.GET('/{service}/config', {
+			params: { path: { service: DEFAULT_SERVICE } }
+		});
+		if (data) registry = data.lane_ids;
+	}
+
 	onMount(() => {
 		refresh().catch((e) => (notice = { tone: 'error', text: message(e) }));
+		void loadLanes();
 	});
 
 	function message(e: unknown): string {
@@ -86,24 +126,24 @@
 		event.preventDefault();
 		const email = inviteEmail.trim();
 		const role = inviteRole;
-		const lane = laneFrom(String(inviteLane));
+		const lanes = LANE_ROLES.has(role) ? inviteLanes : [];
 		const service =
-			role === 'lane_manager' || lane !== null
+			role === 'lane_manager' || lanes.length
 				? DEFAULT_SERVICE
 				: inviteScope === 'all'
 					? null
 					: inviteScope;
-		const scope = `${role}${service ? ` on ${service}` : ''}${lane ? ` lane ${lane}` : ''}`;
+		const scope = scopeText(role, service, lanes);
 		ask({
 			title: `Invite ${email}?`,
 			body: `They get an email with a link to set a password and join as ${scope}.`,
 			label: 'Send invite',
 			danger: false,
 			run: async () => {
-				await unwrap(api.POST('/auth/invites', { body: { email, role, service, lane } }));
+				await unwrap(api.POST('/auth/invites', { body: { email, role, service, lanes } }));
 				notice = { tone: 'success', text: `Invite sent to ${email}.` };
 				inviteEmail = '';
-				inviteLane = '';
+				inviteLanes = [];
 			}
 		});
 	}
@@ -127,16 +167,17 @@
 		});
 	}
 
-	/** A role on every service, or (with `lane`) on that one lane of this dashboard's service. */
-	function changeRole(user: User, role: Role, lane: number | null = user.roles[0]?.lane ?? null) {
-		const onService = role === 'lane_manager' || lane !== null;
-		const where = lane
-			? `${DEFAULT_SERVICE} lane ${lane}`
+	/** A role on every service, or (with `lanes`) on those lanes of this dashboard's service. */
+	function changeRole(user: User, role: Role, chosen: number[] = userLanes(user)) {
+		const lanes = LANE_ROLES.has(role) ? chosen : [];
+		const onService = role === 'lane_manager' || lanes.length > 0;
+		const where = lanes.length
+			? `${DEFAULT_SERVICE} ${lanesText(lanes)}`
 			: onService
 				? DEFAULT_SERVICE
 				: 'every service';
 		ask({
-			title: `Make ${user.email} ${role}${lane ? ` on lane ${lane}` : ''}?`,
+			title: `Make ${user.email} ${role}${lanes.length ? ` on ${lanesText(lanes)}` : ''}?`,
 			body: `Their current roles (${describe(user)}) are replaced by ${role} on ${where}.`,
 			label: `Make ${role}`,
 			danger: false,
@@ -144,9 +185,10 @@
 				await unwrap(
 					api.PUT('/admin/users/{user_id}/role', {
 						params: { path: { user_id: user.id } },
-						body: { role, service: onService ? DEFAULT_SERVICE : null, lane }
+						body: { role, service: onService ? DEFAULT_SERVICE : null, lanes }
 					})
 				);
+				drafts[user.id] = undefined;
 				notice = { tone: 'success', text: `${user.email} is now ${role} on ${where}.` };
 			}
 		});
@@ -184,7 +226,7 @@
 
 		<form
 			onsubmit={invite}
-			class="grid gap-4 rounded-lg border border-line bg-surface p-4 sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-end"
+			class="grid gap-4 rounded-lg border border-line bg-surface p-4 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end"
 		>
 			<Field label="Email to invite" type="email" bind:value={inviteEmail} required />
 			<label class="flex flex-col gap-1 text-sm font-medium">
@@ -207,15 +249,18 @@
 					<option value={DEFAULT_SERVICE}>{DEFAULT_SERVICE}</option>
 				</select>
 			</label>
-			<Field
-				label="Lane"
-				type="number"
-				min="1"
-				max="99"
-				placeholder="all lanes"
-				bind:value={inviteLane}
-			/>
 			<Button type="submit" variant="primary">Invite</Button>
+			{#if LANE_ROLES.has(inviteRole)}
+				<div class="sm:col-span-full">
+					<LaneChecklist
+						legend="Lanes on {DEFAULT_SERVICE}"
+						choices={laneChoices}
+						value={inviteLanes}
+						{label}
+						onchange={(next) => (inviteLanes = next)}
+					/>
+				</div>
+			{/if}
 		</form>
 		<p id="invite-role-help" class="text-sm text-muted" aria-live="polite">
 			{ROLE_INFO[inviteRole].name}: {ROLE_INFO[inviteRole].help}
@@ -227,8 +272,8 @@
 					<dt class="font-medium">{info.name}</dt>
 					<dd class="text-muted">{info.help}</dd>
 				{/each}
-				<dt class="font-medium">On one lane</dt>
-				<dd class="text-muted">{ON_ONE_LANE}</dd>
+				<dt class="font-medium">On some lanes</dt>
+				<dd class="text-muted">{ON_SOME_LANES}</dd>
 			</dl>
 		</details>
 
@@ -260,23 +305,33 @@
 													>{ROLE_INFO[role].name}</option
 												>{/each}
 										</select>
-										<input
-											type="number"
-											min="1"
-											max="99"
-											placeholder="all lanes"
-											aria-label="Lane for {user.email}"
-											value={user.roles[0]?.lane ?? ''}
-											onchange={(e) =>
-												changeRole(
-													user,
-													(user.roles[0]?.role ?? 'viewer') as Role,
-													laneFrom(e.currentTarget.value)
-												)}
-											class="min-h-11 w-24 rounded-md border border-line-strong bg-surface px-2 text-ink"
-										/>
 									</div>
-									{#if user.roles[0]?.lane}
+									{#if LANE_ROLES.has((user.roles[0]?.role ?? 'viewer') as Role)}
+										{@const saved = userLanes(user)}
+										{@const draft = drafts[user.id] ?? saved}
+										<details class="mt-2">
+											<summary class="cursor-pointer text-xs text-muted"
+												>On {saved.length ? lanesText(saved) : 'every lane'}</summary
+											>
+											<div class="mt-2 flex flex-col gap-2">
+												<LaneChecklist
+													legend="Lanes for {user.email}"
+													choices={laneChoices}
+													value={draft}
+													{label}
+													onchange={(next) => (drafts[user.id] = next)}
+												/>
+												<Button
+													variant="secondary"
+													disabled={sameLanes(draft, saved)}
+													onclick={() =>
+														changeRole(user, (user.roles[0]?.role ?? 'viewer') as Role, draft)}
+													>Save lanes</Button
+												>
+											</div>
+										</details>
+									{/if}
+									{#if userLanes(user).length}
 										<span class="mt-1 block text-xs text-muted">{describe(user)}</span>
 									{/if}
 									{#if user.roles.some((r) => r.role === 'lane_manager')}

@@ -91,7 +91,8 @@ export interface paths {
 		get?: never;
 		/**
 		 * Set Role
-		 * @description Replace the user's roles with one role: on all services, one service, or one lane of it.
+		 * @description Replace the user's roles with one role: on all services, one service, or some of its
+		 *     lanes (one row per lane).
 		 */
 		put: operations['set_role_admin_users__user_id__role_put'];
 		post?: never;
@@ -2439,8 +2440,8 @@ export interface components {
 		InviteIn: {
 			/** Email */
 			email: string;
-			/** Lane */
-			lane?: number | null;
+			/** Lanes */
+			lanes?: number[];
 			/**
 			 * Role
 			 * @enum {string}
@@ -2761,8 +2762,8 @@ export interface components {
 		};
 		/** RoleIn */
 		RoleIn: {
-			/** Lane */
-			lane?: number | null;
+			/** Lanes */
+			lanes?: number[];
 			/**
 			 * Role
 			 * @enum {string}
