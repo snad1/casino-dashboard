@@ -50,6 +50,33 @@ const ROLE_PERMS: Record<string, Perm[]> = {
 };
 const NEEDS_TWO_FACTOR = new Set(['owner', 'admin']);
 
+/** Each role in words, beside `ROLE_PERMS` so a change to one is a change to the other. */
+export const ROLE_INFO = {
+	viewer: {
+		name: 'Viewer',
+		help: 'Sees the live view, sessions and analytics, and can comment. Changes nothing.'
+	},
+	operator: {
+		name: 'Operator',
+		help: 'Everything a viewer does, plus start, stop and restart lanes, change config, export and read logs. No keys, users, reset or terminal.'
+	},
+	admin: {
+		name: 'Admin',
+		help: 'Everything except the web terminal: keys, users, alerts and reset too. Needs two-factor sign-in.'
+	},
+	lane_manager: {
+		name: 'Lane manager',
+		help: 'Adds lanes of their own, up to their lane quota, saves their own casino keys, and sees and runs only their own lanes.'
+	},
+	owner: {
+		name: 'Owner',
+		help: 'Everything, the web terminal included. Only an owner can make someone owner.'
+	}
+} as const;
+
+export const ON_ONE_LANE =
+	'A role on one lane sees and acts on that lane only; nothing service-wide.';
+
 /**
  * Whether the signed-in user may use `perm` on `service`, mirroring the api's role map. The
  * api decides; this only hides what would be refused. Owner and admin grants beyond `view`

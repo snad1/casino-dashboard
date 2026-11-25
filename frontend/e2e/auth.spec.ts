@@ -187,6 +187,11 @@ test('an invite can name one lane, or make a lane manager', async ({ page }) => 
 		}
 	});
 	await page.goto('/admin/users');
+	await expect(page.getByText('Viewer: Sees the live view')).toBeVisible();
+	await expect(page.getByText('What each role can do')).toBeVisible();
+	for (const name of ['Viewer', 'Operator', 'Admin', 'Lane manager', 'Owner', 'On one lane']) {
+		await expect(page.locator('dt', { hasText: new RegExp(`^${name}$`) })).toBeVisible();
+	}
 	await page.getByLabel('Email to invite').fill('friend@example.test');
 	await page.getByLabel('Lane', { exact: true }).fill('3');
 	await page.getByRole('button', { name: 'Invite' }).click();
@@ -197,6 +202,7 @@ test('an invite can name one lane, or make a lane manager', async ({ page }) => 
 	await page.getByLabel('Email to invite').fill('manager@example.test');
 	const invite = page.locator('form').filter({ has: page.getByLabel('Email to invite') });
 	await invite.getByRole('combobox').first().selectOption('lane_manager');
+	await expect(page.getByText('Lane manager: Adds lanes of their own')).toBeVisible();
 	await page.getByRole('button', { name: 'Invite' }).click();
 	await page.getByRole('button', { name: 'Send invite' }).click();
 	await expect(page.getByRole('status')).toContainText('Invite sent to manager@example.test.');

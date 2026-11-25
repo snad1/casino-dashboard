@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import type { components } from '#lib/api/schema';
 	import { ApiError, unwrap } from '#lib/api/client';
+	import { ON_ONE_LANE, ROLE_INFO } from '#lib/permissions';
 	import { api, DEFAULT_SERVICE, session } from '#lib/session.svelte';
 	import Button from '#ui/Button';
 	import ConfirmDialog from '#ui/ConfirmDialog';
@@ -190,9 +191,10 @@
 				Role
 				<select
 					bind:value={inviteRole}
+					aria-describedby="invite-role-help"
 					class="min-h-11 rounded-md border border-line-strong bg-surface px-3 text-ink"
 				>
-					{#each ROLES as role (role)}<option value={role}>{role}</option>{/each}
+					{#each ROLES as role (role)}<option value={role}>{ROLE_INFO[role].name}</option>{/each}
 				</select>
 			</label>
 			<label class="flex flex-col gap-1 text-sm font-medium">
@@ -215,6 +217,20 @@
 			/>
 			<Button type="submit" variant="primary">Invite</Button>
 		</form>
+		<p id="invite-role-help" class="text-sm text-muted" aria-live="polite">
+			{ROLE_INFO[inviteRole].name}: {ROLE_INFO[inviteRole].help}
+		</p>
+		<details class="rounded-lg border border-line bg-surface p-4" open>
+			<summary class="cursor-pointer font-semibold">What each role can do</summary>
+			<dl class="mt-3 grid gap-2 text-sm sm:grid-cols-[10rem_1fr]">
+				{#each Object.values(ROLE_INFO) as info (info.name)}
+					<dt class="font-medium">{info.name}</dt>
+					<dd class="text-muted">{info.help}</dd>
+				{/each}
+				<dt class="font-medium">On one lane</dt>
+				<dd class="text-muted">{ON_ONE_LANE}</dd>
+			</dl>
+		</details>
 
 		<div class="overflow-x-auto">
 			<table class="w-full text-left text-sm">
@@ -240,7 +256,9 @@
 											onchange={(e) => changeRole(user, e.currentTarget.value as Role)}
 											class="min-h-11 rounded-md border border-line-strong bg-surface px-2 text-ink"
 										>
-											{#each ROLES as role (role)}<option value={role}>{role}</option>{/each}
+											{#each ROLES as role (role)}<option value={role}
+													>{ROLE_INFO[role].name}</option
+												>{/each}
 										</select>
 										<input
 											type="number"

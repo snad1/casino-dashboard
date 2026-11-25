@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { can, denialReason, laneScope, type Me } from './permissions';
+import { can, denialReason, laneScope, ROLE_INFO, type Me } from './permissions';
 
 function me(role: string, service: string | null = null, totp = true): Me {
 	return {
@@ -129,5 +129,23 @@ describe('laneScope', () => {
 		const friend = laneUser([{ role: 'operator', service: 'wolfbet', lane: 3 }], true);
 		expect(can(friend, 'control.basic', 'wolfbet')).toBe(false);
 		expect(denialReason(friend, 'control.basic', 'wolfbet')).toBe('Needs operator role');
+	});
+});
+
+describe('role explanations', () => {
+	it('explain every role the Users page offers, and the owner', () => {
+		for (const role of ['viewer', 'operator', 'admin', 'lane_manager', 'owner'] as const) {
+			expect(ROLE_INFO[role].name.length).toBeGreaterThan(0);
+			expect(ROLE_INFO[role].help.length).toBeGreaterThan(20);
+		}
+	});
+
+	it('match what each role may do', () => {
+		expect(can(me('operator'), 'config.write')).toBe(true);
+		expect(ROLE_INFO.operator.help).toContain('change config');
+		expect(can(me('viewer'), 'config.write')).toBe(false);
+		expect(ROLE_INFO.viewer.help).toContain('Changes nothing');
+		expect(can(me('admin'), 'terminal')).toBe(false);
+		expect(ROLE_INFO.admin.help).toContain('except the web terminal');
 	});
 });
