@@ -84,9 +84,13 @@ def test_managers_list_every_user_with_roles_and_2fa(
     response = admin.get("/admin/users")
     assert response.status_code == 200
     users = {u["id"]: u for u in response.json()["items"]}
-    assert users[account.id]["roles"] == [{"service": None, "role": "admin", "lane": None}]
+    assert users[account.id]["roles"] == [
+        {"service": None, "role": "admin", "lane": None, "key_ref": None}
+    ]
     assert users[account.id]["totp_enabled"] is True
-    assert users[other.id]["roles"] == [{"service": None, "role": "operator", "lane": None}]
+    assert users[other.id]["roles"] == [
+        {"service": None, "role": "operator", "lane": None, "key_ref": None}
+    ]
     assert set(users[other.id]) == {
         "id",
         "email",
@@ -195,7 +199,9 @@ def test_a_lane_on_a_service_the_bot_host_does_not_run_is_refused(
     body = {"role": "viewer", "service": lane_service, "lanes": [3]}
     assert _send(admin, "PUT", f"/admin/users/{target.id}/role", body) == 422
     users = {u["id"]: u for u in admin.get("/admin/users").json()["items"]}
-    assert users[target.id]["roles"] == [{"service": None, "role": "viewer", "lane": None}]
+    assert users[target.id]["roles"] == [
+        {"service": None, "role": "viewer", "lane": None, "key_ref": None}
+    ]
 
 
 def test_me_reports_a_lane_role_that_opens_nothing_service_wide(
@@ -210,7 +216,7 @@ def test_me_reports_a_lane_role_that_opens_nothing_service_wide(
     run_in_session(app_settings, narrow)
     _login(client, account.email)
     assert client.get("/auth/me").json()["roles"] == [
-        {"service": lane_service, "role": "viewer", "lane": 3}
+        {"service": lane_service, "role": "viewer", "lane": 3, "key_ref": None}
     ]
     assert client.get(f"/{lane_service}/sessions?lane=1").status_code == 403
     assert client.get(f"/{lane_service}/ingest").status_code == 403

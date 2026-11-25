@@ -19,7 +19,7 @@
 	} from '#lib/analytics';
 	import { ApiError, unwrap } from '#lib/api/client';
 	import { formatAmount, formatProfit } from '#lib/format';
-	import { denialReason, laneScope } from '#lib/permissions';
+	import { denialReason, keyScope, laneScope } from '#lib/permissions';
 	import { api, session } from '#lib/session.svelte';
 	import { lanesOf } from '#lib/accounts';
 	import { keyFilter } from '#lib/key-filter.svelte';
@@ -29,13 +29,19 @@
 
 	const service = $derived(page.params.service ?? '');
 	const ownLanes = $derived(laneScope(session.me, 'view', service));
+	const ownKeys = $derived(keyScope(session.me, 'view', service));
+	/** A lane-only user reads one lane at a time; a key-only user's history is cut by key. */
+	const oneLane = $derived(ownKeys === null ? ownLanes : null);
 	const live = $derived(liveFor(service));
-	const key = $derived(keyFilter.get(service));
+	const key = $derived.by(() => {
+		const picked = keyFilter.get(service);
+		return ownKeys && picked && !ownKeys.includes(picked) ? null : picked;
+	});
 	const asked = $derived(parseFilter(page.url.searchParams));
 	const filter = $derived<Filter>(
-		ownLanes === null || ownLanes.includes(asked.lane ?? 0)
+		oneLane === null || oneLane.includes(asked.lane ?? 0)
 			? asked
-			: { ...asked, lane: ownLanes[0] ?? null }
+			: { ...asked, lane: oneLane[0] ?? null }
 	);
 	const exportReason = $derived(denialReason(session.me, 'export', service));
 
@@ -192,7 +198,7 @@
 		<label class="flex flex-col gap-1 text-sm font-medium">
 			Lane
 			<select class={input} bind:value={lane}>
-				{#if ownLanes === null}<option value="all">All</option>{/if}
+				{#if oneLane === null}<option value="all">All</option>{/if}
 				{#each laneChoices as n (n)}
 					<option value={String(n)}>{laneLabel(n, live.lanes)}</option>
 				{/each}

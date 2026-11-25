@@ -23,7 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent_client import AgentError
 from app.api.control import AGENT_DOWN, CONTROLS, agent_or_error
-from app.api.lane_access import registered_lanes
+from app.api.keys import KEY_ID_PATTERN
+from app.api.lane_access import registered_keys, registered_lanes
 from app.auth.models import INVITE_LANES_MAX, Role, Totp, User, UserRole
 from app.auth.permissions import Perm, require, roles_for
 from app.auth.sessions import revoke_all
@@ -42,6 +43,11 @@ LANE_ROLE = "Only viewer or operator can be given on one lane."
 LANES_TWICE = "Each lane may be picked once."
 MANAGER_NEEDS_SERVICE = "Pick the service a lane manager runs lanes on."
 LANE_UNKNOWN = "That lane does not exist."
+KEY_NEEDS_SERVICE = "Pick the service the key belongs to."
+KEY_ROLE = "Only viewer or operator can be given on keys."
+KEYS_TWICE = "Each key may be picked once."
+KEYS_WITH_LANES = "A role is limited by lanes or by keys, not both."
+KEY_UNKNOWN = "That key does not exist."
 OWNER_ONLY = "Only the owner can change lane quotas."
 
 log = structlog.get_logger("app.admin")
@@ -57,6 +63,7 @@ class RoleOut(BaseModel):
     service: str | None
     role: str
     lane: int | None = None
+    key_ref: str | None = None
 
 
 class UserOut(BaseModel):
@@ -75,17 +82,27 @@ class UserList(BaseModel):
 
 Lane = Annotated[int, Field(ge=1, le=99)]
 Lanes = Annotated[list[Lane], Field(default_factory=list, max_length=INVITE_LANES_MAX)]
+Key = Annotated[str, Field(pattern=KEY_ID_PATTERN)]
+Keys = Annotated[list[Key], Field(default_factory=list, max_length=INVITE_LANES_MAX)]
 
 
-def check_scope(role: str, service: str | None, lanes: Sequence[int]) -> None:
-    """Refuse a role and scope that can't go together: a lane manager or lanes need a
-    service, and only viewer or operator can be given on lanes."""
+def check_scope(
+    role: str, service: str | None, lanes: Sequence[int], keys: Sequence[str] = ()
+) -> None:
+    """Refuse a role and scope that can't go together: a lane manager, lanes or keys need a
+    service, only viewer or operator can be given on lanes or keys, and never on both."""
     if role == "lane_manager" and service is None:
         raise ValueError(MANAGER_NEEDS_SERVICE)
+    if lanes and keys:
+        raise ValueError(KEYS_WITH_LANES)
     if lanes and service is None:
         raise ValueError(LANE_NEEDS_SERVICE)
     if lanes and role not in LANE_ROLES:
         raise ValueError(LANE_ROLE)
+    if keys and service is None:
+        raise ValueError(KEY_NEEDS_SERVICE)
+    if keys and role not in LANE_ROLES:
+        raise ValueError(KEY_ROLE)
 
 
 def distinct_lanes(lanes: list[int]) -> list[int]:
@@ -93,6 +110,43 @@ def distinct_lanes(lanes: list[int]) -> list[int]:
     if len(set(lanes)) != len(lanes):
         raise ValueError(LANES_TWICE)
     return sorted(lanes)
+
+
+def distinct_keys(keys: list[str]) -> list[str]:
+    """The keys in order; a key given twice is refused."""
+    if len(set(keys)) != len(keys):
+        raise ValueError(KEYS_TWICE)
+    return sorted(keys)
+
+
+async def require_keys(request: Request, service: str, keys: Sequence[str]) -> None:
+    """Refuse a key the bot's vault does not hold (422), or 502 when the bot host can't say.
+
+    A role on a key id that doesn't exist yet would open whichever key gets that id later.
+    """
+    if service not in CONTROLS:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, KEY_UNKNOWN)
+    try:
+        known = await registered_keys(agent_or_error(request), service)
+    except AgentError as error:
+        log.warning("key list failed while granting a key", code=error.code)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, AGENT_DOWN) from None
+    if not set(keys) <= known:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, KEY_UNKNOWN)
+
+
+def role_rows(
+    user_id: int, service_id: int | None, role: Role, lanes: Sequence[int], keys: Sequence[str]
+) -> list[UserRole]:
+    """One role row per lane, or per key, or one for the whole service or every service."""
+    if keys:
+        return [
+            UserRole(user_id=user_id, service_id=service_id, role=role, key_ref=key) for key in keys
+        ]
+    scopes: list[int | None] = [*lanes] or [None]
+    return [
+        UserRole(user_id=user_id, service_id=service_id, role=role, lane=lane) for lane in scopes
+    ]
 
 
 async def require_lanes(request: Request, service: str, lanes: Sequence[int]) -> None:
@@ -115,12 +169,14 @@ class RoleIn(BaseModel):
     role: Literal["admin", "operator", "viewer", "lane_manager"]
     service: str | None = Field(default=None, max_length=100)
     lanes: Lanes
+    keys: Keys
 
     _distinct = field_validator("lanes")(distinct_lanes)
+    _distinct_keys = field_validator("keys")(distinct_keys)
 
     @model_validator(mode="after")
     def _lanes_in_a_service(self) -> "RoleIn":
-        check_scope(self.role, self.service, self.lanes)
+        check_scope(self.role, self.service, self.lanes, self.keys)
         return self
 
 
@@ -132,14 +188,18 @@ class LaneQuotaIn(BaseModel):
 async def list_users(_: Manager, db: Db) -> UserList:
     """Every account, oldest first, with its roles and whether 2FA is on."""
     users = list(await db.scalars(select(User).where(User.tg_uid.is_(None)).order_by(User.id)))
-    role_rows = await db.execute(
-        select(UserRole.user_id, Service.name, UserRole.role, UserRole.lane)
+    rows = await db.execute(
+        select(UserRole.user_id, Service.name, UserRole.role, UserRole.lane, UserRole.key_ref)
         .outerjoin(Service, Service.id == UserRole.service_id)
-        .order_by(Service.name.nulls_first(), UserRole.lane.nulls_first())
+        .order_by(
+            Service.name.nulls_first(), UserRole.lane.nulls_first(), UserRole.key_ref.nulls_first()
+        )
     )
     roles: dict[int, list[RoleOut]] = {}
-    for user_id, service, role, lane in role_rows:
-        roles.setdefault(user_id, []).append(RoleOut(service=service, role=role, lane=lane))
+    for user_id, service, role, lane, key_ref in rows:
+        roles.setdefault(user_id, []).append(
+            RoleOut(service=service, role=role, lane=lane, key_ref=key_ref)
+        )
     with_totp = set(await db.scalars(select(Totp.user_id).where(Totp.enabled_at.is_not(None))))
     return UserList(
         items=[
@@ -176,7 +236,7 @@ async def set_role(
     user_id: UserId, body: RoleIn, request: Request, actor: Manager, _: Fresh, db: Db
 ) -> None:
     """Replace the user's roles with one role: on all services, one service, or some of its
-    lanes (one row per lane)."""
+    lanes or keys (one row each)."""
     user = await _target(db, actor, user_id)
     if user.tg_uid is not None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, TELEGRAM_ROLE)
@@ -187,10 +247,10 @@ async def set_role(
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, UNKNOWN_SERVICE)
     if body.service is not None and body.lanes:
         await require_lanes(request, body.service, body.lanes)
+    if body.service is not None and body.keys:
+        await require_keys(request, body.service, body.keys)
     await db.execute(delete(UserRole).where(UserRole.user_id == user.id))
-    scopes: list[int | None] = [*body.lanes] or [None]
-    for lane in scopes:
-        db.add(UserRole(user_id=user.id, service_id=service_id, role=Role(body.role), lane=lane))
+    db.add_all(role_rows(user.id, service_id, Role(body.role), body.lanes, body.keys))
     await db.commit()
 
 

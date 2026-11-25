@@ -8,6 +8,7 @@ import {
 	lanePlan,
 	laneShares,
 	laneTitle,
+	keysText,
 	lanesText,
 	parseArchives
 } from './lanes';
@@ -169,5 +170,13 @@ describe('lanesText', () => {
 		expect(lanesText([])).toBe('');
 		expect(lanesText([3])).toBe('lane 3');
 		expect(lanesText([10, 9])).toBe('lanes 9, 10');
+	});
+});
+
+describe('keysText', () => {
+	it('names one key, several sorted keys, or none', () => {
+		expect(keysText([])).toBe('');
+		expect(keysText(['lakai'])).toBe('key lakai');
+		expect(keysText(['other', 'lakai'])).toBe('keys lakai, other');
 	});
 });

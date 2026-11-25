@@ -346,9 +346,9 @@ def test_the_scope_is_every_lane_for_a_service_role_and_the_granted_lanes_otherw
 
     async def scopes(session: AsyncSession) -> tuple[Any, Any, Any]:
         return (
-            await lane_scope(session, viewer, seed.service, Perm.VIEW),
-            await lane_scope(session, lanes_only, seed.service, Perm.VIEW),
-            await lane_scope(session, lanes_only, seed.service, Perm.CONFIG_WRITE),
+            (await lane_scope(session, viewer, seed.service, Perm.VIEW)).lanes,
+            (await lane_scope(session, lanes_only, seed.service, Perm.VIEW)).lanes,
+            (await lane_scope(session, lanes_only, seed.service, Perm.CONFIG_WRITE)).lanes,
         )
 
     assert run_in_session(app_settings, scopes) == (None, frozenset({3, 5}), frozenset())

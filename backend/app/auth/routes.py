@@ -1,14 +1,16 @@
 """Sign-in, sign-out and the current user, under `/auth` (served publicly as `/api/auth`)."""
 
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import Row, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
+from app.auth.key_lanes import KEY_LANES
 from app.auth.models import AuditActor, User, UserRole
 from app.auth.passwords import dummy_verify, verify_password
 from app.auth.ratelimit import check_login_rate
@@ -50,6 +52,7 @@ class RoleOut(BaseModel):
     service: str | None
     role: str
     lane: int | None = None
+    key_ref: str | None = None
 
 
 class Me(BaseModel):
@@ -131,20 +134,40 @@ async def logout_all(user: CurrentUser, response: Response, db: Db) -> None:
     clear_session_cookie(response)
 
 
+async def _resolved_roles(
+    rows: Sequence[Row[str, str, int | None, str | None]],
+) -> list[RoleOut]:
+    """The user's roles, a key role spelled out as one entry per lane betting with that key
+    now (or one with no lane when none does), so the pages can follow the same lanes the
+    server allows."""
+    out: list[RoleOut] = []
+    for service, role, lane, key_ref in rows:
+        if key_ref is None or service is None:
+            out.append(RoleOut(service=service, role=role, lane=lane))
+            continue
+        lanes: list[int | None] = [*sorted((await KEY_LANES.lanes(service)).get(key_ref, ()))]
+        out.extend(
+            RoleOut(service=service, role=role, lane=n, key_ref=key_ref) for n in lanes or [None]
+        )
+    return out
+
+
 @router.get("/me", response_model=Me)
 async def me(user: CurrentUser, request: Request, db: Db) -> Me:
     rows = await db.execute(
-        select(Service.name, UserRole.role, UserRole.lane)
+        select(Service.name, UserRole.role, UserRole.lane, UserRole.key_ref)
         .select_from(UserRole)
         .outerjoin(Service, Service.id == UserRole.service_id)
         .where(UserRole.user_id == user.id)
-        .order_by(Service.name.nulls_first(), UserRole.lane.nulls_first())
+        .order_by(
+            Service.name.nulls_first(), UserRole.lane.nulls_first(), UserRole.key_ref.nulls_first()
+        )
     )
     secret: str = request.app.state.session_secret
     return Me(
         email=user.email,
         tg_uid=user.tg_uid,
-        roles=[RoleOut(service=service, role=role, lane=lane) for service, role, lane in rows],
+        roles=await _resolved_roles(rows.all()),
         csrf_token=csrf_token(secret, request.state.session_id),
         totp_enabled=await is_enabled(db, user.id),
     )

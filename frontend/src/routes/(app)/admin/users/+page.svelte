@@ -2,10 +2,10 @@
 	import { onMount } from 'svelte';
 	import type { components } from '#lib/api/schema';
 	import { ApiError, unwrap } from '#lib/api/client';
-	import LaneChecklist from '#components/LaneChecklist';
-	import { laneLabel, lanesText } from '#lib/lanes';
+	import Checklist from '#components/Checklist';
+	import { keysText, laneLabel, lanesText } from '#lib/lanes';
 	import { liveFor } from '#lib/live/index';
-	import { ON_SOME_LANES, ROLE_INFO } from '#lib/permissions';
+	import { ON_SOME_KEYS, ON_SOME_LANES, ROLE_INFO } from '#lib/permissions';
 	import { api, DEFAULT_SERVICE, session } from '#lib/session.svelte';
 	import Button from '#ui/Button';
 	import ConfirmDialog from '#ui/ConfirmDialog';
@@ -23,6 +23,9 @@
 		danger: boolean;
 		run: () => Promise<void>;
 	};
+	/** What a viewer or operator role is narrowed to: some lanes, or some keys, never both. */
+	type Limit = { lanes: number[]; keys: string[] };
+	type VaultKey = { id: string; label: string; last4: string };
 
 	const ROLES: Role[] = ['viewer', 'operator', 'admin', 'lane_manager'];
 	const LANE_ROLES = new Set<Role>(['viewer', 'operator']);
@@ -31,9 +34,10 @@
 	let inviteEmail = $state('');
 	let inviteRole: Role = $state('viewer');
 	let inviteScope = $state('all');
-	let inviteLanes: number[] = $state([]);
+	let inviteLimit: Limit = $state({ lanes: [], keys: [] });
 	let registry: number[] = $state([]);
-	let drafts: Record<string, number[] | undefined> = $state({});
+	let vault: VaultKey[] = $state([]);
+	let drafts: Record<string, Limit | undefined> = $state({});
 	let notice: { tone: 'success' | 'error'; text: string } | null = $state(null);
 	let pending: Pending | null = $state(null);
 	let confirmOpen = $state(false);
@@ -43,33 +47,64 @@
 	const isOwner = $derived(session.me?.roles.some((r) => r.role === 'owner') ?? false);
 	const lanes = (n: number) => `${n} lane${n === 1 ? '' : 's'}`;
 
-	const userLanes = (user: User) =>
-		user.roles.map((r) => r.lane).filter((n): n is number => typeof n === 'number');
+	const NONE: Limit = { lanes: [], keys: [] };
+	const LIMIT_HINT = 'A role is limited by lanes or by keys, not both.';
+	const userLimit = (user: User): Limit => ({
+		lanes: user.roles.map((r) => r.lane).filter((n): n is number => typeof n === 'number'),
+		keys: user.roles.map((r) => r.key_ref).filter((k): k is string => typeof k === 'string')
+	});
 	const laneChoices = $derived(
-		[...new Set([...registry, ...Object.keys(live.lanes).map(Number), ...users.flatMap(userLanes)])]
+		[
+			...new Set([
+				...registry,
+				...Object.keys(live.lanes).map(Number),
+				...users.flatMap((u) => userLimit(u).lanes)
+			])
+		]
 			.filter((n) => Number.isInteger(n) && n >= 1)
 			.sort((a, b) => a - b)
 	);
+	const keyChoices = $derived(
+		[...new Set([...vault.map((k) => k.id), ...users.flatMap((u) => userLimit(u).keys)])].sort()
+	);
 	const label = (lane: number) => laneLabel(lane, live.lanes);
-	const sameLanes = (a: number[], b: number[]) =>
-		a.length === b.length && a.every((n) => b.includes(n));
-	const scopeText = (role: string, service: string | null | undefined, lanes: number[]) =>
-		`${role}${service ? ` on ${service}` : ''}${lanes.length ? ` ${lanesText(lanes)}` : ''}`;
+	const keyLabel = (id: string) => {
+		const key = vault.find((k) => k.id === id);
+		return key ? `${key.label} · ...${key.last4}` : id;
+	};
+	const same = <T,>(a: T[], b: T[]) => a.length === b.length && a.every((n) => b.includes(n));
+	const sameLimit = (a: Limit, b: Limit) => same(a.lanes, b.lanes) && same(a.keys, b.keys);
+	const limitText = (limit: Limit) =>
+		limit.keys.length ? keysText(limit.keys) : lanesText(limit.lanes);
+	const scopeText = (role: string, service: string | null | undefined, limit: Limit) => {
+		const narrowed = limitText(limit);
+		return `${role}${service ? ` on ${service}` : ''}${narrowed ? ` ${narrowed}` : ''}`;
+	};
+	/** Picking lanes clears the keys and the other way round: the api takes one or the other. */
+	const withLanes = (limit: Limit, lanes: number[]): Limit => ({
+		lanes,
+		keys: lanes.length ? [] : limit.keys
+	});
+	const withKeys = (limit: Limit, keys: string[]): Limit => ({
+		keys,
+		lanes: keys.length ? [] : limit.lanes
+	});
 
-	/** One phrase per role and service, with that role's lanes gathered: `viewer on wolfbet lanes 9, 10`. */
+	/** One phrase per role and service, its lanes or keys gathered: `viewer on wolfbet lanes 9, 10`. */
 	function describe(user: User): string {
-		const groups: Record<string, { role: string; service?: string | null; lanes: number[] }> = {};
+		const groups: Record<string, { role: string; service?: string | null; limit: Limit }> = {};
 		for (const r of user.roles) {
 			const group = (groups[`${r.role}|${r.service ?? ''}`] ??= {
 				role: r.role,
 				service: r.service,
-				lanes: []
+				limit: { lanes: [], keys: [] }
 			});
-			if (typeof r.lane === 'number') group.lanes.push(r.lane);
+			if (typeof r.lane === 'number') group.limit.lanes.push(r.lane);
+			if (typeof r.key_ref === 'string') group.limit.keys.push(r.key_ref);
 		}
 		return (
 			Object.values(groups)
-				.map((g) => scopeText(g.role, g.service, g.lanes))
+				.map((g) => scopeText(g.role, g.service, g.limit))
 				.join(', ') || 'no role'
 		);
 	}
@@ -86,9 +121,18 @@
 		if (data) registry = data.lane_ids;
 	}
 
+	/** The bot's casino keys, so a friend can be given everything that bets with one. */
+	async function loadKeys() {
+		const { data } = await api.GET('/{service}/keys', {
+			params: { path: { service: DEFAULT_SERVICE } }
+		});
+		if (data) vault = data.keys.filter((k) => k.kind === 'key');
+	}
+
 	onMount(() => {
 		refresh().catch((e) => (notice = { tone: 'error', text: message(e) }));
 		void loadLanes();
+		void loadKeys();
 	});
 
 	function message(e: unknown): string {
@@ -126,24 +170,25 @@
 		event.preventDefault();
 		const email = inviteEmail.trim();
 		const role = inviteRole;
-		const lanes = LANE_ROLES.has(role) ? inviteLanes : [];
+		const limit = LANE_ROLES.has(role) ? inviteLimit : NONE;
+		const { lanes, keys } = limit;
 		const service =
-			role === 'lane_manager' || lanes.length
+			role === 'lane_manager' || lanes.length || keys.length
 				? DEFAULT_SERVICE
 				: inviteScope === 'all'
 					? null
 					: inviteScope;
-		const scope = scopeText(role, service, lanes);
+		const scope = scopeText(role, service, limit);
 		ask({
 			title: `Invite ${email}?`,
 			body: `They get an email with a link to set a password and join as ${scope}.`,
 			label: 'Send invite',
 			danger: false,
 			run: async () => {
-				await unwrap(api.POST('/auth/invites', { body: { email, role, service, lanes } }));
+				await unwrap(api.POST('/auth/invites', { body: { email, role, service, lanes, keys } }));
 				notice = { tone: 'success', text: `Invite sent to ${email}.` };
 				inviteEmail = '';
-				inviteLanes = [];
+				inviteLimit = { lanes: [], keys: [] };
 			}
 		});
 	}
@@ -167,17 +212,19 @@
 		});
 	}
 
-	/** A role on every service, or (with `lanes`) on those lanes of this dashboard's service. */
-	function changeRole(user: User, role: Role, chosen: number[] = userLanes(user)) {
-		const lanes = LANE_ROLES.has(role) ? chosen : [];
-		const onService = role === 'lane_manager' || lanes.length > 0;
-		const where = lanes.length
-			? `${DEFAULT_SERVICE} ${lanesText(lanes)}`
+	/** A role on every service, or (with lanes or keys) on those of this dashboard's service. */
+	function changeRole(user: User, role: Role, chosen: Limit = userLimit(user)) {
+		const limit = LANE_ROLES.has(role) ? chosen : NONE;
+		const { lanes, keys } = limit;
+		const narrowed = limitText(limit);
+		const onService = role === 'lane_manager' || narrowed !== '';
+		const where = narrowed
+			? `${DEFAULT_SERVICE} ${narrowed}`
 			: onService
 				? DEFAULT_SERVICE
 				: 'every service';
 		ask({
-			title: `Make ${user.email} ${role}${lanes.length ? ` on ${lanesText(lanes)}` : ''}?`,
+			title: `Make ${user.email} ${role}${narrowed ? ` on ${narrowed}` : ''}?`,
 			body: `Their current roles (${describe(user)}) are replaced by ${role} on ${where}.`,
 			label: `Make ${role}`,
 			danger: false,
@@ -185,7 +232,7 @@
 				await unwrap(
 					api.PUT('/admin/users/{user_id}/role', {
 						params: { path: { user_id: user.id } },
-						body: { role, service: onService ? DEFAULT_SERVICE : null, lanes }
+						body: { role, service: onService ? DEFAULT_SERVICE : null, lanes, keys }
 					})
 				);
 				drafts[user.id] = undefined;
@@ -251,13 +298,23 @@
 			</label>
 			<Button type="submit" variant="primary">Invite</Button>
 			{#if LANE_ROLES.has(inviteRole)}
-				<div class="sm:col-span-full">
-					<LaneChecklist
+				<div class="grid gap-4 sm:col-span-full sm:grid-cols-2">
+					<Checklist
 						legend="Lanes on {DEFAULT_SERVICE}"
 						choices={laneChoices}
-						value={inviteLanes}
+						value={inviteLimit.lanes}
 						{label}
-						onchange={(next) => (inviteLanes = next)}
+						empty="No lanes reported by the bot yet."
+						onchange={(next) => (inviteLimit = withLanes(inviteLimit, next))}
+					/>
+					<Checklist
+						legend="Keys on {DEFAULT_SERVICE}"
+						choices={keyChoices}
+						value={inviteLimit.keys}
+						label={keyLabel}
+						hint={LIMIT_HINT}
+						empty="No casino keys in the vault."
+						onchange={(next) => (inviteLimit = withKeys(inviteLimit, next))}
 					/>
 				</div>
 			{/if}
@@ -274,6 +331,8 @@
 				{/each}
 				<dt class="font-medium">On some lanes</dt>
 				<dd class="text-muted">{ON_SOME_LANES}</dd>
+				<dt class="font-medium">On some keys</dt>
+				<dd class="text-muted">{ON_SOME_KEYS}</dd>
 			</dl>
 		</details>
 
@@ -307,31 +366,41 @@
 										</select>
 									</div>
 									{#if LANE_ROLES.has((user.roles[0]?.role ?? 'viewer') as Role)}
-										{@const saved = userLanes(user)}
+										{@const saved = userLimit(user)}
 										{@const draft = drafts[user.id] ?? saved}
 										<details class="mt-2">
 											<summary class="cursor-pointer text-xs text-muted"
-												>On {saved.length ? lanesText(saved) : 'every lane'}</summary
+												>On {limitText(saved) || 'every lane'}</summary
 											>
 											<div class="mt-2 flex flex-col gap-2">
-												<LaneChecklist
+												<Checklist
 													legend="Lanes for {user.email}"
 													choices={laneChoices}
-													value={draft}
+													value={draft.lanes}
 													{label}
-													onchange={(next) => (drafts[user.id] = next)}
+													empty="No lanes reported by the bot yet."
+													onchange={(next) => (drafts[user.id] = withLanes(draft, next))}
+												/>
+												<Checklist
+													legend="Keys for {user.email}"
+													choices={keyChoices}
+													value={draft.keys}
+													label={keyLabel}
+													hint={LIMIT_HINT}
+													empty="No casino keys in the vault."
+													onchange={(next) => (drafts[user.id] = withKeys(draft, next))}
 												/>
 												<Button
 													variant="secondary"
-													disabled={sameLanes(draft, saved)}
+													disabled={sameLimit(draft, saved)}
 													onclick={() =>
 														changeRole(user, (user.roles[0]?.role ?? 'viewer') as Role, draft)}
-													>Save lanes</Button
+													>Save lanes and keys</Button
 												>
 											</div>
 										</details>
 									{/if}
-									{#if userLanes(user).length}
+									{#if limitText(userLimit(user))}
 										<span class="mt-1 block text-xs text-muted">{describe(user)}</span>
 									{/if}
 									{#if user.roles.some((r) => r.role === 'lane_manager')}

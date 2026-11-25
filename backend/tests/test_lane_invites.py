@@ -125,7 +125,9 @@ def test_an_invite_onto_a_lane_grants_that_lane_only(
         lambda s: s.scalar(select(OutboxMessage.text_body).where(OutboxMessage.to_email == email)),
     )
     assert "as viewer on wolfbet lane 3" in (mail or "")
-    assert _accept(control_settings, email) == [{"service": WOLFBET, "role": "viewer", "lane": 3}]
+    assert _accept(control_settings, email) == [
+        {"service": WOLFBET, "role": "viewer", "lane": 3, "key_ref": None}
+    ]
 
 
 def test_an_invite_onto_several_lanes_grants_each_of_them(
@@ -143,8 +145,8 @@ def test_an_invite_onto_several_lanes_grants_each_of_them(
     assert "as viewer on wolfbet lanes 3, 4" in (mail or "")
     roles = _accept(control_settings, email)
     assert sorted(roles, key=lambda r: r["lane"]) == [
-        {"service": WOLFBET, "role": "viewer", "lane": 3},
-        {"service": WOLFBET, "role": "viewer", "lane": 4},
+        {"service": WOLFBET, "role": "viewer", "lane": 3, "key_ref": None},
+        {"service": WOLFBET, "role": "viewer", "lane": 4, "key_ref": None},
     ]
 
 
@@ -167,7 +169,7 @@ def test_a_lane_manager_invite_lands_on_the_service(
     body = {"email": email, "role": "lane_manager", "service": WOLFBET}
     assert _send(admin, "POST", "/auth/invites", body).status_code == 204
     assert _accept(control_settings, email) == [
-        {"service": WOLFBET, "role": "lane_manager", "lane": None}
+        {"service": WOLFBET, "role": "lane_manager", "lane": None, "key_ref": None}
     ]
 
 
@@ -255,8 +257,8 @@ def test_the_users_page_replaces_a_users_lanes(
     assert _send(admin, "PUT", path, second).status_code == 204
     listed = {u["id"]: u for u in admin.get("/admin/users").json()["items"]}
     assert sorted(listed[target.id]["roles"], key=lambda r: r["lane"]) == [
-        {"service": WOLFBET, "role": "operator", "lane": 3},
-        {"service": WOLFBET, "role": "operator", "lane": 4},
+        {"service": WOLFBET, "role": "operator", "lane": 3, "key_ref": None},
+        {"service": WOLFBET, "role": "operator", "lane": 4, "key_ref": None},
     ]
     assert fake_agent.cmds() == ["wolfbet.lane_ids", "wolfbet.lane_ids"]
 

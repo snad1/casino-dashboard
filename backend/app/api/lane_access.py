@@ -12,11 +12,12 @@ from typing import Any
 
 import structlog
 from fastapi import HTTPException, status
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.base import ControlAction
 from app.agent_client import AgentClient, AgentError
+from app.auth.key_lanes import parse_key_map
 from app.auth.models import Role, User, UserRole
 from app.auth.permissions import FORBIDDEN, Perm, denial
 from app.db.models import Service
@@ -41,6 +42,21 @@ async def owned_lanes(db: AsyncSession, user_id: int, service: str) -> list[int]
         .where(UserRole.user_id == user_id, Service.name == service, UserRole.lane.is_not(None))
     )
     return sorted(lane for lane in rows if lane is not None)
+
+
+async def holds_scoped_roles(db: AsyncSession, user_id: int, service: str) -> bool:
+    """Whether the user holds a role on some lanes or keys of `service`."""
+    found = await db.scalar(
+        select(UserRole.id)
+        .join(Service, Service.id == UserRole.service_id)
+        .where(
+            UserRole.user_id == user_id,
+            Service.name == service,
+            or_(UserRole.lane.is_not(None), UserRole.key_ref.is_not(None)),
+        )
+        .limit(1)
+    )
+    return found is not None
 
 
 async def grant_lane(db: AsyncSession, user_id: int, service: str, lane: int) -> None:
@@ -70,6 +86,11 @@ async def registered_lanes(agent: AgentClient, service: str) -> set[int]:
     """The lanes in the bot's registry; raises `AgentError` when it can't tell."""
     data = await agent.call(f"{service}.lane_ids", {})
     return {int(word) for word in str(data.get("stdout") or "").split() if word.isdigit()}
+
+
+async def registered_keys(agent: AgentClient, service: str) -> set[str]:
+    """The casino keys in the bot's vault; raises `AgentError` when it can't tell."""
+    return set(parse_key_map(await agent.call(f"{service}.key_list", {})))
 
 
 async def lane_exists(agent: AgentClient, service: str, lane: int) -> bool:
@@ -108,7 +129,7 @@ async def may_act_on_a_lane(
         return await denial(db, user, service, Perm.LANES_CREATE) is None
     if spec.lane_field is None and name != "config_set":
         return False
-    return bool(await owned_lanes(db, user.id, service))
+    return await holds_scoped_roles(db, user.id, service)
 
 
 async def check_lane_action(

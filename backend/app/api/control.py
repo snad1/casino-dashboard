@@ -50,10 +50,11 @@ from app.api.lane_access import (
     check_lane_action,
     drop_lane,
     grant_lane,
+    holds_scoped_roles,
     may_act_on_a_lane,
-    owned_lanes,
 )
 from app.audit import AuditEntry, record
+from app.auth.key_lanes import KEY_LANES
 from app.auth.models import Role, User
 from app.auth.permissions import FORBIDDEN, Perm, denial, require, roles_for
 from app.auth.sessions import current_user
@@ -184,7 +185,7 @@ async def job_access(db: AsyncSession, user: User, service: str, job_id: str) ->
     return (
         row.user_id == user.id
         and not user.disabled
-        and bool(await owned_lanes(db, user.id, service))
+        and await holds_scoped_roles(db, user.id, service)
     )
 
 
@@ -394,6 +395,8 @@ def _endpoint(name: str, spec: ControlAction) -> Callable[..., Awaitable[Control
         if out is None:
             raise HTTPException(status_code, stored["detail"])
         if out.status == "succeeded":
+            if name in KEY_MOVES:
+                KEY_LANES.forget(service)
             await _after_lane_change(db, user, service, name, payload, out, refused)
             _reflect_lane_change(request, service, name, payload, out)
         response.status_code = status_code
@@ -401,6 +404,10 @@ def _endpoint(name: str, spec: ControlAction) -> Callable[..., Awaitable[Control
 
     control.__name__ = f"control_{name}"
     return control
+
+
+# Actions that can move a lane onto or off a key: key roles must see the change now.
+KEY_MOVES = frozenset({"config_set", "lane_add", "lane_remove"})
 
 
 def _reflect_lane_change(
@@ -536,7 +543,7 @@ async def job_reader(
     refused before the job id is read, so the answer reveals nothing about the route."""
     if await denial(db, user, service, Perm.VIEW) is None:
         return user
-    if not user.disabled and await owned_lanes(db, user.id, service):
+    if not user.disabled and await holds_scoped_roles(db, user.id, service):
         return user
     raise HTTPException(status.HTTP_403_FORBIDDEN, FORBIDDEN)
 

@@ -67,7 +67,7 @@ class TestInvites:
             login = {"email": email, "password": NEW_PASSWORD}
             assert guest.post("/auth/login", json=login).status_code == 204
             assert guest.get("/auth/me").json()["roles"] == [
-                {"service": None, "role": "operator", "lane": None}
+                {"service": None, "role": "operator", "lane": None, "key_ref": None}
             ]
 
     def test_expired_invite_is_refused(self, app_settings: Settings, as_user: Any) -> None:

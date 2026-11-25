@@ -24,9 +24,9 @@ const lane = (profit: number) => ({
 });
 
 /** The api and the live socket as a lane-only user sees them; returns subscribed topics. */
-async function laneRig(page: Page) {
+async function laneRig(page: Page, me: object = laneViewerMe) {
 	const calls = await stubApi(page, {
-		'GET /auth/me': () => ({ status: 200, json: laneViewerMe }),
+		'GET /auth/me': () => ({ status: 200, json: me }),
 		'POST /ws-ticket': () => ({ status: 200, json: { ticket: 'one-time', expires_in: 30 } }),
 		'GET /wolfbet/series': () => ({ status: 200, json: { res: '1s', series: [] } }),
 		'GET /wolfbet/epochs': () => ({ status: 200, json: { items: [] } }),
@@ -115,6 +115,33 @@ test('the sessions and analytics pickers list only their lanes', async ({ page }
 	const analyticsLane = page.getByRole('combobox', { name: 'Lane' });
 	await expect(analyticsLane.locator('option')).toHaveText(['Lane 3', 'Lane 12']);
 	await expect.poll(() => asked).toContain('3');
+});
+
+test('a friend on a key reads every lane of that key, cut by the key', async ({ page }) => {
+	const keyViewerMe = {
+		...laneViewerMe,
+		roles: [
+			{ service: 'wolfbet', role: 'viewer', lane: 8, key_ref: 'lakai' },
+			{ service: 'wolfbet', role: 'viewer', lane: 9, key_ref: 'lakai' }
+		]
+	};
+	const asked: (string | null)[] = [];
+	await laneRig(page, keyViewerMe);
+	await page.route('**/api/wolfbet/analytics**', (route) => {
+		asked.push(new URL(route.request().url()).searchParams.get('lane'));
+		return route.fulfill({
+			status: 403,
+			json: { detail: 'You do not have permission to do that.' }
+		});
+	});
+	await page.goto('/wolfbet/sessions');
+	const sessionsLane = page.getByRole('combobox', { name: 'Lane' });
+	await expect(sessionsLane.locator('option')).toHaveText(['All lanes', 'Lane 8', 'Lane 9']);
+
+	await page.goto('/wolfbet/analytics');
+	const analyticsLane = page.getByRole('combobox', { name: 'Lane' });
+	await expect(analyticsLane.locator('option')).toHaveText(['All', 'Lane 8', 'Lane 9']);
+	await expect.poll(() => asked).toContain(null);
 });
 
 test('a service-wide page stays closed to a lane-only friend', async ({ page }) => {

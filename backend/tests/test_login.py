@@ -72,7 +72,7 @@ class TestLogin:
         assert _login(client, account.email.upper()) == 204
         body = client.get("/auth/me").json()
         assert body["email"] == account.email
-        assert body["roles"] == [{"service": None, "role": "viewer", "lane": None}]
+        assert body["roles"] == [{"service": None, "role": "viewer", "lane": None, "key_ref": None}]
         assert len(body["csrf_token"]) == 64
 
     @pytest.mark.parametrize("case", ["wrong_password", "unknown_email", "disabled"])

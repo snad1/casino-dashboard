@@ -17,15 +17,18 @@ from typing import Annotated, Any, Literal
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent_client import AgentError
 from app.api.control import AGENT_DOWN, CONTROLS, NOT_CONTROLLABLE, ServiceName, agent_or_error
-from app.auth.models import Role, User
+from app.auth.key_lanes import KEY_LANES
+from app.auth.models import Invite, Role, User, UserRole
 from app.auth.permissions import Perm, denial, roles_for
 from app.auth.sessions import current_user
 from app.auth.stepup import require_fresh
 from app.db.engine import get_session
+from app.db.models import Service
 
 KEY_ID_PATTERN = r"^[a-z0-9][a-z0-9_-]{0,31}$"
 VAULT_DOWN = "The key vault on the bot host can't be used. Check the host."
@@ -240,11 +243,25 @@ async def rotate_key(
 
 @router.delete("/{service}/keys/{key_id}", status_code=204, response_class=Response)
 async def delete_key(
-    service: ServiceName, key_id: KeyId, request: Request, access: Manager, _: Fresh
+    service: ServiceName, key_id: KeyId, request: Request, access: Manager, _: Fresh, db: Db
 ) -> Response:
-    """Delete a key no lane uses."""
+    """Delete a key no lane uses, with every role and pending invite on it: a key added
+    later under the same id must not open to them."""
     _known(service)
     access.check_telegram(key_id)
     await _check_owner(request, service, access, key_id)
     await _call(request, service, "key_delete", {"key_id": key_id})
+    service_id = select(Service.id).where(Service.name == service).scalar_subquery()
+    await db.execute(
+        delete(UserRole).where(UserRole.service_id == service_id, UserRole.key_ref == key_id)
+    )
+    await db.execute(
+        delete(Invite).where(
+            Invite.service_id == service_id,
+            Invite.key_refs.contains([key_id]),
+            Invite.accepted_at.is_(None),
+        )
+    )
+    await db.commit()
+    KEY_LANES.forget(service)
     return Response(status_code=204)

@@ -139,7 +139,8 @@ async def window(
 ) -> SessionWindow:
     """A window over the current epoch, as the api builds one without `epoch`."""
     view = await epoch_view(db, service)
-    return SessionWindow(service, since, until, lane, UTC_ZONE, view.ids, key)
+    keys = None if key is None else [key]
+    return SessionWindow(service, since, until, lane, UTC_ZONE, view.ids, keys)
 
 
 def flags(since: str | None, until: str | None, lane: int | None) -> list[str]:

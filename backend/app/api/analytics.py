@@ -227,7 +227,7 @@ async def _key_hours_and_days(
 
 
 async def chart_data(db: AsyncSession, window: SessionWindow, view: EpochView) -> Charts:
-    if window.key is not None:
+    if window.keys is not None:
         hours, days = await _key_hours_and_days(db, window)
         return await _charts(db, window, hours, days)
     where, params = _rollup_filter(window, view)
@@ -286,7 +286,7 @@ async def get_analytics(
     """The report for sessions started in the window (a bare `until` date counts whole), from
     the bot for the current epoch, or from history for an archived `epoch` or one `key` (the
     bot cannot split by key). A lane-only user gets one of their lanes, never a report over
-    others."""
+    others; a key-only user gets their keys' sessions, from history."""
     if service not in CONTROLS:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
     lane = scope.one(lane)
@@ -299,8 +299,9 @@ async def get_analytics(
     }
     view = await epoch_view(db, service, epoch)
     zone = ZoneInfo(request.app.state.host_tz)
-    window = SessionWindow(service, since, until, lane, zone, view.ids, key)
-    report = await _bot_report(request, service, args) if epoch is None and key is None else None
+    keys = scope.report_keys(key)
+    window = SessionWindow(service, since, until, lane, zone, view.ids, keys)
+    report = await _bot_report(request, service, args) if epoch is None and keys is None else None
     source: Literal["bot", "history"] = "bot" if report is not None else "history"
     if report is None:
         report = await history_report(db, window)
@@ -351,7 +352,13 @@ async def export_analytics(
     since, until = _bound(since), _bound(until)
     view = await epoch_view(db, service, epoch)
     window = SessionWindow(
-        service, since, until, lane, ZoneInfo(request.app.state.host_tz), view.ids, key
+        service,
+        since,
+        until,
+        lane,
+        ZoneInfo(request.app.state.host_tz),
+        view.ids,
+        scope.report_keys(key),
     )
     query = (
         select(HistorySession)

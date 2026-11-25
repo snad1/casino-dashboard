@@ -1,7 +1,8 @@
 """Invites: an owner or admin invites an email with a role; the link sets a password once.
 
-The role may be on every service, one service, or one lane of it (checked against the bot's
-lanes when sent and again when accepted), or a lane manager on one service.
+The role may be on every service, one service, or some lanes or vault keys of it (checked
+against the bot's lanes and keys when sent and again when accepted), or a lane manager on one
+service.
 """
 
 import hashlib
@@ -15,8 +16,17 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
-from app.auth.admin import Lanes, check_scope, distinct_lanes, require_lanes
-from app.auth.models import Invite, Role, User, UserRole
+from app.auth.admin import (
+    Keys,
+    Lanes,
+    check_scope,
+    distinct_keys,
+    distinct_lanes,
+    require_keys,
+    require_lanes,
+    role_rows,
+)
+from app.auth.models import Invite, Role, User
 from app.auth.passwords import hash_password, password_problem
 from app.auth.permissions import Perm, require
 from app.db.engine import get_session
@@ -42,21 +52,23 @@ class InviteIn(BaseModel):
     role: Literal["admin", "operator", "viewer", "lane_manager"]
     service: str | None = Field(default=None, max_length=100)
     lanes: Lanes
+    keys: Keys
 
     _distinct = field_validator("lanes")(distinct_lanes)
+    _distinct_keys = field_validator("keys")(distinct_keys)
 
     @model_validator(mode="after")
     def _scope(self) -> "InviteIn":
-        check_scope(self.role, self.service, self.lanes)
+        check_scope(self.role, self.service, self.lanes, self.keys)
         return self
 
     def scope(self) -> str:
-        """The role as the email names it: `viewer on wolfbet lanes 3, 5`."""
+        """The role as the email names it: `viewer on wolfbet lanes 3, 5` or `... key lakai`."""
         where = f" on {self.service}" if self.service else ""
         which = ""
-        if self.lanes:
-            word = "lane" if len(self.lanes) == 1 else "lanes"
-            which = f" {word} {', '.join(map(str, self.lanes))}"
+        for noun, items in (("lane", list(map(str, self.lanes))), ("key", self.keys)):
+            if items:
+                which = f" {noun}{'' if len(items) == 1 else 's'} {', '.join(items)}"
         return f"{self.role}{where}{which}"
 
 
@@ -83,6 +95,8 @@ async def create_invite(
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, UNKNOWN_SERVICE)
     if body.service is not None and body.lanes:
         await require_lanes(request, body.service, body.lanes)
+    if body.service is not None and body.keys:
+        await require_keys(request, body.service, body.keys)
     await db.execute(delete(Invite).where(Invite.email == email, Invite.accepted_at.is_(None)))
     token = secrets.token_urlsafe(32)
     db.add(
@@ -92,6 +106,7 @@ async def create_invite(
             role=body.role,
             service_id=service_id,
             lanes=body.lanes,
+            key_refs=body.keys,
             invited_by=inviter.id,
             expires_at=datetime.now(UTC) + INVITE_TTL,
         )
@@ -102,11 +117,14 @@ async def create_invite(
     await db.commit()
 
 
-async def _lane_still_there(request: Request, db: AsyncSession, invite: Invite) -> None:
-    """Refuse an invite whose lanes are not all still there, as an invalid link."""
+async def _scope_still_there(request: Request, db: AsyncSession, invite: Invite) -> None:
+    """Refuse an invite whose lanes or keys are not all still there, as an invalid link."""
     service = await db.scalar(select(Service.name).where(Service.id == invite.service_id))
     try:
-        await require_lanes(request, service or "", invite.lanes)
+        if invite.lanes:
+            await require_lanes(request, service or "", invite.lanes)
+        if invite.key_refs:
+            await require_keys(request, service or "", invite.key_refs)
     except HTTPException as error:
         if error.status_code != status.HTTP_422_UNPROCESSABLE_CONTENT:
             raise
@@ -124,8 +142,8 @@ async def accept_invite(body: AcceptIn, request: Request, db: Db) -> None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, INVITE_INVALID)
     if problem := password_problem(body.password, invite.email):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, problem)
-    if invite.lanes:
-        await _lane_still_there(request, db, invite)
+    if invite.lanes or invite.key_refs:
+        await _scope_still_there(request, db, invite)
     user = User(
         email=invite.email,
         password_hash=await run_in_threadpool(hash_password, body.password),
@@ -133,9 +151,8 @@ async def accept_invite(body: AcceptIn, request: Request, db: Db) -> None:
     )
     db.add(user)
     await db.flush()
-    scopes: list[int | None] = [*invite.lanes] or [None]
-    role = Role(invite.role)
-    for lane in scopes:
-        db.add(UserRole(user_id=user.id, service_id=invite.service_id, role=role, lane=lane))
+    db.add_all(
+        role_rows(user.id, invite.service_id, Role(invite.role), invite.lanes, invite.key_refs)
+    )
     invite.accepted_at = datetime.now(UTC)
     await db.commit()

@@ -11,6 +11,7 @@ counted as 0 and a missing lane as lane 1. Times come back as the naive local IS
 the bot prints.
 """
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
@@ -19,10 +20,8 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.key_lanes import MAIN_KEY
 from app.ingest.tailer import aware
-
-MAIN_KEY = "default"
-"""The main key's vault id; a session recorded before the bot kept the key counts as it."""
 
 TOP_SESSIONS = 5
 
@@ -114,9 +113,9 @@ class SessionWindow:
         lane: int | None,
         zone: ZoneInfo,
         epochs: list[int],
-        key: str | None = None,
+        keys: Sequence[str] | None = None,
     ) -> None:
-        self.since, self.until, self.lane, self.key = since, until, lane, key
+        self.since, self.until, self.lane, self.keys = since, until, lane, keys
         self.zone = zone
         self.epochs = epochs
         self.start = aware(since, zone) if since else None
@@ -134,9 +133,9 @@ class SessionWindow:
         if lane is not None:
             self._conds.append("{t}lane = :lane")
             self.params["lane"] = lane
-        if key is not None:
-            self._conds.append("coalesce({t}key_ref, :main_key) = :key")
-            self.params["key"] = key
+        if keys is not None:
+            self._conds.append("coalesce({t}key_ref, :main_key) = ANY(:keys)")
+            self.params["keys"] = list(keys)
             self.params["main_key"] = MAIN_KEY
         self.conditions = self.on("")
 

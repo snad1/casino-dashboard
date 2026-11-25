@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { can, denialReason, laneScope, ROLE_INFO, type Me } from './permissions';
+import { can, denialReason, keyScope, laneScope, ROLE_INFO, type Me } from './permissions';
 
 function me(role: string, service: string | null = null, totp = true): Me {
 	return {
@@ -123,6 +123,24 @@ describe('laneScope', () => {
 			)
 		).toEqual([]);
 		expect(laneScope(null, 'view', 'wolfbet')).toEqual([]);
+	});
+
+	it('treats a key role as its lanes, never as the whole service', () => {
+		const friend = laneUser([
+			{ role: 'viewer', service: 'wolfbet', lane: 8, key_ref: 'lakai' },
+			{ role: 'viewer', service: 'wolfbet', lane: 9, key_ref: 'lakai' }
+		]);
+		expect(can(friend, 'view', 'wolfbet')).toBe(false);
+		expect(laneScope(friend, 'view', 'wolfbet')).toEqual([8, 9]);
+		expect(keyScope(friend, 'view', 'wolfbet')).toEqual(['lakai']);
+		const idle = laneUser([{ role: 'viewer', service: 'wolfbet', lane: null, key_ref: 'lakai' }]);
+		expect(can(idle, 'view', 'wolfbet')).toBe(false);
+		expect(laneScope(idle, 'view', 'wolfbet')).toEqual([]);
+		expect(keyScope(idle, 'view', 'wolfbet')).toEqual(['lakai']);
+		expect(keyScope(me('viewer'), 'view', 'wolfbet')).toBeNull();
+		expect(
+			keyScope(laneUser([{ role: 'viewer', service: 'wolfbet', lane: 3 }]), 'view', 'wolfbet')
+		).toBeNull();
 	});
 
 	it('keeps the denial text in step with can for a lane role', () => {

@@ -142,7 +142,7 @@ test('a role can be limited to several lanes, then changed', async ({ page }) =>
 	const lanes = row.getByRole('group', { name: 'Lanes for friend@example.test' });
 	await toggle(lanes.getByLabel('Lane 8'));
 	await toggle(lanes.getByLabel('Lane 9'));
-	await row.getByRole('button', { name: 'Save lanes' }).press('Enter');
+	await row.getByRole('button', { name: 'Save lanes and keys' }).press('Enter');
 	await expect(
 		page.getByRole('dialog', { name: 'Make friend@example.test viewer on lanes 8, 9?' })
 	).toBeVisible();
@@ -156,12 +156,12 @@ test('a role can be limited to several lanes, then changed', async ({ page }) =>
 	if (!(await lanes.isVisible())) await row.locator('summary').press('Enter');
 	await toggle(lanes.getByLabel('Lane 8'));
 	await toggle(lanes.getByLabel('Lane 3'));
-	await row.getByRole('button', { name: 'Save lanes' }).press('Enter');
+	await row.getByRole('button', { name: 'Save lanes and keys' }).press('Enter');
 	await page.getByRole('button', { name: 'Make viewer' }).click();
 	await expect(page.getByText('viewer on wolfbet lanes 3, 9', { exact: true })).toBeVisible();
 	expect(sent).toEqual([
-		{ role: 'viewer', service: 'wolfbet', lanes: [8, 9] },
-		{ role: 'viewer', service: 'wolfbet', lanes: [3, 9] }
+		{ role: 'viewer', service: 'wolfbet', lanes: [8, 9], keys: [] },
+		{ role: 'viewer', service: 'wolfbet', lanes: [3, 9], keys: [] }
 	]);
 });
 
@@ -192,7 +192,7 @@ test('a lane manager is granted on this service', async ({ page }) => {
 	await expect(page.getByRole('status')).toContainText(
 		'friend@example.test is now lane_manager on wolfbet.'
 	);
-	expect(sent).toEqual([{ role: 'lane_manager', service: 'wolfbet', lanes: [] }]);
+	expect(sent).toEqual([{ role: 'lane_manager', service: 'wolfbet', lanes: [], keys: [] }]);
 });
 
 test('an invite can name several lanes, or make a lane manager', async ({ page }) => {
@@ -209,7 +209,15 @@ test('an invite can name several lanes, or make a lane manager', async ({ page }
 	await page.goto('/admin/users');
 	await expect(page.getByText('Viewer: Sees the live view')).toBeVisible();
 	await expect(page.getByText('What each role can do')).toBeVisible();
-	for (const name of ['Viewer', 'Operator', 'Admin', 'Lane manager', 'Owner', 'On some lanes']) {
+	for (const name of [
+		'Viewer',
+		'Operator',
+		'Admin',
+		'Lane manager',
+		'Owner',
+		'On some lanes',
+		'On some keys'
+	]) {
 		await expect(page.locator('dt', { hasText: new RegExp(`^${name}$`) })).toBeVisible();
 	}
 	await page.getByLabel('Email to invite').fill('friend@example.test');
@@ -230,8 +238,50 @@ test('an invite can name several lanes, or make a lane manager', async ({ page }
 	await page.getByRole('button', { name: 'Send invite' }).click();
 	await expect(page.getByRole('status')).toContainText('Invite sent to manager@example.test.');
 	expect(sent).toEqual([
-		{ email: 'friend@example.test', role: 'viewer', service: 'wolfbet', lanes: [8, 9] },
-		{ email: 'manager@example.test', role: 'lane_manager', service: 'wolfbet', lanes: [] }
+		{ email: 'friend@example.test', role: 'viewer', service: 'wolfbet', lanes: [8, 9], keys: [] },
+		{ email: 'manager@example.test', role: 'lane_manager', service: 'wolfbet', lanes: [], keys: [] }
+	]);
+});
+
+test('an invite can be limited to keys, which clears the lanes', async ({ page }) => {
+	const sent: unknown[] = [];
+	const key = (id: string, label: string) => ({
+		id,
+		label,
+		kind: 'key',
+		last4: '7777',
+		owner_user_id: null,
+		created_at: '2026-11-23T10:00:00+00:00',
+		rotated_at: null,
+		used_by_lanes: []
+	});
+	await stubApi(page, {
+		'GET /auth/me': () => ({ status: 200, json: adminMe }),
+		'GET /admin/users': () => ({ status: 200, json: { items: [] } }),
+		'GET /wolfbet/config': () => ({ status: 200, json: { lane_ids: [1, 8, 9] } }),
+		'GET /wolfbet/keys': () => ({
+			status: 200,
+			json: { keys: [key('lakai', 'Lakai'), key('default', 'Main')] }
+		}),
+		'POST /auth/invites': (body) => {
+			sent.push(body);
+			return { status: 204 };
+		}
+	});
+	await page.goto('/admin/users');
+	await page.getByLabel('Email to invite').fill('friend@example.test');
+	const lanes = page.getByRole('group', { name: 'Lanes on wolfbet' });
+	const keys = page.getByRole('group', { name: 'Keys on wolfbet' });
+	await lanes.getByLabel('Lane 8').check();
+	await keys.getByLabel('Lakai · ...7777').check();
+	await expect(lanes.getByLabel('Lane 8')).not.toBeChecked();
+	await expect(page.getByText('A role is limited by lanes or by keys, not both.')).toBeVisible();
+	await page.getByRole('button', { name: 'Invite' }).click();
+	await expect(page.getByText('join as viewer on wolfbet key lakai')).toBeVisible();
+	await page.getByRole('button', { name: 'Send invite' }).click();
+	await expect(page.getByRole('status')).toContainText('Invite sent to friend@example.test.');
+	expect(sent).toEqual([
+		{ email: 'friend@example.test', role: 'viewer', service: 'wolfbet', lanes: [], keys: ['lakai'] }
 	]);
 });
 

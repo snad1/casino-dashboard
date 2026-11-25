@@ -1860,6 +1860,15 @@
             "title": "Email",
             "type": "string"
           },
+          "keys": {
+            "items": {
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Keys",
+            "type": "array"
+          },
           "lanes": {
             "items": {
               "maximum": 99.0,
@@ -2853,6 +2862,15 @@
       },
       "RoleIn": {
         "properties": {
+          "keys": {
+            "items": {
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Keys",
+            "type": "array"
+          },
           "lanes": {
             "items": {
               "maximum": 99.0,
@@ -2894,6 +2912,17 @@
       },
       "RoleOut": {
         "properties": {
+          "key_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Ref"
+          },
           "lane": {
             "anyOf": [
               {
@@ -4559,7 +4588,7 @@
     },
     "/admin/users/{user_id}/role": {
       "put": {
-        "description": "Replace the user's roles with one role: on all services, one service, or some of its\nlanes (one row per lane).",
+        "description": "Replace the user's roles with one role: on all services, one service, or some of its\nlanes or keys (one row each).",
         "operationId": "set_role_admin_users__user_id__role_put",
         "parameters": [
           {
@@ -6445,7 +6474,7 @@
     },
     "/{service}/analytics": {
       "get": {
-        "description": "The report for sessions started in the window (a bare `until` date counts whole), from\nthe bot for the current epoch, or from history for an archived `epoch` or one `key` (the\nbot cannot split by key). A lane-only user gets one of their lanes, never a report over\nothers.",
+        "description": "The report for sessions started in the window (a bare `until` date counts whole), from\nthe bot for the current epoch, or from history for an archived `epoch` or one `key` (the\nbot cannot split by key). A lane-only user gets one of their lanes, never a report over\nothers; a key-only user gets their keys' sessions, from history.",
         "operationId": "get_analytics__service__analytics_get",
         "parameters": [
           {
@@ -10263,7 +10292,7 @@
     },
     "/{service}/keys/{key_id}": {
       "delete": {
-        "description": "Delete a key no lane uses.",
+        "description": "Delete a key no lane uses, with every role and pending invite on it: a key added\nlater under the same id must not open to them.",
         "operationId": "delete_key__service__keys__key_id__delete",
         "parameters": [
           {

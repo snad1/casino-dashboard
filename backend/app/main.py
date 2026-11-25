@@ -29,6 +29,7 @@ from app.audit import router as audit_router
 from app.auth.admin import router as admin_router
 from app.auth.csrf import CsrfMiddleware
 from app.auth.invites import router as invites_router
+from app.auth.key_lanes import KEY_LANES
 from app.auth.reset import router as reset_router
 from app.auth.routes import router as auth_router
 from app.auth.stepup import install_step_handler
@@ -167,6 +168,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.hub = hub or user_hub
     app.state.hubs = {h.svc: h for h in (hub, user_hub) if h is not None}
     app.state.agent = agent
+    KEY_LANES.use(agent)
     app.state.host_tz = settings.host_tz
     app.state.alerts = alerts
     app.state.telegram_bot_username = settings.telegram_bot_username

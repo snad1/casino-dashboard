@@ -76,16 +76,20 @@ export const ROLE_INFO = {
 
 export const ON_SOME_LANES =
 	'A viewer or operator given lanes sees and acts on those lanes only; nothing service-wide.';
+export const ON_SOME_KEYS =
+	'A viewer or operator given keys sees and acts on the lanes betting with those keys now, and only the sessions that bet with them.';
 
 /**
  * Whether the signed-in user may use `perm` on `service`, mirroring the api's role map. The
  * api decides; this only hides what would be refused. Owner and admin grants beyond `view`
- * count only once 2FA is on, as on the server. A role on one lane opens nothing service-wide.
+ * count only once 2FA is on, as on the server. A role on some lanes or keys opens nothing
+ * service-wide.
  */
 export function can(me: Me | null, perm: Perm, service: string | null = null): boolean {
 	if (me === null) return false;
-	return me.roles.some(({ role, service: scope, lane }) => {
+	return me.roles.some(({ role, service: scope, lane, key_ref }) => {
 		if (lane !== null && lane !== undefined) return false;
+		if (key_ref) return false;
 		if (scope !== null && scope !== service) return false;
 		if (!(ROLE_PERMS[role] ?? []).includes(perm)) return false;
 		return perm === 'view' || !NEEDS_TWO_FACTOR.has(role) || me.totp_enabled;
@@ -107,6 +111,19 @@ export function laneScope(me: Me | null, perm: Perm, service: string): number[] 
 	return [...lanes].sort((a, b) => a - b);
 }
 
+/**
+ * The vault keys of `service` the signed-in user's view is limited to: null unless key roles
+ * grant `perm` there. History then counts only the sessions that bet with those keys.
+ */
+export function keyScope(me: Me | null, perm: Perm, service: string): string[] | null {
+	if (can(me, perm, service)) return null;
+	const keys = new Set<string>();
+	for (const { role, service: scope, key_ref } of me?.roles ?? []) {
+		if (key_ref && scope === service && (ROLE_PERMS[role] ?? []).includes(perm)) keys.add(key_ref);
+	}
+	return keys.size ? [...keys].sort() : null;
+}
+
 const ROLE_NAMES: Partial<Record<Perm, string>> = {
 	'control.basic': 'operator',
 	'config.write': 'operator',
@@ -125,8 +142,9 @@ export function denialReason(
 ): string | null {
 	if (can(me, perm, service)) return null;
 	const granting = (me?.roles ?? []).some(
-		({ role, service: scope, lane }) =>
+		({ role, service: scope, lane, key_ref }) =>
 			(lane === null || lane === undefined) &&
+			!key_ref &&
 			(scope === null || scope === service) &&
 			(ROLE_PERMS[role] ?? []).includes(perm)
 	);

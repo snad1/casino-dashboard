@@ -18,12 +18,12 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 from pydantic import BaseModel
-from sqlalchemy import Select, func, select, text, tuple_
+from sqlalchemy import ColumnElement, Select, func, or_, select, text, tuple_
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters.wolfbet.analytics import MAIN_KEY
 from app.adapters.wolfbet.control import LANE_ID_MAX
+from app.auth.key_lanes import MAIN_KEY
 from app.auth.permissions import FORBIDDEN, LaneScope, Perm, scoped
 from app.db.engine import get_session
 from app.history.epochs import epoch_view
@@ -213,6 +213,7 @@ async def list_sessions(
     """Newest first, from the current epoch or `epoch`; pass `next_cursor` back as `cursor`.
     `key` keeps only the sessions that bet with that vault key."""
     scope.check(lane)
+    scope.check_key(key)
     cache, cache_key = _cache(request, scope)
     if (hit := cache.get(cache_key)) is not None:
         return hit
@@ -228,7 +229,7 @@ async def list_sessions(
         cursor,
         limit,
         with_total=cursor is None,
-        lanes=scope.lanes,
+        within=scope_condition(scope),
         key=key,
     )
     cache.put(cache_key, page)
@@ -246,11 +247,11 @@ async def session_page(
     cursor: str | None,
     limit: int,
     with_total: bool = False,
-    lanes: Collection[int] | None = None,
+    within: ColumnElement[bool] | None = None,
     key: str | None = None,
 ) -> SessionPage:
-    """One page of sessions, newest first; `epochs` limits it to those databases and `lanes`
-    to those lanes.
+    """One page of sessions, newest first; `epochs` limits it to those databases and `within`
+    to a caller's scope (`scope_condition`).
 
     With `with_total`, the page also carries how many sessions match the filters.
     """
@@ -259,8 +260,8 @@ async def session_page(
         filters.append(HistorySession.epoch_id.in_(epochs))
     if lane is not None:
         filters.append(HistorySession.lane == lane)
-    if lanes is not None:
-        filters.append(HistorySession.lane.in_(lanes))
+    if within is not None:
+        filters.append(within)
     if key is not None:
         filters.append(func.coalesce(HistorySession.key_ref, MAIN_KEY) == key)
     if since is not None:
@@ -297,12 +298,24 @@ async def session_page(
     )
 
 
+def scope_condition(scope: LaneScope) -> ColumnElement[bool] | None:
+    """The sessions a scope may see, as a filter on `sessions`: None for every session."""
+    if scope.keys is not None:
+        keyed = func.coalesce(HistorySession.key_ref, MAIN_KEY).in_(sorted(scope.keys))
+        if not scope.own_lanes:
+            return keyed
+        return or_(keyed, HistorySession.lane.in_(sorted(scope.own_lanes)))
+    if scope.lanes is not None:
+        return HistorySession.lane.in_(sorted(scope.lanes))
+    return None
+
+
 async def _visible_session(
     db: AsyncSession, scope: LaneScope, service: str, epoch_id: int, session_id: int
 ) -> HistorySession:
-    """The session, or 404 when it does not exist or sits on a lane outside the scope."""
+    """The session, or 404 when it does not exist or is outside the scope."""
     row = await find_session(db, service, epoch_id, session_id)
-    if not scope.allows(row.lane):
+    if not scope.allows_session(row.lane, row.key_ref):
         raise HTTPException(status.HTTP_404_NOT_FOUND, SESSION_NOT_FOUND)
     return row
 
@@ -423,6 +436,13 @@ _EPOCH_SERIES_SQL = (
     " last(balance_after, ts) AS balance FROM bets"
     " WHERE service = :service AND epoch_id = ANY(:epochs) AND ts >= :start AND ts < :end"
 )
+_KEY_SERIES_SQL = (
+    "SELECT time_bucket(:step, b.ts) AS t, b.lane AS lane, sum(b.profit) AS profit,"
+    " last(b.balance_after, b.ts) AS balance FROM bets b JOIN sessions s"
+    " ON s.service = b.service AND s.epoch_id = b.epoch_id AND s.src_id = b.session_src_id"
+    " WHERE b.service = :service AND b.ts >= :start AND b.ts < :end"
+    " AND (coalesce(s.key_ref, :main_key) = ANY(:keys) OR b.lane = ANY(:own))"
+)
 _TIME_COLUMN = {"1s": "ts", "1m": "bucket", "1h": "bucket", "1d": "bucket"}
 
 
@@ -457,7 +477,9 @@ async def get_series(
     if not view.ids or start >= end:
         out = SeriesOut(res=chosen, series=[])
     else:
-        out = await series(db, service, None, metric, chosen, start, end, lane, scope.lanes)
+        out = await series(
+            db, service, None, metric, chosen, start, end, lane, scope.lanes, scope=scope
+        )
     cache.put(key, out)
     return out
 
@@ -472,10 +494,12 @@ async def series(
     until: datetime | None,
     lane: int | None,
     lanes: Collection[int] | None = None,
+    scope: LaneScope | None = None,
 ) -> SeriesOut:
     """Per-lane points over a range, of `lane` or of `lanes` when given. With `epochs`, only
     those databases' bets count; the rollups mix every database, so that reads the raw bets
-    at any resolution."""
+    at any resolution. A key scope reads raw bets too, joined to their sessions' keys: the
+    rollups are kept per lane, and a lane may have bet with another key before."""
     end = until or datetime.now(UTC)
     start = since or end - DEFAULT_RANGE
     if start >= end:
@@ -485,7 +509,9 @@ async def series(
     if lanes is not None:
         lane_filter += " AND lane = ANY(:lanes)"
     params: dict[str, Any] = {"service": service, "start": start, "end": end}
-    if epochs is not None:
+    if scope is not None and scope.keys is not None:
+        statement, params = _key_series(service, start, end, chosen, lane, scope)
+    elif epochs is not None:
         # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
         statement = text(
             f"{_EPOCH_SERIES_SQL}{lane_filter} GROUP BY 1, lane ORDER BY lane, t"  # nosec B608: fixed SQL
@@ -500,7 +526,7 @@ async def series(
         )
     if lane is not None:
         params["lane"] = lane
-    if lanes is not None:
+    if lanes is not None and "keys" not in params:
         params["lanes"] = sorted(lanes)
     rows = (await db.execute(statement, params)).all()
     by_lane: dict[int, list[tuple[datetime, float | None]]] = {}
@@ -511,6 +537,26 @@ async def series(
         res=chosen,
         series=[LaneSeries(lane=k, points=v) for k, v in sorted(by_lane.items())],
     )
+
+
+def _key_series(
+    service: str, start: datetime, end: datetime, chosen: str, lane: int | None, scope: LaneScope
+) -> tuple[Any, dict[str, Any]]:
+    lane_filter = " AND b.lane = :lane" if lane is not None else ""
+    # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
+    statement = text(
+        f"{_KEY_SERIES_SQL}{lane_filter} GROUP BY 1, b.lane ORDER BY lane, t"  # nosec B608: fixed SQL
+    )
+    params: dict[str, Any] = {
+        "service": service,
+        "start": start,
+        "end": end,
+        "step": RESOLUTIONS[chosen],
+        "main_key": MAIN_KEY,
+        "keys": sorted(scope.keys or ()),
+        "own": sorted(scope.own_lanes),
+    }
+    return statement, params
 
 
 async def current_sessions(db: AsyncSession, service: str) -> list[HistorySession]:
@@ -533,7 +579,11 @@ async def get_current(service: str, request: Request, scope: Viewer, db: Db) -> 
         return hit
     rows = await current_sessions(db, service)
     out = CurrentOut(
-        lanes=[_session_out(SessionOut, row) for row in rows if scope.allows(row.lane)]
+        lanes=[
+            _session_out(SessionOut, row)
+            for row in rows
+            if scope.allows(row.lane) and scope.allows_session(row.lane, row.key_ref)
+        ]
     )
     cache.put(key, out)
     return out
@@ -549,8 +599,8 @@ async def list_epochs(service: str, scope: Viewer, db: Db) -> EpochList:
     joined = (HistorySession.service == DbEpoch.service) & (
         HistorySession.epoch_id == DbEpoch.epoch_id
     )
-    if scope.lanes is not None:
-        joined &= HistorySession.lane.in_(scope.lanes)
+    if (within := scope_condition(scope)) is not None:
+        joined &= within
     rows = (
         await db.execute(
             select(

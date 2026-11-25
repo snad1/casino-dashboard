@@ -151,6 +151,12 @@ export function lanesText(lanes: readonly number[]): string {
 	return `${lanes.length === 1 ? 'lane' : 'lanes'} ${[...lanes].sort((a, b) => a - b).join(', ')}`;
 }
 
+/** `key lakai`, `keys a, b`, or empty for no key, as a role reads in a sentence. */
+export function keysText(keys: readonly string[]): string {
+	if (!keys.length) return '';
+	return `${keys.length === 1 ? 'key' : 'keys'} ${[...keys].sort().join(', ')}`;
+}
+
 /** Lane `n` as the live view knows it: with its own name when it has one. */
 export function laneLabel(n: number, lanes: Lanes): string {
 	return laneTitle(n, lanes[n]?.name);

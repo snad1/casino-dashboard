@@ -88,7 +88,7 @@ def test_a_link_signs_in_once_and_makes_a_telegram_account(
         assert client.post("/auth/telegram", json={"token": link}).status_code == 204
         me = client.get("/auth/me").json()
         assert me["email"] is None and me["tg_uid"] == uid
-        assert me["roles"] == [{"service": None, "role": "tg_user", "lane": None}]
+        assert me["roles"] == [{"service": None, "role": "tg_user", "lane": None, "key_ref": None}]
         again = client.post("/auth/telegram", json={"token": link})
         assert again.status_code == 401
         assert again.json() == {"detail": LINK_INVALID}

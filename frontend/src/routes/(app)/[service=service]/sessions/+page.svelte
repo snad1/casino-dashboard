@@ -6,7 +6,7 @@
 	import { keyFilter } from '#lib/key-filter.svelte';
 	import { laneLabel } from '#lib/lanes';
 	import { liveFor } from '#lib/live/index';
-	import { laneScope } from '#lib/permissions';
+	import { keyScope, laneScope } from '#lib/permissions';
 	import { session } from '#lib/session.svelte';
 	import Field from '#ui/Field';
 
@@ -20,7 +20,13 @@
 	let total = $state<number | null>(null);
 
 	const ownLanes = $derived(laneScope(session.me, 'view', service));
-	const key = $derived(keyFilter.get(service));
+	const ownKeys = $derived(keyScope(session.me, 'view', service));
+	/** A lane-only user reads one lane at a time; a key-only user's history is cut by key. */
+	const oneLane = $derived(ownKeys === null ? ownLanes : null);
+	const key = $derived.by(() => {
+		const picked = keyFilter.get(service);
+		return ownKeys && picked && !ownKeys.includes(picked) ? null : picked;
+	});
 	const lanes = $derived(
 		ownLanes ??
 			Object.keys(lanesOf(live.lanes, key))
@@ -30,7 +36,7 @@
 	);
 
 	$effect(() => {
-		if (ownLanes?.length && !ownLanes.includes(Number(lane))) lane = String(ownLanes[0]);
+		if (oneLane?.length && !oneLane.includes(Number(lane))) lane = String(oneLane[0]);
 	});
 
 	const startOfDay = (day: string, plusDays = 0) => {
@@ -71,7 +77,7 @@
 		<label class="flex flex-col gap-1 text-sm font-medium text-ink">
 			Lane
 			<select bind:value={lane} class={selectClass}>
-				{#if ownLanes === null}<option value="">All lanes</option>{/if}
+				{#if oneLane === null}<option value="">All lanes</option>{/if}
 				{#each lanes as n (n)}
 					<option value={String(n)}>{laneLabel(n, live.lanes)}</option>
 				{/each}

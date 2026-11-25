@@ -92,7 +92,7 @@ export interface paths {
 		/**
 		 * Set Role
 		 * @description Replace the user's roles with one role: on all services, one service, or some of its
-		 *     lanes (one row per lane).
+		 *     lanes or keys (one row each).
 		 */
 		put: operations['set_role_admin_users__user_id__role_put'];
 		post?: never;
@@ -825,7 +825,7 @@ export interface paths {
 		 * @description The report for sessions started in the window (a bare `until` date counts whole), from
 		 *     the bot for the current epoch, or from history for an archived `epoch` or one `key` (the
 		 *     bot cannot split by key). A lane-only user gets one of their lanes, never a report over
-		 *     others.
+		 *     others; a key-only user gets their keys' sessions, from history.
 		 */
 		get: operations['get_analytics__service__analytics_get'];
 		put?: never;
@@ -1751,7 +1751,8 @@ export interface paths {
 		post?: never;
 		/**
 		 * Delete Key
-		 * @description Delete a key no lane uses.
+		 * @description Delete a key no lane uses, with every role and pending invite on it: a key added
+		 *     later under the same id must not open to them.
 		 */
 		delete: operations['delete_key__service__keys__key_id__delete'];
 		options?: never;
@@ -2440,6 +2441,8 @@ export interface components {
 		InviteIn: {
 			/** Email */
 			email: string;
+			/** Keys */
+			keys?: string[];
 			/** Lanes */
 			lanes?: number[];
 			/**
@@ -2762,6 +2765,8 @@ export interface components {
 		};
 		/** RoleIn */
 		RoleIn: {
+			/** Keys */
+			keys?: string[];
 			/** Lanes */
 			lanes?: number[];
 			/**
@@ -2774,6 +2779,8 @@ export interface components {
 		};
 		/** RoleOut */
 		RoleOut: {
+			/** Key Ref */
+			key_ref?: string | null;
 			/** Lane */
 			lane?: number | null;
 			/** Role */

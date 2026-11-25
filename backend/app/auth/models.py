@@ -16,6 +16,7 @@ from sqlalchemy import (
     Integer,
     LargeBinary,
     SmallInteger,
+    String,
     Text,
     UniqueConstraint,
     func,
@@ -99,20 +100,32 @@ INVITE_LANES_CHECK = (
     "cardinality(lanes) = 0 OR (service_id IS NOT NULL AND role IN ('viewer', 'operator')"
     f" AND cardinality(lanes) <= {INVITE_LANES_MAX} AND 1 <= ALL(lanes) AND 99 >= ALL(lanes))"
 )
+KEY_ROLE_CHECK = (
+    "key_ref IS NULL OR (lane IS NULL AND service_id IS NOT NULL"
+    " AND role IN ('viewer', 'operator'))"
+)
+INVITE_KEYS_CHECK = (
+    "cardinality(key_refs) = 0 OR (service_id IS NOT NULL AND role IN ('viewer', 'operator')"
+    f" AND cardinality(lanes) = 0 AND cardinality(key_refs) <= {INVITE_LANES_MAX})"
+)
 
 
 class UserRole(Base):
     """A role on one service, or on every service when `service_id` is null.
 
-    `lane` narrows a service role to one lane. Such a role never counts for a service-wide
-    check: it grants only what a check that names that lane allows.
+    `lane` narrows a service role to one lane, and `key_ref` to the lanes that bet with that
+    vault key at the time of the check. Neither counts for a service-wide check: each grants
+    only what a check that names one of its lanes allows.
     """
 
     __tablename__ = "user_roles"
     __table_args__ = (
-        UniqueConstraint("user_id", "service_id", "lane", postgresql_nulls_not_distinct=True),
+        UniqueConstraint(
+            "user_id", "service_id", "lane", "key_ref", postgresql_nulls_not_distinct=True
+        ),
         CheckConstraint(_ROLE_CHECK, name="role"),
         CheckConstraint(LANE_CHECK, name="lane"),
+        CheckConstraint(KEY_ROLE_CHECK, name="key"),
         # The database, not only the CLI, guarantees there is never a second owner.
         Index(
             "uq_user_roles_single_owner",
@@ -129,6 +142,7 @@ class UserRole(Base):
     )
     role: Mapped[str] = mapped_column(Text)
     lane: Mapped[int | None] = mapped_column(SmallInteger)
+    key_ref: Mapped[str | None] = mapped_column(String(32))
 
 
 class ApiSession(Base):
@@ -152,6 +166,7 @@ class Invite(Base):
     __table_args__ = (
         CheckConstraint(_ROLE_CHECK, name="role"),
         CheckConstraint(INVITE_LANES_CHECK, name="lanes"),
+        CheckConstraint(INVITE_KEYS_CHECK, name="keys"),
     )
 
     id: Mapped[int] = _id()
@@ -163,6 +178,9 @@ class Invite(Base):
     )
     lanes: Mapped[list[int]] = mapped_column(
         ARRAY(SmallInteger), server_default=text("'{}'"), default=list
+    )
+    key_refs: Mapped[list[str]] = mapped_column(
+        ARRAY(String(32)), server_default=text("'{}'"), default=list
     )
     invited_by: Mapped[int] = _user_fk()
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
