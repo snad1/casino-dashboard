@@ -38,6 +38,7 @@ from app.auth.telegram import router as telegram_router
 from app.auth.totp import router as totp_router
 from app.comments import router as comments_router
 from app.db.engine import create_engine, create_sessionmaker
+from app.db.services import register_service
 from app.errors import UnhandledErrorMiddleware, install_error_handlers
 from app.live.aggregator import Aggregator, TickTimer, run_ticker
 from app.live.consumer import ServiceConsumer
@@ -118,6 +119,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """
         stop = asyncio.Event()
         tasks = []
+        if hub is not None:
+            await register_service(sessionmaker, hub.svc, settings.public_host)
         if users is not None and user_hub is not None and user_consumer is not None:
             tasks = [
                 asyncio.create_task(user_consumer.run(stop)),

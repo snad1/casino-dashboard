@@ -6,7 +6,7 @@ from typing import Annotated
 import pytest
 from fastapi import Depends
 from fastapi.testclient import TestClient
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,9 +24,10 @@ def _service(name: str) -> Service:
 
 @pytest.mark.parametrize("attempt", [1, 2])
 async def test_writes_are_rolled_back_between_tests(db_session: AsyncSession, attempt: int) -> None:
-    db_session.add(_service("wolfbet"))
+    db_session.add(_service("rollback-probe"))
     await db_session.commit()
-    assert await db_session.scalar(select(Service.name)) == "wolfbet"
+    found = select(func.count()).select_from(Service).where(Service.name == "rollback-probe")
+    assert await db_session.scalar(found) == 1
 
 
 async def test_service_name_is_unique(db_session: AsyncSession) -> None:
