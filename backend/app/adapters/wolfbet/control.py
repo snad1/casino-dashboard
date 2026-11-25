@@ -411,8 +411,8 @@ ACTIONS: dict[str, ControlAction] = {
         LanesArgs,
         label="Apply",
         title="Change lanes to {count}?",
-        effect="Lanes are added or stopped to reach {count} with the {split} split. The other "
-        "lanes keep betting.",
+        effect="Lanes are added or stopped to reach {count}. Split: {split}. The other lanes "
+        "keep betting.",
         confirm="Change lanes",
         fresh=True,
         job=True,
