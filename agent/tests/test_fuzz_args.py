@@ -22,12 +22,12 @@ SCHEMA = json.loads((Path(__file__).parent / "fixtures" / "wolfbet-config-schema
 PATHS = WolfBetPaths(
     python=Path("/opt/wb/venv/bin/python3"),
     bot=Path("/opt/wb/wolfbet.py"),
-    wolfctl=Path("/opt/bin/wolfctl"),
+    ctl=Path("/opt/bin/wolfctl"),
     repo=Path("/opt/repo"),
     export_dir=Path("/var/agent/exports"),
     journalctl=Path("/usr/bin/journalctl"),
 )
-FIXED = {str(PATHS.python), str(PATHS.bot), str(PATHS.wolfctl), str(PATHS.journalctl)}
+FIXED = {str(PATHS.python), str(PATHS.bot), str(PATHS.ctl), str(PATHS.journalctl)}
 HOSTILE = [
     "; rm -rf /",
     "$(id)",

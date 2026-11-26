@@ -82,7 +82,7 @@ def _stack(
     paths = WolfBetPaths(
         python=work / "fakebot",
         bot=work / "wolfbet.py",
-        wolfctl=work / "fakebot",
+        ctl=work / "fakebot",
         repo=work,
         export_dir=work / "exports",
         journalctl=work / "fakebot",

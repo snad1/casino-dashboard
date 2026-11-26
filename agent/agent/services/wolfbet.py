@@ -4,124 +4,72 @@ Reads call `wolfbet.py ... --json`; control and mutations go through `wolfctl`
 with `--yes` where it would prompt. A user value reaches argv only after its
 validator passed, always as its own argv item (config pairs as one `key=value`
 item built from a schema key and a canonical value). Long-running commands are
-listed with long_running=True and only run as jobs.
+listed with long_running=True and only run as jobs. Running and checking a command lives
+in `agent.services.common`.
 """
 
-import json
 import os
-from collections.abc import Awaitable, Callable, Mapping
-from dataclasses import dataclass, field, replace
-from pathlib import Path
-from typing import Any, Literal
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+from typing import Literal
 
 from pydantic import Field, model_validator
 
-from agent.errors import Busy
 from agent.files import FileStore
-from agent.runner import STDERR_TAIL, STDOUT_TAIL, RunResult, run, tail
-from agent.validators import (
-    LANE_ID_MAX,
-    Args,
-    Branch,
-    InvalidArgs,
-    InvalidValue,
-    IsoDate,
-    KeyId,
-    KeyLabel,
-    KeySecret,
-    Lane,
-    LaneName,
-    LaneTarget,
-    Name,
-    PositiveFloat,
-    config_value,
-    parse_args,
+from agent.services.common import (
+    BotPaths,
+    BotService,
+    Build,
+    CommandSpec,
+    ConfigArgs,
+    KeyIdArgs,
+    KeyPutArgs,
+    KeyRotateArgs,
+    LaneAddArgs,
+    LaneArgs,
+    LaneIdArgs,
+    LaneRenameArgs,
+    NoArgs,
+    RemovableLaneArgs,
+    TargetArgs,
+    _bot,
+    _ctl,
+    _ctl_verb,
+    _opt,
+    _signal,
+    config_pair,
 )
+from agent.validators import Args, Branch, IsoDate, Lane, Name, PositiveFloat
 
-Runner = Callable[..., Awaitable[RunResult]]
-Handler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
+__all__ = [
+    "COMMANDS",
+    "UNIT",
+    "UNITS",
+    "ConfigArgs",
+    "WolfBetPaths",
+    "WolfBetService",
+    "build",
+    "config_pair",
+    "paths_from_env",
+]
+
 UNITS = {"cli": "wolfbet", "tg": "wolfbet-tg"}
-MAX_CONFIG_PAIRS = 32
+UNIT = "wolfbet"
+
+WolfBetPaths = BotPaths
 
 
-@dataclass(frozen=True)
-class WolfBetPaths:
-    """Absolute paths of everything the agent may run or write for WolfBet."""
-
-    python: Path
-    bot: Path
-    wolfctl: Path
-    repo: Path
-    export_dir: Path
-    journalctl: Path
-
-    @classmethod
-    def from_env(cls, env: Mapping[str, str] = os.environ) -> "WolfBetPaths":
-        home = Path(env.get("HOME") or Path.home())
-        install = Path(env.get("CASINO_AGENT_WOLFBET_INSTALL_DIR") or home / "wolfbet-bot")
-        state = Path(env.get("STATE_DIRECTORY") or home / ".local/state/casino-agent")
-        paths = cls(
-            python=install / "venv/bin/python3",
-            bot=install / "wolfbet.py",
-            wolfctl=Path(env.get("CASINO_AGENT_WOLFBET_WOLFCTL") or home / ".local/bin/wolfctl"),
-            repo=Path(env.get("CASINO_AGENT_WOLFBET_REPO") or home / "wolfbet"),
-            export_dir=Path(env.get("CASINO_AGENT_WOLFBET_EXPORT_DIR") or state / "exports"),
-            journalctl=Path(env.get("CASINO_AGENT_JOURNALCTL") or "/usr/bin/journalctl"),
-        )
-        relative = [name for name, value in vars(paths).items() if not value.is_absolute()]
-        if relative:
-            raise ValueError(f"paths must be absolute: {', '.join(relative)}")
-        return paths
-
-
-# ── argument models ──
-class NoArgs(Args):
-    pass
-
-
-class LaneArgs(Args):
-    lane: Lane | None = None
-
-
-class TargetArgs(Args):
-    target: LaneTarget = "all"
-
-
-class LaneIdArgs(Args):
-    lane: Lane
-
-
-class RemovableLaneArgs(Args):
-    """Any lane but lane 1, which holds the base config."""
-
-    lane: int = Field(ge=2, le=LANE_ID_MAX)
-
-
-class LaneAddArgs(Args):
-    name: LaneName
-    copy_from: Lane | None = None
-
-
-class LaneRenameArgs(Args):
-    lane: Lane
-    name: LaneName
-
-
-class KeyIdArgs(Args):
-    key_id: KeyId
-
-
-class KeyPutArgs(Args):
-    key_id: KeyId
-    label: KeyLabel
-    secret: KeySecret
-    owner_user_id: int | None = Field(default=None, ge=1)
-    kind: Literal["key", "proxy", "telegram"] = "key"
-
-
-class KeyRotateArgs(Args):
-    key_id: KeyId
-    secret: KeySecret
+def paths_from_env(env: Mapping[str, str] = os.environ) -> BotPaths:
+    """WolfBet's paths; `CASINO_AGENT_WOLFBET_WOLFCTL` is still read for the ctl."""
+    return BotPaths.from_env(
+        "wolfbet",
+        env,
+        bot_file="wolfbet.py",
+        install_dir="wolfbet-bot",
+        repo_dir="wolfbet",
+        ctl_name="wolfctl",
+        ctl_env=("CASINO_AGENT_WOLFBET_WOLFCTL",),
+    )
 
 
 class LanesArgs(Args):
@@ -200,42 +148,8 @@ class FollowArgs(Args):
     service: Literal["cli", "tg"] = "cli"
 
 
-class ConfigArgs(Args):
-    pairs: dict[str, str] = Field(min_length=1, max_length=MAX_CONFIG_PAIRS)
-
-
-# ── command table ──
-Build = Callable[[Any, WolfBetPaths], list[str]]
-
-
-@dataclass(frozen=True)
-class CommandSpec:
-    args: type[Args]
-    build: Build
-    timeout_s: float
-    mutating: bool = False
-    long_running: bool = False
-    json_output: bool = False
-    cwd_repo: bool = False
-    clears_schema: bool = False
-    stdin_field: str | None = None
-    writes_file: bool = False
-
-
-def _bot(p: WolfBetPaths, *items: str) -> list[str]:
-    return [str(p.python), str(p.bot), *items]
-
-
-def _ctl(p: WolfBetPaths, *items: str) -> list[str]:
-    return [str(p.wolfctl), *items]
-
-
-def _opt(flag: str, value: object | None) -> list[str]:
-    return [] if value is None else [flag, str(value)]
-
-
 def _window(flag: str) -> Build:
-    def build(a: WindowArgs, p: WolfBetPaths) -> list[str]:
+    def build(a: WindowArgs, p: BotPaths) -> list[str]:
         return _bot(
             p,
             flag,
@@ -248,7 +162,7 @@ def _window(flag: str) -> Build:
     return build
 
 
-def _export(a: ExportArgs, p: WolfBetPaths) -> list[str]:
+def _export(a: ExportArgs, p: BotPaths) -> list[str]:
     target = (
         p.export_dir / f"wolfbet-session-{a.session_id}.json"
         if a.format == "json"
@@ -258,7 +172,7 @@ def _export(a: ExportArgs, p: WolfBetPaths) -> list[str]:
     return _bot(p, "--export", path, *_opt("--export-session-id", a.session_id), "--json")
 
 
-def _backtest(a: BacktestArgs, p: WolfBetPaths) -> list[str]:
+def _backtest(a: BacktestArgs, p: BotPaths) -> list[str]:
     return _bot(
         p,
         "--backtest",
@@ -271,14 +185,6 @@ def _backtest(a: BacktestArgs, p: WolfBetPaths) -> list[str]:
         *_opt("--balance", a.balance),
         *_opt("--preset", a.preset),
     )
-
-
-def _ctl_verb(*items: str) -> Build:
-    return lambda _a, p: _ctl(p, *items)
-
-
-def _signal(verb: str) -> Build:
-    return lambda a, p: _ctl(p, verb, str(a.target))
 
 
 COMMANDS: dict[str, CommandSpec] = {
@@ -468,191 +374,13 @@ COMMANDS: dict[str, CommandSpec] = {
 }
 
 
-def result_data(spec: CommandSpec, result: RunResult) -> dict[str, Any]:
-    """The reply body: exit code, the JSON document when there is one, else stdout; stderr tail."""
-    data: dict[str, Any] = {
-        "exit_code": result.exit_code,
-        "stderr": tail(result.stderr, STDERR_TAIL),
-    }
-    if spec.json_output:
-        try:
-            doc = json.loads(result.stdout)
-        except json.JSONDecodeError:
-            doc = None
-        if isinstance(doc, dict):
-            data["json"] = doc
-            return data
-    data["stdout"] = tail(result.stdout, STDOUT_TAIL)
-    return data
-
-
-@dataclass(frozen=True)
-class Prepared:
-    """A validated command ready to run: its argv and how to run it."""
-
-    name: str
-    args: dict[str, Any]
-    argv: list[str]
-    timeout_s: float
-    cwd: Path | None
-    mutating: bool
-    file_id: str | None = None
-    redact: tuple[str, ...] = ()
-    stdin: bytes | None = field(default=None, repr=False)
-
-
-def _never_busy() -> bool:
-    return False
-
-
 @dataclass
-class WolfBetService:
-    """Runs WolfBet commands for the agent; keeps the config schema between calls.
+class WolfBetService(BotService):
+    """WolfBet's commands, under `wolfbet.*`."""
 
-    `busy` tells whether a mutating job runs for WolfBet; a direct mutating command
-    is then refused with Busy, so it cannot interleave with an update or a restart.
-    """
-
-    paths: WolfBetPaths
-    runner: Runner = run
-    busy: Callable[[], bool] = _never_busy
-    files: FileStore | None = None
-    _schema: dict[str, Any] | None = field(default=None, repr=False)
-
-    def long_running(self, name: str) -> bool:
-        return name in COMMANDS and COMMANDS[name].long_running
-
-    def prepare(self, name: str, raw_args: dict[str, Any]) -> Prepared:
-        """Validate `raw_args` for command `name`; raises InvalidArgs (unknown name included)."""
-        spec = COMMANDS.get(name)
-        if spec is None:
-            raise InvalidArgs("unknown wolfbet command")
-        args = parse_args(spec.args, raw_args)
-        paths, file_id = self.paths, None
-        redact: tuple[str, ...] = ()
-        if spec.writes_file:
-            if self.files is None:
-                raise RuntimeError(f"{name} needs a file store")
-            file_id, directory = self.files.allocate()
-            paths = replace(self.paths, export_dir=directory)
-            redact = tuple({str(directory), os.path.realpath(directory)})
-        secret = getattr(args, spec.stdin_field) if spec.stdin_field else None
-        return Prepared(
-            name=name,
-            args=args.model_dump(
-                mode="json", exclude={spec.stdin_field} if spec.stdin_field else None
-            ),
-            argv=spec.build(args, paths),
-            timeout_s=spec.timeout_s,
-            cwd=self.paths.repo if spec.cwd_repo else None,
-            mutating=spec.mutating,
-            file_id=file_id,
-            redact=redact,
-            stdin=None if secret is None else f"{secret}\n".encode(),
-        )
-
-    def after_job(self, name: str) -> None:
-        """Forget what a finished command may have changed (the config schema after update)."""
-        if COMMANDS[name].clears_schema:
-            self._schema = None
-
-    def _refuse_while_busy(self) -> None:
-        if self.busy():
-            raise Busy("a mutating WolfBet job is running")
-
-    async def run_command(self, name: str, raw_args: dict[str, Any]) -> dict[str, Any]:
-        prepared = self.prepare(name, raw_args)
-        if prepared.mutating:
-            self._refuse_while_busy()
-        extra = {} if prepared.stdin is None else {"stdin": prepared.stdin}
-        result = await self.runner(prepared.argv, prepared.timeout_s, cwd=prepared.cwd, **extra)
-        self.after_job(name)
-        return result_data(COMMANDS[name], result)
-
-    async def schema(self) -> dict[str, Any]:
-        if self._schema is None:
-            data = await self.run_command("config_schema", {})
-            if data.get("exit_code") != 0 or "json" not in data:
-                raise RuntimeError("wolfbet.py --config-schema failed")
-            self._schema = data["json"]
-        return self._schema
-
-    async def config_pairs(self, raw_args: dict[str, Any]) -> list[str]:
-        """`key=value` argv items for a config change, every key and value checked."""
-        args = parse_args(ConfigArgs, raw_args)
-        schema = await self.schema()
-        return [config_pair(schema, key, value) for key, value in args.pairs.items()]
-
-    async def config_dry_run(self, raw_args: dict[str, Any]) -> dict[str, Any]:
-        argv = _bot(
-            self.paths, "--dry-run", "--json", "--config-set", *await self.config_pairs(raw_args)
-        )
-        return result_data(_CONFIG_SPEC, await self.runner(argv, _CONFIG_SPEC.timeout_s))
-
-    async def config_set(self, raw_args: dict[str, Any]) -> dict[str, Any]:
-        self._refuse_while_busy()
-        pairs = await self.config_pairs(raw_args)
-        dry = result_data(
-            _CONFIG_SPEC,
-            await self.runner(
-                _bot(self.paths, "--dry-run", "--json", "--config-set", *pairs),
-                _CONFIG_SPEC.timeout_s,
-            ),
-        )
-        if dry["exit_code"] != 0:
-            return {"dry_run": dry, "set": None}
-        done = await self.runner(_bot(self.paths, "--config-set", *pairs), _CONFIG_SPEC.timeout_s)
-        return {"dry_run": dry, "set": result_data(_TEXT_SPEC, done)}
-
-    def handlers(self) -> dict[str, Handler]:
-        """Agent commands for every short WolfBet command plus the config flow."""
-
-        def bound(name: str) -> Handler:
-            return lambda raw: self.run_command(name, raw)
-
-        out = {
-            f"wolfbet.{name}": bound(name)
-            for name, spec in COMMANDS.items()
-            if not spec.long_running
-        }
-        out["wolfbet.config_dry_run"] = self.config_dry_run
-        out["wolfbet.config_set"] = self.config_set
-        return out
+    name: str = "wolfbet"
+    commands: Mapping[str, CommandSpec] = field(default_factory=lambda: COMMANDS)
 
 
-_CONFIG_SPEC = CommandSpec(ConfigArgs, lambda _a, _p: [], 60, mutating=True, json_output=True)
-_TEXT_SPEC = CommandSpec(NoArgs, lambda _a, _p: [], 60)
-
-
-def config_pair(schema: dict[str, Any], key: str, value: str) -> str:
-    """One validated `key=value` item: a known key (or alias), lanes, lane_split or laneK.key."""
-    lanes = schema["lanes"]
-    keys = {k["key"]: k for k in schema["keys"]}
-    aliases = {alias: k["key"] for k in schema["keys"] for alias in k["aliases"]}
-    name = key.strip().lower()
-    if name == "lanes":
-        count = config_value({"key": "lanes", "type": "integer", **lanes["count"]}, value)
-        return f"lanes={count}"
-    if name == "lane_split":
-        split = config_value(
-            {"key": "lane_split", "type": "string", "choices": lanes["split"]["choices"]}, value
-        )
-        return f"lane_split={split}"
-    lane_prefix = ""
-    if name.startswith("lane") and "." in name:
-        head, name = name.split(".", 1)
-        number = head[4:]
-        if not number.isdigit() or not (
-            lanes["override_lanes"]["min"] <= int(number) <= lanes["override_lanes"]["max"]
-        ):
-            raise InvalidArgs("lane overrides are laneK.key with K in the allowed lanes")
-        lane_prefix = f"lane{int(number)}."
-    entry = keys.get(aliases.get(name, name))
-    if entry is None:
-        raise InvalidArgs("unknown config key")
-    if lane_prefix:
-        if not entry["lane_overridable"]:
-            raise InvalidValue(entry["key"], "cannot differ per lane")
-        if value.strip().lower() in lanes["unset_values"]:
-            return f"{lane_prefix}{entry['key']}=default"
-    return f"{lane_prefix}{entry['key']}={config_value(entry, value)}"
+def build(env: Mapping[str, str], busy: Callable[[], bool], files: FileStore | None) -> BotService:
+    return WolfBetService(paths_from_env(env), busy=busy, files=files)

@@ -74,7 +74,7 @@ def setup(bin_dir: Path) -> Setup:
     paths = WolfBetPaths(
         python=fake,
         bot=bin_dir / "wolfbet.py",
-        wolfctl=fake,
+        ctl=fake,
         repo=bin_dir,
         export_dir=bin_dir,
         journalctl=fake,

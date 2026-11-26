@@ -42,6 +42,8 @@ CASINO_AGENT_TOKEN_FILE=$TOKEN_FILE
 CASINO_AGENT_GROUP=$GROUP
 CASINO_AGENT_ALLOW_UIDS=$(id -u)${API_UID:+,$API_UID}
 CASINO_AGENT_ALLOW_GIDS=$GID
+# The bots this host runs, comma separated (wolfbet, goated, ...).
+CASINO_AGENT_SERVICES=wolfbet
 ENVEOF
     )
     echo "Created $ENV_FILE"

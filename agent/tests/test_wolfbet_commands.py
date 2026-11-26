@@ -22,7 +22,13 @@ from agent.files import FileStore
 from agent.protocol import signed_request
 from agent.runner import CommandTimeout, RunResult, run
 from agent.server import DEFAULT_HANDLERS, AgentServer
-from agent.services.wolfbet import COMMANDS, WolfBetPaths, WolfBetService, config_pair
+from agent.services.wolfbet import (
+    COMMANDS,
+    WolfBetPaths,
+    WolfBetService,
+    config_pair,
+    paths_from_env,
+)
 from agent.validators import InvalidArgs
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -30,7 +36,7 @@ SCHEMA = json.loads((FIXTURES / "wolfbet-config-schema.json").read_text())
 PATHS = WolfBetPaths(
     python=Path("/opt/wb/venv/bin/python3"),
     bot=Path("/opt/wb/wolfbet.py"),
-    wolfctl=Path("/opt/bin/wolfctl"),
+    ctl=Path("/opt/bin/wolfctl"),
     repo=Path("/opt/repo"),
     export_dir=Path("/var/agent/exports"),
     journalctl=Path("/usr/bin/journalctl"),
@@ -564,12 +570,12 @@ async def test_config_args_shape(args: dict[str, Any]) -> None:
 
 
 def test_paths_from_env_are_absolute(tmp_path: Path) -> None:
-    paths = WolfBetPaths.from_env({"HOME": "/root", "STATE_DIRECTORY": "/var/lib/casino-agent"})
+    paths = paths_from_env({"HOME": "/root", "STATE_DIRECTORY": "/var/lib/casino-agent"})
     assert paths.python == Path("/root/wolfbet-bot/venv/bin/python3")
-    assert paths.wolfctl == Path("/root/.local/bin/wolfctl")
+    assert paths.ctl == Path("/root/.local/bin/wolfctl")
     assert paths.export_dir == Path("/var/lib/casino-agent/exports")
-    with pytest.raises(ValueError, match="absolute"):
-        WolfBetPaths.from_env({"HOME": "/root", "CASINO_AGENT_WOLFBET_WOLFCTL": "wolfctl"})
+    with pytest.raises(ValueError, match="absolute: CASINO_AGENT_WOLFBET_WOLFCTL"):
+        paths_from_env({"HOME": "/root", "CASINO_AGENT_WOLFBET_WOLFCTL": "wolfctl"})
 
 
 # ── the runner ──
