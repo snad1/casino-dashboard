@@ -187,32 +187,73 @@ class TestCodes:
 
 
 class TestStepUp:
-    def test_fresh_code_is_required_after_five_minutes(
+    @staticmethod
+    def _danger_app(client: TestClient) -> FastAPI:
+        app = cast(FastAPI, client.app)
+
+        @app.post("/danger", status_code=204)
+        async def danger(user: Annotated[User, Depends(require_fresh())]) -> None:
+            return None
+
+        return app
+
+    @staticmethod
+    def _age(settings: Settings, user_id: int, **values: datetime | None) -> None:
+        async def age(session: AsyncSession) -> None:
+            query = update(ApiSession).where(ApiSession.user_id == user_id)
+            await session.execute(query.values(**values))
+            await session.commit()
+
+        run_in_session(settings, age)
+
+    @staticmethod
+    def _used_at(settings: Settings, user_id: int) -> datetime | None:
+        async def read(session: AsyncSession) -> datetime | None:
+            query = select(ApiSession.step_up_used_at).where(ApiSession.user_id == user_id)
+            return await session.scalar(query)
+
+        return run_in_session(settings, read)
+
+    def test_a_code_covers_a_day_after_its_last_use(
         self, app_settings: Settings, account: Account
     ) -> None:
         with make_client(app_settings) as client:
-            app = cast(FastAPI, client.app)
-
-            @app.post("/danger", status_code=204)
-            async def danger(user: Annotated[User, Depends(require_fresh(5))]) -> None:
-                return None
-
+            self._danger_app(client)
             enrolled = _enrol(client, account.email)
+            now = datetime.now(UTC)
+            self._age(app_settings, account.id, step_up_at=now - timedelta(hours=23))
             assert _post(client, "/danger") == 204
-
-            async def age(session: AsyncSession) -> None:
-                old = datetime.now(UTC) - timedelta(minutes=6)
-                query = update(ApiSession).where(ApiSession.user_id == account.id)
-                await session.execute(query.values(step_up_at=old))
-                await session.commit()
-
-            run_in_session(app_settings, age)
-            token = client.get("/auth/me").json()["csrf_token"]
-            stale = client.post("/danger", headers={"x-csrf-token": token})
+            used = self._used_at(app_settings, account.id)
+            assert used is not None
+            assert now - timedelta(seconds=5) < used
+            self._age(
+                app_settings,
+                account.id,
+                step_up_at=now - timedelta(hours=30),
+                step_up_used_at=now - timedelta(hours=25),
+            )
+            stale = client.post(
+                "/danger", headers={"x-csrf-token": client.get("/auth/me").json()["csrf_token"]}
+            )
             assert stale.status_code == 403
             assert stale.json() == {"detail": STEP_UP_NEEDED, "step_up_required": True}
             assert _post(client, "/auth/step-up", {"code": enrolled.recovery_codes[0]}) == 204
             assert _post(client, "/danger") == 204
+
+    def test_daily_use_still_asks_again_after_a_week(
+        self, app_settings: Settings, account: Account
+    ) -> None:
+        with make_client(app_settings) as client:
+            self._danger_app(client)
+            _enrol(client, account.email)
+            now = datetime.now(UTC)
+            self._age(
+                app_settings,
+                account.id,
+                step_up_at=now - timedelta(days=7, minutes=1),
+                step_up_used_at=now - timedelta(hours=1),
+            )
+            assert _post(client, "/danger") == 403
 
     def test_password_only_session_is_never_fresh(
         self, app_settings: Settings, account: Account
@@ -221,7 +262,7 @@ class TestStepUp:
             app = cast(FastAPI, client.app)
 
             @app.post("/danger", status_code=204)
-            async def danger(user: Annotated[User, Depends(require_fresh(5))]) -> None:
+            async def danger(user: Annotated[User, Depends(require_fresh())]) -> None:
                 return None
 
             assert _login(client, account.email) == 204

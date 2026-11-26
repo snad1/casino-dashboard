@@ -64,7 +64,7 @@ class TestLogin:
         assert response.status_code == 204
         cookie = response.headers["set-cookie"]
         assert cookie.startswith(f"{SESSION_COOKIE}=")
-        for flag in ("Secure", "HttpOnly", "SameSite=strict", "Path=/", "Max-Age=43200"):
+        for flag in ("Secure", "HttpOnly", "SameSite=strict", "Path=/", "Max-Age=7776000"):
             assert flag in cookie
         assert "Domain" not in cookie
 
@@ -186,8 +186,8 @@ class TestSessions:
     @pytest.mark.parametrize(
         "aged",
         [
-            {"created_at": datetime.now(UTC) - timedelta(hours=12, minutes=1)},
-            {"last_seen_at": datetime.now(UTC) - timedelta(minutes=31)},
+            {"created_at": datetime.now(UTC) - timedelta(days=90, minutes=1)},
+            {"last_seen_at": datetime.now(UTC) - timedelta(days=30, minutes=1)},
         ],
         ids=["absolute", "idle"],
     )
@@ -204,6 +204,27 @@ class TestSessions:
         assert response.status_code == 401
         assert response.json() == {"detail": NOT_SIGNED_IN}
         assert _session_count(app_settings, account.id) == 0
+
+    def test_activity_keeps_a_long_session_alive(
+        self, app_settings: Settings, client: TestClient, account: Account
+    ) -> None:
+        assert _login(client, account.email) == 204
+        now = datetime.now(UTC)
+        _age_sessions(
+            app_settings,
+            account.id,
+            created_at=now - timedelta(days=60),
+            last_seen_at=now - timedelta(days=29),
+        )
+        assert client.get("/auth/me").status_code == 200
+
+        async def last_seen(session: AsyncSession) -> datetime | None:
+            query = select(ApiSession.last_seen_at).where(ApiSession.user_id == account.id)
+            return await session.scalar(query)
+
+        seen = run_in_session(app_settings, last_seen)
+        assert seen is not None
+        assert now - timedelta(seconds=5) < seen
 
     def test_disabling_a_user_ends_their_session(
         self, app_settings: Settings, client: TestClient, account: Account

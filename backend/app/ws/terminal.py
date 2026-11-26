@@ -24,7 +24,7 @@ import re
 import struct
 import time
 from collections.abc import AsyncGenerator, AsyncIterator, Coroutine
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from ipaddress import IPv4Network, IPv6Network, ip_address
 from typing import Annotated, Any, cast
 
@@ -39,10 +39,10 @@ from starlette.websockets import WebSocketState
 from app.agent_client import AgentClient, AgentError, StreamEnd
 from app.alerts.models import AlertDelivery, AlertEvent, UserChannels
 from app.audit import AuditEntry, record
-from app.auth.models import Role, User, UserRole
+from app.auth.models import ApiSession, Role, User, UserRole
 from app.auth.permissions import FORBIDDEN, Perm, denial, require
 from app.auth.sessions import current_user, load_session
-from app.auth.stepup import STEP_UP_NEEDED, NextStepRequired
+from app.auth.stepup import STEP_UP_NEEDED, NextStepRequired, is_fresh
 from app.db.engine import get_session
 from app.mail import templates
 from app.mail.outbox import enqueue
@@ -61,7 +61,6 @@ from app.ws.auth import (
 from app.ws.routes import CLOSE_TOO_BIG, Ticket
 
 ACTION = "WS /ws/terminal"
-STEP_UP_SECONDS = 120
 IDLE_S = 600
 MAX_S = 3600
 OP_DATA = 0
@@ -97,7 +96,7 @@ def ip_allowed(allowlist: list[Network], ip: str | None) -> bool:
 
 
 async def refusal(
-    db: AsyncSession, user: User, step_up_at: datetime | None, ip: str | None, app: FastAPI
+    db: AsyncSession, user: User, session: ApiSession | None, ip: str | None, app: FastAPI
 ) -> str | None:
     """Why `user` may not open the terminal now, or None when they may."""
     detail = await denial(db, user, None, Perm.TERMINAL)
@@ -105,7 +104,7 @@ async def refusal(
         return OWNER_ONLY if detail == FORBIDDEN else detail
     if not ip_allowed(app.state.terminal_ip_allowlist, ip):
         return NETWORK_REFUSED
-    if step_up_at is None or step_up_at < datetime.now(UTC) - timedelta(seconds=STEP_UP_SECONDS):
+    if session is None or not await is_fresh(db, session):
         return STEP_UP_NEEDED
     return None
 
@@ -122,7 +121,7 @@ async def terminal_ticket(
 ) -> Ticket:
     """A one-time pass for opening the terminal socket from this session within 30 s."""
     detail = await refusal(
-        db, user, request.state.api_session.step_up_at, _client_ip(request.client), request.app
+        db, user, request.state.api_session, _client_ip(request.client), request.app
     )
     if detail == STEP_UP_NEEDED:
         raise NextStepRequired(status.HTTP_403_FORBIDDEN, detail, "step_up_required")
@@ -299,8 +298,8 @@ async def _admit(websocket: WebSocket, app: FastAPI) -> tuple[User, bytes]:
             purpose=TERMINAL_TICKET,
         )
         loaded = await load_session(db, raw)
-        step_up_at = loaded[0].step_up_at if loaded is not None else None
-        detail = await refusal(db, user, step_up_at, _client_ip(websocket.client), app)
+        session = loaded[0] if loaded is not None else None
+        detail = await refusal(db, user, session, _client_ip(websocket.client), app)
     if detail is not None:
         websocket.state.refused_user = user
         raise Denied(status.HTTP_403_FORBIDDEN, detail)
@@ -369,10 +368,10 @@ async def terminal_recording(
     session_id: Annotated[str, Path(pattern=r"^[0-9a-f]{32}$")],
     user: Annotated[User, Depends(require(Perm.TERMINAL))],
     request: Request,
+    db: Annotated[AsyncSession, Depends(get_session)],
 ) -> StreamingResponse:
     """A terminal session's asciicast v2 recording, for the owner with a fresh code."""
-    step_up_at = request.state.api_session.step_up_at
-    if step_up_at is None or step_up_at < datetime.now(UTC) - timedelta(seconds=STEP_UP_SECONDS):
+    if not await is_fresh(db, request.state.api_session):
         raise NextStepRequired(status.HTTP_403_FORBIDDEN, STEP_UP_NEEDED, "step_up_required")
     agent: AgentClient | None = request.app.state.agent
     if agent is None:

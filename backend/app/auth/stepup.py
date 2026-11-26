@@ -1,4 +1,4 @@
-"""Step-up: risky routes need a code checked in the last few minutes on this session."""
+"""Step-up: risky routes need a code checked on this session and used within the last day."""
 
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
@@ -11,11 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import ApiSession, User
 from app.auth.ratelimit import check_code_rate
-from app.auth.sessions import current_user
+from app.auth.sessions import TOUCH_AFTER, current_user
 from app.auth.totp import BAD_CODE, verify_code
 from app.db.engine import get_session
 
 STEP_UP_NEEDED = "Confirm with your authenticator code to continue."
+STEP_UP_IDLE = timedelta(hours=24)
+# Without a limit, daily use would never ask again; a stolen session would keep step-up for good.
+STEP_UP_MAX = timedelta(days=7)
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -37,13 +40,29 @@ def install_step_handler(app: FastAPI) -> None:
     app.add_exception_handler(NextStepRequired, handle)  # type: ignore[arg-type]
 
 
-def require_fresh(minutes: int = 5) -> Callable[..., Awaitable[User]]:
+async def is_fresh(db: AsyncSession, session: ApiSession) -> bool:
+    """Whether the session's code still covers a protected action; using it extends the cover."""
+    if session.step_up_at is None:
+        return False
+    now = datetime.now(UTC)
+    last_used = max(session.step_up_at, session.step_up_used_at or session.step_up_at)
+    if now - session.step_up_at > STEP_UP_MAX or now - last_used > STEP_UP_IDLE:
+        return False
+    if now - last_used > TOUCH_AFTER:
+        session.step_up_used_at = now
+        await db.commit()
+    return True
+
+
+def require_fresh() -> Callable[..., Awaitable[User]]:
     """Dependency for destructive actions, config writes and the terminal."""
 
-    async def dependency(user: Annotated[User, Depends(current_user)], request: Request) -> User:
-        session: ApiSession = request.state.api_session
-        cutoff = datetime.now(UTC) - timedelta(minutes=minutes)
-        if session.step_up_at is None or session.step_up_at < cutoff:
+    async def dependency(
+        user: Annotated[User, Depends(current_user)],
+        request: Request,
+        db: Annotated[AsyncSession, Depends(get_session)],
+    ) -> User:
+        if not await is_fresh(db, request.state.api_session):
             raise NextStepRequired(status.HTTP_403_FORBIDDEN, STEP_UP_NEEDED, "step_up_required")
         return user
 
@@ -66,4 +85,5 @@ async def step_up(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, BAD_CODE)
     session: ApiSession = request.state.api_session
     session.step_up_at = datetime.now(UTC)
+    session.step_up_used_at = None
     await db.commit()

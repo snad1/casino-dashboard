@@ -17,8 +17,8 @@ from app.auth.models import ApiSession, AuditActor, User
 from app.db.engine import get_session
 
 SESSION_COOKIE = "__Host-sid"
-ABSOLUTE_TTL = timedelta(hours=12)
-IDLE_TTL = timedelta(minutes=30)
+ABSOLUTE_TTL = timedelta(days=90)
+IDLE_TTL = timedelta(days=30)
 # Refreshing last_seen_at on every request would add a write per call for no real gain.
 TOUCH_AFTER = timedelta(seconds=60)
 MAX_USER_AGENT = 512

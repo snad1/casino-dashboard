@@ -144,7 +144,7 @@ def _denied(client: TestClient, ticket: str) -> WebSocketDenialResponse:
 def _set_step_up(settings: Settings, user_id: int, at: datetime | None) -> None:
     async def run(session: AsyncSession) -> None:
         query = update(ApiSession).where(ApiSession.user_id == user_id)
-        await session.execute(query.values(step_up_at=at))
+        await session.execute(query.values(step_up_at=at, step_up_used_at=None))
         await session.commit()
 
     run_in_session(settings, run)
@@ -213,7 +213,7 @@ def test_a_stale_code_asks_for_a_new_one(
     account: Account,
     fake_agent: FakeAgent,
 ) -> None:
-    _set_step_up(control_settings, account.id, datetime.now(UTC) - timedelta(minutes=3))
+    _set_step_up(control_settings, account.id, datetime.now(UTC) - timedelta(hours=25))
     response = owner.post("/terminal/ticket", headers=_csrf(owner))
     assert response.status_code == 403 and response.json()["step_up_required"] is True
     denied = _denied(owner, _forged(owner, control_settings))
@@ -425,7 +425,7 @@ def test_the_owner_replays_a_recording_with_a_fresh_code(
     assert response.headers["cache-control"] == "no-store"
     assert owner.get(f"/terminal/recordings/{'0' * 32}").json()["detail"] == RECORDING_MISSING
     assert owner.get("/terminal/recordings/not-an-id").status_code == 422
-    _set_step_up(control_settings, account.id, datetime.now(UTC) - timedelta(minutes=3))
+    _set_step_up(control_settings, account.id, datetime.now(UTC) - timedelta(hours=25))
     stale = owner.get(f"/terminal/recordings/{SID}")
     assert stale.status_code == 403 and stale.json()["step_up_required"] is True
 

@@ -113,9 +113,9 @@ def test_changes_need_a_fresh_second_factor(
     target = make_user(app_settings, Role.VIEWER, two_factor=False)
 
     async def age(session: AsyncSession) -> None:
-        old = datetime.now(UTC) - timedelta(minutes=6)
+        old = datetime.now(UTC) - timedelta(hours=25)
         query = update(ApiSession).where(ApiSession.user_id == account.id)
-        await session.execute(query.values(step_up_at=old))
+        await session.execute(query.values(step_up_at=old, step_up_used_at=None))
         await session.commit()
 
     run_in_session(app_settings, age)

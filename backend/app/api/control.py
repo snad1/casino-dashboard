@@ -333,7 +333,7 @@ def _guard(name: str, spec: ControlAction) -> Callable[..., Awaitable[User]]:
         if CONTROLS.get(service, {}).get(name) is not spec:
             raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
         if spec.fresh:
-            await fresh(user, request)
+            await fresh(user, request, db)
         return user
 
     return dependency

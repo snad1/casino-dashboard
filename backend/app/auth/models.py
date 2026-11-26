@@ -146,7 +146,10 @@ class UserRole(Base):
 
 
 class ApiSession(Base):
-    """Expiry is derived: absolute from `created_at`, idle from `last_seen_at`."""
+    """Expiry is derived: absolute from `created_at`, idle from `last_seen_at`.
+
+    `step_up_at` is when a code was last checked; `step_up_used_at` is the last action it allowed.
+    """
 
     __tablename__ = "api_sessions"
 
@@ -159,6 +162,7 @@ class ApiSession(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     step_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    step_up_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Invite(Base):
