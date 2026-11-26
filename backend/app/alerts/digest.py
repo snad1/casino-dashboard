@@ -24,6 +24,7 @@ from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app import registry
 from app.alerts.channels import _can_view
 from app.alerts.models import AlertDelivery, AlertEvent, DigestSend, UserChannels
 from app.amounts import amount, signed
@@ -33,7 +34,6 @@ from app.mail.outbox import enqueue
 
 DIGEST_KIND = "digest"
 CHECK_EVERY_S = 60.0
-LABELS = {"wolfbet": "WolfBet"}
 
 log = structlog.get_logger("app.alerts.digest")
 
@@ -72,7 +72,7 @@ def day_bounds(day: date, zone: ZoneInfo) -> tuple[datetime, datetime]:
 
 
 def label(service: str) -> str:
-    return LABELS.get(service, service.capitalize())
+    return registry.label(service)
 
 
 def _duration(seconds: float) -> str:

@@ -17,6 +17,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import registry
 from app.adapters.wolfbet.control import LANE_ID_MAX
 from app.alerts.channels import LINK_TTL, issue_link_code
 from app.alerts.digest import DIGEST_KIND
@@ -29,7 +30,7 @@ from app.alerts.models import (
 )
 from app.alerts.push import ENDPOINT_MAX, endpoint_allowed, keys_valid
 from app.alerts.rules import Kind, Rule
-from app.api.control import CONTROLS, NOT_CONTROLLABLE, ServiceName
+from app.api.control import NOT_CONTROLLABLE, ServiceName
 from app.auth.models import User
 from app.auth.permissions import LaneScope, Perm, require, scoped
 from app.auth.sessions import current_user
@@ -145,7 +146,7 @@ class LinkOut(BaseModel):
 
 
 def _known(service: str) -> None:
-    if service not in CONTROLS:
+    if not registry.is_enabled(service):
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
 
 

@@ -20,8 +20,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import registry
 from app.agent_client import AgentError
-from app.api.control import AGENT_DOWN, CONTROLS, NOT_CONTROLLABLE, ServiceName, agent_or_error
+from app.api.control import AGENT_DOWN, NOT_CONTROLLABLE, ServiceName, agent_or_error
 from app.auth.key_lanes import KEY_LANES
 from app.auth.models import Invite, Role, User, UserRole
 from app.auth.permissions import Perm, denial, roles_for
@@ -144,7 +145,7 @@ def key_id_for(label: str) -> str:
 
 
 def _known(service: str) -> None:
-    if service not in CONTROLS:
+    if not registry.is_enabled(service):
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
 
 

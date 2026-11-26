@@ -21,8 +21,9 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import registry
 from app.agent_client import AgentError
-from app.api.control import AGENT_DOWN, CONTROLS, agent_or_error
+from app.api.control import AGENT_DOWN, agent_or_error
 from app.api.keys import KEY_ID_PATTERN
 from app.api.lane_access import registered_keys, registered_lanes
 from app.auth.models import INVITE_LANES_MAX, Role, Totp, User, UserRole
@@ -124,7 +125,7 @@ async def require_keys(request: Request, service: str, keys: Sequence[str]) -> N
 
     A role on a key id that doesn't exist yet would open whichever key gets that id later.
     """
-    if service not in CONTROLS:
+    if not registry.is_enabled(service):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, KEY_UNKNOWN)
     try:
         known = await registered_keys(agent_or_error(request), service)
@@ -154,7 +155,7 @@ async def require_lanes(request: Request, service: str, lanes: Sequence[int]) ->
 
     A role on a lane id that doesn't exist yet would open whichever lane gets that id later.
     """
-    if service not in CONTROLS:
+    if not registry.is_enabled(service):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, LANE_UNKNOWN)
     try:
         known = await registered_lanes(agent_or_error(request), service)

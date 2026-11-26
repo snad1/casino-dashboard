@@ -28,6 +28,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import registry
 from app.adapters.wolfbet.analytics import (
     AnalyticsReport,
     SessionStats,
@@ -38,7 +39,7 @@ from app.adapters.wolfbet.analytics import (
 )
 from app.adapters.wolfbet.control import LANE_ID_MAX
 from app.agent_client import AgentError
-from app.api.control import CONTROLS, NOT_CONTROLLABLE, ServiceName, agent_or_error
+from app.api.control import NOT_CONTROLLABLE, ServiceName, agent_or_error
 from app.api.history import KEY_ID, SessionDetail, _cache, _session_out
 from app.auth.permissions import LaneScope, Perm, scoped
 from app.db.engine import get_session
@@ -289,7 +290,7 @@ async def get_analytics(
     the bot for the current epoch, or from history for an archived `epoch` or one `key` (the
     bot cannot split by key). A lane-only user gets one of their lanes, never a report over
     others; a key-only user gets their keys' sessions, from history."""
-    if service not in CONTROLS:
+    if not registry.is_enabled(service):
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
     lane = scope.one(lane)
     since, until = _bound(since), _bound(until)
@@ -349,7 +350,7 @@ async def export_analytics(
     key: Annotated[str | None, Query(pattern=KEY_ID)] = None,
 ) -> Response:
     """The window's sessions, the ones the report counts, oldest first, as a download."""
-    if service not in CONTROLS:
+    if not registry.is_enabled(service):
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
     lane = scope.one(lane)
     since, until = _bound(since), _bound(until)

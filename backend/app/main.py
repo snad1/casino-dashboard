@@ -10,8 +10,7 @@ from fastapi import FastAPI, status
 from pydantic import BaseModel
 from redis.asyncio import Redis
 
-from app.adapters.base import ServiceAdapter
-from app.adapters.wolfbet import WolfBetAdapter
+from app import registry
 from app.adapters.wolfbet_tg import WolfBetTgAdapter
 from app.agent_client import AgentClient
 from app.alerts import digest
@@ -55,7 +54,6 @@ from app.ws.hub import Hub
 from app.ws.routes import router as ws_router
 from app.ws.terminal import router as terminal_router
 
-ADAPTERS: dict[str, type[ServiceAdapter]] = {"wolfbet": WolfBetAdapter}
 PER_USER_ADAPTERS = {"wolfbet-tg": WolfBetTgAdapter}
 
 log = structlog.get_logger("app.main")
@@ -68,6 +66,7 @@ class Health(BaseModel):
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Build the API app; loading settings first makes a bad secret stop startup."""
     settings = settings or load_settings()
+    registry.enable(settings.dashboard_services)
     configure_logging(settings)
     engine = create_engine(settings)
     sessionmaker = create_sessionmaker(engine)
@@ -99,11 +98,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         user_consumer = ServiceConsumer(redis, tg, users.accept, discover=discover)
     if settings.live_service is not None and settings.live_service not in PER_USER_ADAPTERS:
-        if settings.live_service not in ADAPTERS:
-            raise ValueError(f"no live adapter for service {settings.live_service!r}")
+        if not registry.is_enabled(settings.live_service):
+            raise ValueError(f"LIVE_SERVICE {settings.live_service} is not in DASHBOARD_SERVICES")
         aggregator = Aggregator(settings.live_service)
         hub = Hub(settings.live_service, aggregator)
-        consumer = ServiceConsumer(redis, ADAPTERS[settings.live_service](), aggregator.accept)
+        consumer = ServiceConsumer(
+            redis, registry.KNOWN[settings.live_service].adapter(), aggregator.accept
+        )
         resync = Resync(
             aggregator, sessionmaker, agent, reconnects=lambda: consumer.stats["reconnects"]
         )
@@ -119,8 +120,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """
         stop = asyncio.Event()
         tasks = []
-        if hub is not None:
-            await register_service(sessionmaker, hub.svc, settings.public_host)
+        for name in registry.enabled():
+            await register_service(sessionmaker, name, settings.public_host)
         if users is not None and user_hub is not None and user_consumer is not None:
             tasks = [
                 asyncio.create_task(user_consumer.run(stop)),

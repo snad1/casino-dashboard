@@ -41,8 +41,8 @@ from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app import registry
 from app.adapters.base import ControlAction
-from app.adapters.wolfbet.control import ACTIONS as WOLFBET_ACTIONS
 from app.adapters.wolfbet.control import ConfigChanges, owner_keys
 from app.agent_client import AgentClient, AgentError
 from app.api.lane_access import (
@@ -79,8 +79,6 @@ JOB_NOT_FOUND = "Job not found."
 _ESCAPES = re.compile(
     r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-_]|[\x00-\x08\x0b-\x1f\x7f]"
 )
-
-CONTROLS: dict[str, dict[str, ControlAction]] = {"wolfbet": WOLFBET_ACTIONS}
 
 log = structlog.get_logger("app.control")
 router = APIRouter(tags=["control"])
@@ -330,7 +328,7 @@ def _guard(name: str, spec: ControlAction) -> Callable[..., Awaitable[User]]:
         request.state.lane_refused = detail
         if detail is not None and not await may_act_on_a_lane(db, user, service, name, spec):
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail)
-        if CONTROLS.get(service, {}).get(name) is not spec:
+        if (registry.controls(service) or {}).get(name) is not spec:
             raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
         if spec.fresh:
             await fresh(user, request, db)
@@ -446,7 +444,9 @@ async def _after_lane_change(
         await grant_lane(db, user.id, service, lane)
 
 
-for _name, _spec in WOLFBET_ACTIONS.items():
+# Each action has its own route and arg model; these are WolfBet's until each service's
+# adapter brings its own.
+for _name, _spec in registry.KNOWN["wolfbet"].controls.items():
     router.add_api_route(
         f"/{{service}}/control/{_name}",
         _endpoint(_name, _spec),
@@ -469,7 +469,7 @@ async def _running_job(
     agent: AgentClient | None = request.app.state.agent
     if agent is None:
         return None
-    specs = CONTROLS[service].values()
+    specs = (registry.controls(service) or {}).values()
     exclusive = {f"{service}.{spec.cmd}" for spec in specs if spec.exclusive}
     exclusive_perms = {spec.perm.value for spec in specs if spec.exclusive and spec.job}
     rows = await db.scalars(
@@ -509,7 +509,7 @@ async def control_menu(
     db: Db,
 ) -> ControlMenu:
     """The service's control buttons with their confirm text, and the job still running."""
-    actions = CONTROLS.get(service)
+    actions = registry.controls(service)
     if actions is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
     return ControlMenu(

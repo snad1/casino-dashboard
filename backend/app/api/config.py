@@ -15,9 +15,10 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, JsonValue, ValidationError
 
+from app import registry
 from app.adapters.wolfbet.control import OWNER_KEYS, ConfigChanges, config_pairs
 from app.agent_client import AgentError
-from app.api.control import AGENT_DOWN, CONTROLS, NOT_CONTROLLABLE, ServiceName, agent_or_error
+from app.api.control import AGENT_DOWN, NOT_CONTROLLABLE, ServiceName, agent_or_error
 from app.auth.models import User
 from app.auth.permissions import Perm, require
 
@@ -106,7 +107,7 @@ class PreviewOut(BaseModel):
 
 
 def _known_service(service: str) -> None:
-    if service not in CONTROLS:
+    if not registry.is_enabled(service):
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
 
 

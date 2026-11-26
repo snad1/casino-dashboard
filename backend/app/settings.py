@@ -187,6 +187,7 @@ class Settings(DatabaseSettings):
     redis_user: str = "dashboard"
     agent_socket: Path | None = None
     vapid_public_key: str | None = None
+    dashboard_services: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["wolfbet"])
     live_service: str | None = "wolfbet"
     live_user_service: str | None = None
     live_hz: int = Field(default=5, ge=4, le=10)
@@ -239,6 +240,26 @@ class Settings(DatabaseSettings):
     def _networks(cls, value: object) -> object:
         """`203.0.113.0/24, 2001:db8::/32`, commas or spaces; blank allows any address."""
         return value.replace(",", " ").split() if isinstance(value, str) else value
+
+    @field_validator("dashboard_services", mode="before")
+    @classmethod
+    def _service_names(cls, value: object) -> object:
+        """`wolfbet, goated`, commas or spaces; a repeated name counts once."""
+        if isinstance(value, str):
+            value = value.replace(",", " ").split()
+        return list(dict.fromkeys(value)) if isinstance(value, list) else value
+
+    @field_validator("dashboard_services")
+    @classmethod
+    def _known_services(cls, value: list[str]) -> list[str]:
+        from app.registry import unknown
+
+        if not value:
+            raise ValueError("DASHBOARD_SERVICES needs at least one service")
+        bad = unknown(value)
+        if bad:
+            raise ValueError(f"Unknown service in DASHBOARD_SERVICES: {', '.join(bad)}")
+        return value
 
     @field_validator("live_service", "live_user_service", mode="before")
     @classmethod
