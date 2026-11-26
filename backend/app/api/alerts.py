@@ -188,8 +188,8 @@ async def _rule(db: AsyncSession, service: str, rule_id: int) -> AlertRule:
 
 
 async def _reload(request: Request, service: str) -> None:
-    engine = getattr(request.app.state, "alerts", None)
-    if engine is not None and engine.service == service:
+    engine = getattr(request.app.state, "alerts", {}).get(service)
+    if engine is not None:
         await engine.reload()
 
 

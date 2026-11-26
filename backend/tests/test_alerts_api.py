@@ -73,7 +73,7 @@ def clean(control_settings: Settings) -> Iterator[None]:
 
 def test_owners_create_edit_and_delete_rules_and_the_engine_reloads(owner: TestClient) -> None:
     reloads = Reloads()
-    owner.app.state.alerts = reloads  # type: ignore[attr-defined]
+    owner.app.state.alerts = {"wolfbet": reloads}  # type: ignore[attr-defined]
     created = owner.post(RULES, json=DOWN, headers=csrf(owner))
     assert created.status_code == 201
     rule = created.json()

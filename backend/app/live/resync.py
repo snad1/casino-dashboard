@@ -122,7 +122,7 @@ class Resync:
         if self._config_at is not None and now - self._config_at < CONFIG_EVERY_S:
             return
         self._config_at = now
-        doc = _json(await self._ask(self.agent, "wolfbet.config_show", {}))
+        doc = _json(await self._ask(self.agent, f"{self.aggregator.svc}.config_show", {}))
         config = doc.get("config")
         enabled = config.get("events_enabled") if isinstance(config, dict) else None
         if isinstance(enabled, bool):
@@ -133,7 +133,9 @@ class Resync:
         was_running = lane.agent_running if lane is not None else None
         state = running = None
         if self.agent is not None:
-            doc = _json(await self._ask(self.agent, "wolfbet.status", {"lane": number}))
+            doc = _json(
+                await self._ask(self.agent, f"{self.aggregator.svc}.status", {"lane": number})
+            )
             if isinstance(doc.get("running"), bool):
                 running = doc["running"]
                 state = doc.get("state") if isinstance(doc.get("state"), dict) else None

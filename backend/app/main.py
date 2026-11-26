@@ -13,8 +13,6 @@ from redis.asyncio import Redis
 from app import registry
 from app.adapters.wolfbet_tg import WolfBetTgAdapter
 from app.agent_client import AgentClient
-from app.alerts import digest
-from app.alerts.engine import Engine
 from app.api.alerts import router as alerts_router
 from app.api.analytics import router as analytics_router
 from app.api.config import router as config_router
@@ -39,10 +37,10 @@ from app.comments import router as comments_router
 from app.db.engine import create_engine, create_sessionmaker
 from app.db.services import register_service
 from app.errors import UnhandledErrorMiddleware, install_error_handlers
-from app.live.aggregator import Aggregator, TickTimer, run_ticker
+from app.live.aggregator import TickTimer, run_ticker
 from app.live.consumer import ServiceConsumer
-from app.live.resync import Resync
-from app.live.system import SystemPublisher
+from app.live.pipeline import LivePipeline
+from app.live.pipeline import build as build_pipeline
 from app.live.users import UserAggregators, known_uids
 from app.logging import RequestContextMiddleware, configure_logging
 from app.metrics import DropWatch
@@ -75,10 +73,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     agent = None
     if settings.agent_socket is not None and settings.agent_token is not None:
         agent = AgentClient(settings.agent_socket, settings.agent_token.get_secret_value())
-    hub: Hub | None = None
-    alerts: Engine | None = None
-    consumer: ServiceConsumer | None = None
-    system: SystemPublisher | None = None
+    pipelines: list[LivePipeline] = []
     users: UserAggregators | None = None
     user_hub: Hub | None = None
     user_consumer: ServiceConsumer | None = None
@@ -100,16 +95,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings.live_service is not None and settings.live_service not in PER_USER_ADAPTERS:
         if not registry.is_enabled(settings.live_service):
             raise ValueError(f"LIVE_SERVICE {settings.live_service} is not in DASHBOARD_SERVICES")
-        aggregator = Aggregator(settings.live_service)
-        hub = Hub(settings.live_service, aggregator)
-        consumer = ServiceConsumer(
-            redis, registry.KNOWN[settings.live_service].adapter(), aggregator.accept
-        )
-        resync = Resync(
-            aggregator, sessionmaker, agent, reconnects=lambda: consumer.stats["reconnects"]
-        )
-        system = SystemPublisher(hub, aggregator, agent)
-        alerts = Engine(settings.live_service, sessionmaker, settings.host_tz)
+        # Every served service runs live; LIVE_SERVICE is the one a socket joins first and
+        # the one the metrics describe.
+        pipelines = [
+            build_pipeline(name, redis, sessionmaker, agent, settings.host_tz)
+            for name in registry.enabled()
+        ]
+    primary = next((p for p in pipelines if p.svc == settings.live_service), None)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -130,27 +122,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 ),
                 asyncio.create_task(user_hub.run_heartbeat(stop)),
             ]
-        if hub is not None and alerts is not None and consumer is not None and system is not None:
-            try:
-                await alerts.start()
-            except Exception:
-                log.exception("alert rules could not be loaded; alerts are off until restart")
-            tasks += [
-                asyncio.create_task(consumer.run(stop)),
-                asyncio.create_task(
-                    run_ticker(aggregator, hub.publish, stop, settings.live_hz, ticks)
-                ),
-                asyncio.create_task(alerts.run(stop, aggregator)),
-                asyncio.create_task(
-                    digest.run(stop, sessionmaker, alerts.service, settings.host_tz)
-                ),
-                asyncio.create_task(hub.run_heartbeat(stop)),
-                asyncio.create_task(resync.run(stop)),
-                asyncio.create_task(system.run(stop)),
-            ]
+        for pipeline in pipelines:
+            await pipeline.start_alerts()
+            tasks += pipeline.tasks(stop, settings.live_hz, ticks, sessionmaker, settings.host_tz)
         yield
         stop.set()
-        await asyncio.gather(*tasks)
+        outcomes = await asyncio.gather(*tasks, return_exceptions=True)
+        for task, outcome in zip(tasks, outcomes, strict=True):
+            if isinstance(outcome, Exception):
+                log.error("live task ended with an error", task=task.get_name(), exc_info=outcome)
         await engine.dispose()
         await redis.aclose()
 
@@ -169,20 +149,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.allowed_origins = settings.allowed_origins
     app.state.ws_registry = ConnectionRegistry()
     app.state.ws_recheck_seconds = RECHECK_SECONDS
-    app.state.hub = hub or user_hub
-    app.state.hubs = {h.svc: h for h in (hub, user_hub) if h is not None}
+    app.state.hub = primary.hub if primary is not None else user_hub
+    app.state.hubs = {p.svc: p.hub for p in pipelines} | (
+        {user_hub.svc: user_hub} if user_hub else {}
+    )
     app.state.agent = agent
     KEY_LANES.use(agent)
     app.state.host_tz = settings.host_tz
-    app.state.alerts = alerts
+    app.state.pipelines = pipelines
+    app.state.alerts = {p.svc: p.alerts for p in pipelines}
     app.state.telegram_bot_username = settings.telegram_bot_username
     app.state.tg_login_secret = (
         settings.tg_login_secret.get_secret_value() if settings.tg_login_secret else None
     )
     app.state.vapid_public_key = settings.vapid_public_key
     app.state.live_service = settings.live_service
-    app.state.consumer = consumer or user_consumer
-    app.state.system = system
+    app.state.consumer = primary.consumer if primary is not None else user_consumer
+    app.state.system = primary.system if primary is not None else None
     app.state.ticks = ticks
     app.state.drops = DropWatch()
     app.state.terminal_ip_allowlist = settings.terminal_ip_allowlist

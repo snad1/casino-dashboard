@@ -34,7 +34,7 @@ class FakeAgent:
         self.calls.append((cmd, args or {}))
         if self.failing:
             raise AgentError("unreachable")
-        if cmd == "wolfbet.config_show":
+        if cmd.endswith(".config_show"):
             return {"json": {"v": 1, "config": {"events_enabled": self.events_enabled}}}
         if cmd.endswith((".lane_ids", ".lane_ids_enabled")):
             ids = self.registry if cmd.endswith(".lane_ids") else (self.enabled or self.registry)
@@ -51,7 +51,7 @@ class FakeAgent:
         }
 
     def status_calls(self) -> int:
-        return sum(1 for cmd, _ in self.calls if cmd == "wolfbet.status")
+        return sum(1 for cmd, _ in self.calls if cmd.endswith(".status"))
 
 
 @pytest.fixture
