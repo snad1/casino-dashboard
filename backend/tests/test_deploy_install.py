@@ -169,6 +169,27 @@ def test_install_makes_every_secret_once_and_never_prints_one(rig: dict[str, Any
     assert "created" not in again.stdout
 
 
+def test_each_extra_service_gets_its_own_publisher_password_once(rig: dict[str, Any]) -> None:
+    result = _install(rig, DASHBOARD_SERVICES="wolfbet,goated")
+    assert result.returncode == 0, result.stderr
+    publishers = _secrets(rig) / "publishers"
+    assert stat.S_IMODE(publishers.stat().st_mode) == 0o755
+    assert [p.name for p in publishers.iterdir()] == ["goated.txt"]
+    password = (publishers / "goated.txt").read_text()
+    assert len(password) >= 48 and "\n" not in password
+    assert stat.S_IMODE((publishers / "goated.txt").stat().st_mode) == 0o644
+    assert password not in result.stdout + result.stderr
+    assert "DASHBOARD_SERVICES=wolfbet,goated" in result.stdout.splitlines()
+    assert _install(rig, DASHBOARD_SERVICES="wolfbet,goated").returncode == 0
+    assert (publishers / "goated.txt").read_text() == password
+
+
+def test_a_bad_service_name_makes_no_publisher(rig: dict[str, Any]) -> None:
+    result = _install(rig, DASHBOARD_SERVICES="wolfbet,../x")
+    assert result.returncode != 0
+    assert not (_secrets(rig) / "publishers").exists()
+
+
 def test_firewall_keeps_ssh_and_opens_only_web_ports(rig: dict[str, Any]) -> None:
     assert _install(rig, STUB_SSH_PORT="2222").returncode == 0
     ufw = [c for c in _calls(rig) if c.startswith("ufw ")]

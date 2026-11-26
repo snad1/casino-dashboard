@@ -48,11 +48,19 @@ Once the dashboard has an adapter for the service, keys can be added on its Keys
 
 ### 3. Events reach Redis (needs per-service Redis users on the dashboard, and an event publisher in the bot; goated has one)
 
-The dashboard deploy creates one Redis user per service and its password file `/opt/wolfbet/secrets/redis_<svc>_pub.txt` (0644, root). Set the bot's events URL without printing the password:
+Each bot but WolfBet publishes to Redis as its own user, `<svc>-pub`, which may only append to `<svc>:*`. Make its password file once, without printing it; Redis reads it at its next start (step 5):
+
+```sh
+install -d -m 0755 /opt/wolfbet/secrets/publishers
+[ -s /opt/wolfbet/secrets/publishers/<svc>.txt ] || \
+  (umask 022; openssl rand -base64 36 | tr -d '\n' > /opt/wolfbet/secrets/publishers/<svc>.txt)
+```
+
+After step 5 has deployed, set the bot's events URL, again without printing the password:
 
 ```sh
 <ctl> config-set events_enabled=true \
-  "events_url=redis://<svc>-pub:$(cat /opt/wolfbet/secrets/redis_<svc>_pub.txt)@127.0.0.1:9479"
+  "events_url=redis://<svc>-pub:$(cat /opt/wolfbet/secrets/publishers/<svc>.txt)@127.0.0.1:9479"
 <ctl> status                             # Events: on, connected yes
 ```
 
@@ -82,7 +90,7 @@ In Coolify (app `hrrxmud5u4rwmjyilbqwryib`), add the service to the env and depl
 DASHBOARD_SERVICES=wolfbet,<svc>
 ```
 
-Then check that `gh run list` in casino-dashboard shows `ci` and `images` green; a red ci means nothing deployed. A redeploy restarts Redis, so each bot drops about a thousand live events; history is unaffected.
+Then check that `gh run list` in casino-dashboard shows `ci` and `images` green; a red ci means nothing deployed. A redeploy restarts Redis, so each bot drops about a thousand live events; history is unaffected. Redis refuses to start when a listed service has no password file in `/opt/wolfbet/secrets/publishers/`, so make it first (step 3).
 
 ### 6. Updates from the dashboard (needs the update notice and webhook)
 

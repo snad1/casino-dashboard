@@ -72,12 +72,16 @@ services:
       - ALL
     user: "999:1000"
     entrypoint: ["/bin/sh", "/etc/redis/entrypoint.sh"]
+    environment:
+      DASHBOARD_SERVICES: ${DASHBOARD_SERVICES:-wolfbet}
     secrets:
       - redis_publisher_password
       - redis_dashboard_password
     volumes:
       - ./redis/users.acl.tmpl:/etc/redis/users.acl.tmpl:ro
       - ./redis/entrypoint.sh:/etc/redis/entrypoint.sh:ro
+      # Each extra service's publisher password, one <service>.txt each.
+      - ${SECRETS_DIR:-./secrets}/publishers:/run/publishers:ro
     ports:
       - "${REDIS_PUBLISH:-127.0.0.1:9479:6379}"
     networks:
@@ -106,6 +110,7 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       TERMINAL_IP_ALLOWLIST: ${TERMINAL_IP_ALLOWLIST:-}
       LIVE_USER_SERVICE: ${LIVE_USER_SERVICE:-}
+      DASHBOARD_SERVICES: ${DASHBOARD_SERVICES:-wolfbet}
     secrets:
       - session_secret
       - totp_key
@@ -148,6 +153,7 @@ services:
       POSTGRES_USER: dashboard_app
       HOST_TZ: ${HOST_TZ:?set HOST_TZ in deploy/.env}
       INGEST_TG_DATA_DIR: ${INGEST_TG_DATA_DIR:-}
+      DASHBOARD_SERVICES: ${DASHBOARD_SERVICES:-wolfbet}
       # The container path the volume below mounts; a deploy-wide BOT_DATA_DIR names the host
       # side and must never reach the app, or ingest reads an empty folder.
       BOT_DATA_DIR: /botdata

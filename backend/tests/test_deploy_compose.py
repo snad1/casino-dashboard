@@ -364,3 +364,30 @@ def test_the_config_files_coolify_cannot_copy_are_baked_into_the_images() -> Non
     redis = (DEPLOY / "redis" / "Dockerfile").read_text()
     assert "FROM redis:7.4.12-alpine" in redis
     assert "COPY entrypoint.sh users.acl.tmpl /etc/redis/" in redis
+
+
+@pytest.mark.parametrize("file", ["compose.yml", "compose.coolify.yml"])
+def test_every_container_that_reads_a_service_gets_the_service_list(file: str) -> None:
+    data: dict[str, Any] = yaml.safe_load((DEPLOY / file).read_text())
+    for name in ("redis", "api", "ingest"):
+        assert _service(data, name)["environment"]["DASHBOARD_SERVICES"] == (
+            "${DASHBOARD_SERVICES:-wolfbet}"
+        ), name
+    assert "\nDASHBOARD_SERVICES=wolfbet\n" in (DEPLOY / "env.example").read_text()
+
+
+@pytest.mark.parametrize(
+    ("file", "source"),
+    [
+        ("compose.yml", "${SECRETS_DIR:-./secrets}/publishers"),
+        ("compose.coolify.yml", "/opt/wolfbet/secrets/publishers"),
+    ],
+)
+def test_only_redis_mounts_the_publisher_passwords_read_only(file: str, source: str) -> None:
+    data: dict[str, Any] = yaml.safe_load((DEPLOY / file).read_text())
+    mounts = {
+        name: [v for v in service.get("volumes", []) if "/run/publishers" in str(v)]
+        for name, service in data["services"].items()
+    }
+    assert mounts.pop("redis") == [f"{source}:/run/publishers:ro"]
+    assert all(not found for found in mounts.values()), mounts

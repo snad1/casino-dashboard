@@ -130,6 +130,14 @@ new_secret() {
 for name in "${RANDOM_SECRETS[@]}"; do
     new_secret "$name"
 done
+# Each served bot but wolfbet publishes as its own Redis user; Redis (uid 999) reads the file.
+SERVICES="${DASHBOARD_SERVICES:-wolfbet}"
+for service in ${SERVICES//,/ }; do
+    [ "$service" = wolfbet ] && continue
+    [[ "$service" =~ ^[a-z0-9-]+$ ]] || die "service names are a-z, 0-9 and -: $service"
+    run install -d -m 0755 "$SECRETS/publishers"
+    new_secret "publishers/$service"
+done
 if [ "$DRY" -eq 0 ]; then
     [ -s "$AGENT_TOKEN" ] || die "the agent token $AGENT_TOKEN is missing"
     if ! cmp -s "$AGENT_TOKEN" "$SECRETS/agent_token.txt" 2>/dev/null; then
@@ -252,6 +260,7 @@ AGENT_RUNTIME_DIR=/run/user/$(id -u)/casino-agent
 SECRETS_DIR=$SECRETS
 CADDY_ADDRESS=:80
 VAPID_PUBLIC_KEY=$vapid_public
+DASHBOARD_SERVICES=$SERVICES
 
 Then create the owner: sudo -E $0 --owner-email you@example.com
 EOF
