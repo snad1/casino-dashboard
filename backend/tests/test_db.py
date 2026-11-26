@@ -42,31 +42,31 @@ def test_session_dependency_commits_and_rolls_back(migrated: Settings) -> None:
     name = f"route-{uuid.uuid4().hex}"
     app = create_app(migrated)
 
-    @app.post("/services", status_code=204)
+    @app.post("/test-services", status_code=204)
     async def add(session: Session) -> None:
         session.add(_service(name))
         await session.commit()
 
-    @app.post("/services/fail")
+    @app.post("/test-services/fail")
     async def add_then_fail(session: Session) -> None:
         session.add(_service(f"{name}-failed"))
         await session.flush()
         raise RuntimeError("handler failed after a write")
 
-    @app.get("/services")
+    @app.get("/test-services")
     async def names(session: Session) -> list[str]:
         query = select(Service.name).where(Service.name.startswith(name))
         return list(await session.scalars(query))
 
-    @app.delete("/services", status_code=204)
+    @app.delete("/test-services", status_code=204)
     async def cleanup(session: Session) -> None:
         await session.execute(delete(Service).where(Service.name.startswith(name)))
         await session.commit()
 
     with TestClient(app, raise_server_exceptions=False) as client:
         try:
-            assert client.post("/services").status_code == 204
-            assert client.post("/services/fail").status_code == 500
-            assert client.get("/services").json() == [name]
+            assert client.post("/test-services").status_code == 204
+            assert client.post("/test-services/fail").status_code == 500
+            assert client.get("/test-services").json() == [name]
         finally:
-            client.delete("/services")
+            client.delete("/test-services")

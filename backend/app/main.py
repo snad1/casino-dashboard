@@ -20,6 +20,7 @@ from app.api.control import router as control_router
 from app.api.files import router as files_router
 from app.api.history import router as history_router
 from app.api.keys import router as keys_router
+from app.api.services import router as services_router
 from app.api.tg import router as tg_router
 from app.audit import AuditMiddleware
 from app.audit import router as audit_router
@@ -197,6 +198,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(analytics_router)
     app.include_router(alerts_router)
     app.include_router(keys_router)
+    app.include_router(services_router)
     app.include_router(control_router)
     app.include_router(config_router)
     app.include_router(files_router)

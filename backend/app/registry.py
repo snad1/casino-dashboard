@@ -1,8 +1,8 @@
 """The casino services this dashboard knows, and the ones this deployment serves.
 
-Every service-specific lookup (its live adapter, its control buttons, its display name) goes
-through here, so enabling a service is a `DASHBOARD_SERVICES` entry instead of code spread
-over the routes. `create_app` enables the configured services once at startup, the way
+Every service-specific lookup (its live adapter, its control buttons, its display and ctl
+names) goes through here, so enabling a service is a `DASHBOARD_SERVICES` entry instead of
+code spread over the routes. `create_app` enables the configured services once at startup, the way
 settings are loaded once.
 """
 
@@ -27,6 +27,7 @@ class BotFiles:
 class ServiceEntry:
     name: str
     label: str
+    ctl: str
     adapter: type[ServiceAdapter]
     controls: Mapping[str, ControlAction]
     files: BotFiles
@@ -36,6 +37,7 @@ KNOWN: dict[str, ServiceEntry] = {
     "wolfbet": ServiceEntry(
         "wolfbet",
         "WolfBet",
+        "wolfctl",
         WolfBetAdapter,
         WOLFBET_ACTIONS,
         BotFiles(".wolfbet_autobot.db", ".wolfbet_autobot-*.db", ".wolfbet_autobot.json"),

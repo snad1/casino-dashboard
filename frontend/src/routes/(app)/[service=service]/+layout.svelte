@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { onDestroy, type Snippet } from 'svelte';
+	import { onDestroy, untrack, type Snippet } from 'svelte';
 	import { page } from '$app/state';
 	import ControlDialogs from '#components/ControlDialogs';
 	import { control } from '#lib/control.svelte';
 	import { liveFor } from '#lib/live/index';
 	import { commentsTopicFor, laneTopicFor, systemTopicFor, topicFor } from '#lib/live/protocol';
 	import { laneScope } from '#lib/permissions';
+	import { services } from '#lib/services.svelte';
 	import { session } from '#lib/session.svelte';
 	import Guard from '#ui/Guard';
 
@@ -15,6 +16,7 @@
 	$effect(() => {
 		const service = page.params.service;
 		if (!service || service === current) return;
+		untrack(() => services.pick(service));
 		if (current) liveFor(current).stop();
 		current = service;
 		const lanes = laneScope(session.me, 'view', service);

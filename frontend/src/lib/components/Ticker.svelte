@@ -3,6 +3,7 @@
 	import { accounts, keysOf, lanesOf, type Account } from '#lib/accounts';
 	import { formatAmount, formatProfit } from '#lib/format';
 	import { keyFilter } from '#lib/key-filter.svelte';
+	import { services } from '#lib/services.svelte';
 	import { LANE_STATUS_WORDS, laneLabel } from '#lib/lanes';
 	import type { LaneStatus } from '#lib/live/protocol';
 	import type { LiveStore } from '#lib/live/store.svelte';
@@ -61,7 +62,9 @@
 </script>
 
 <div class="flex min-w-0 flex-1 items-center gap-3 text-sm">
-	<span class="font-semibold">{service}</span>
+	{#if services.list.length <= 1}
+		<span class="font-semibold">{services.info(service)?.label ?? service}</span>
+	{/if}
 	<span
 		class="rounded-sm px-2 py-0.5 text-xs {link === 'Live'
 			? 'bg-raised text-profit'

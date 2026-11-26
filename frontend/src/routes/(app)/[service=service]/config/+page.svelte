@@ -35,6 +35,7 @@
 	import { control } from '#lib/control.svelte';
 	import { liveFor } from '#lib/live/index';
 	import { can } from '#lib/permissions';
+	import { services } from '#lib/services.svelte';
 	import { api, session } from '#lib/session.svelte';
 
 	const OWNER_ONLY = 'Only the owner can change this.';
@@ -43,6 +44,7 @@
 	import Notice from '#ui/Notice';
 
 	const service = $derived(page.params.service ?? '');
+	const ctl = $derived(services.info(service)?.ctl ?? 'ctl');
 	const isOwner = $derived(session.me?.roles.some((r) => r.role === 'owner') ?? false);
 	const live = $derived(liveFor(service));
 
@@ -253,7 +255,7 @@
 						spellcheck="false"
 						autocomplete="off"
 						class="{input} py-2 font-mono text-sm"
-						placeholder="key=value lines, or the output of wolfctl config-show"
+						placeholder="key=value lines, or the output of {ctl} config-show"
 						bind:value={pasteText}></textarea>
 					<p class="text-xs text-muted">
 						Fills the Base tab. Nothing is saved until you Preview and Save. The API key is never

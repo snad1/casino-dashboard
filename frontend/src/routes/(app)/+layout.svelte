@@ -2,17 +2,20 @@
 	import type { Snippet } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import ServiceSwitcher from '#components/ServiceSwitcher';
 	import Ticker from '#components/Ticker';
 	import { liveFor } from '#lib/live/index';
 	import { can, laneScope } from '#lib/permissions';
-	import { DEFAULT_SERVICE, session, signOut } from '#lib/session.svelte';
+	import { services } from '#lib/services.svelte';
+	import { session, signOut } from '#lib/session.svelte';
 	import Toasts from '#ui/Toasts';
 
 	let { children }: { children: Snippet } = $props();
 
-	const service = $derived(page.params.service ?? DEFAULT_SERVICE);
+	/** The service the nav links open; null when the user has none, which hides those links. */
+	const service = $derived(page.params.service ?? services.picked());
 	const tgUid = $derived(session.me?.tg_uid ?? null);
-	const laneOnly = $derived(laneScope(session.me, 'view', service) !== null);
+	const laneOnly = $derived(service !== null && laneScope(session.me, 'view', service) !== null);
 	const LANE_PAGES = new Set(['Live', 'Analytics', 'Sessions']);
 	const tgLinks = $derived(
 		tgUid === null
@@ -29,45 +32,53 @@
 					}
 				]
 	);
-	const serviceLinks = $derived([
-		{ href: resolve('/(app)/[service=service]', { service }), label: 'Live', show: true },
+	/** The pages of one service, opened for `svc`. */
+	const scopedLinks = (svc: string) => [
+		{ href: resolve('/(app)/[service=service]', { service: svc }), label: 'Live', show: true },
 		{
-			href: resolve('/(app)/[service=service]/analytics', { service }),
+			href: resolve('/(app)/[service=service]/analytics', { service: svc }),
 			label: 'Analytics',
 			show: true
 		},
 		{
-			href: resolve('/(app)/[service=service]/sessions', { service }),
+			href: resolve('/(app)/[service=service]/sessions', { service: svc }),
 			label: 'Sessions',
 			show: true
 		},
 		{
-			href: resolve('/(app)/[service=service]/control', { service }),
+			href: resolve('/(app)/[service=service]/control', { service: svc }),
 			label: 'Control',
 			show: true
 		},
-		{ href: resolve('/(app)/[service=service]/config', { service }), label: 'Config', show: true },
 		{
-			href: resolve('/(app)/[service=service]/lanes', { service }),
+			href: resolve('/(app)/[service=service]/config', { service: svc }),
+			label: 'Config',
+			show: true
+		},
+		{
+			href: resolve('/(app)/[service=service]/lanes', { service: svc }),
 			label: 'Lanes',
 			show: true
 		},
 		{
-			href: resolve('/(app)/[service=service]/tools', { service }),
+			href: resolve('/(app)/[service=service]/tools', { service: svc }),
 			label: 'Tools',
 			show: true
 		},
 		{
-			href: resolve('/(app)/[service=service]/keys', { service }),
+			href: resolve('/(app)/[service=service]/keys', { service: svc }),
 			label: 'Keys',
-			show: can(session.me, 'keys.manage', service)
+			show: can(session.me, 'keys.manage', svc)
 		},
 		{
-			href: resolve('/(app)/[service=service]/terminal', { service }),
+			href: resolve('/(app)/[service=service]/terminal', { service: svc }),
 			label: 'Terminal',
 			show: true
 		},
-		{ href: resolve('/(app)/alerts'), label: 'Alerts', show: true },
+		{ href: resolve('/(app)/alerts'), label: 'Alerts', show: true }
+	];
+	const serviceLinks = $derived([
+		...(service === null ? [] : scopedLinks(service)),
 		{ href: resolve('/(app)/admin/users'), label: 'Users', show: can(session.me, 'users.manage') },
 		{ href: resolve('/(app)/admin/audit'), label: 'Audit', show: can(session.me, 'audit.read') },
 		{ href: resolve('/(app)/admin/status'), label: 'Status', show: can(session.me, 'audit.read') },
@@ -82,12 +93,16 @@
 			? tgLinks
 			: serviceLinks.filter((l) => l.show && (!laneOnly || LANE_PAGES.has(l.label)))
 	);
-	const serviceTabs = $derived([
-		{ href: resolve('/(app)/[service=service]', { service }), label: 'Live' },
-		{ href: resolve('/(app)/[service=service]/sessions', { service }), label: 'Sessions' },
-		{ href: resolve('/(app)/[service=service]/control', { service }), label: 'Control' },
-		{ href: resolve('/(app)/alerts'), label: 'Alerts' }
-	]);
+	const serviceTabs = $derived(
+		service === null
+			? []
+			: [
+					{ href: resolve('/(app)/[service=service]', { service }), label: 'Live' },
+					{ href: resolve('/(app)/[service=service]/sessions', { service }), label: 'Sessions' },
+					{ href: resolve('/(app)/[service=service]/control', { service }), label: 'Control' },
+					{ href: resolve('/(app)/alerts'), label: 'Alerts' }
+				]
+	);
 	const tabs = $derived(
 		tgUid !== null
 			? tgLinks
@@ -110,11 +125,14 @@
 	<header
 		class="sticky top-0 z-10 flex h-14 items-center justify-between gap-4 border-b border-line bg-surface px-4"
 	>
-		{#if page.params.service}
-			<Ticker live={liveFor(page.params.service)} service={page.params.service} />
-		{:else}
-			<span class="font-semibold">Casino dashboard</span>
-		{/if}
+		<div class="flex min-w-0 flex-1 items-center gap-3">
+			<ServiceSwitcher />
+			{#if page.params.service}
+				<Ticker live={liveFor(page.params.service)} service={page.params.service} />
+			{:else}
+				<span class="font-semibold">Casino dashboard</span>
+			{/if}
+		</div>
 		<div class="flex items-center gap-3 text-sm">
 			<a href={resolve('/(app)/totp')} class="hidden text-muted underline sm:inline"
 				>{session.me?.email ?? 'Telegram user'}</a

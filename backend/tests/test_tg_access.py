@@ -31,6 +31,7 @@ SELF = {
     ("POST", "/auth/logout"),
     ("POST", "/auth/logout-all"),
     ("GET", "/auth/me"),
+    ("GET", "/services"),
     ("POST", "/auth/step-up"),
     ("POST", "/auth/totp/enrol"),
     ("POST", "/auth/totp/verify"),

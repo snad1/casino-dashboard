@@ -28,11 +28,24 @@ export const tgMe = (uid: number) => ({
 	roles: [{ service: null, role: 'tg_user' }]
 });
 
+export const WOLFBET = {
+	name: 'wolfbet',
+	label: 'WolfBet',
+	ctl: 'wolfctl',
+	installed: true,
+	live: true
+};
+
 /**
  * Answer `/api/*` like the real api, keyed by "METHOD /path" without the `/api` prefix.
- * Anything not listed gets a 404, so an unexpected call fails the test visibly.
+ * Anything not listed gets a 404, so an unexpected call fails the test visibly; the service
+ * list is WolfBet alone unless the test gives its own.
  */
-export async function stubApi(page: Page, handlers: Record<string, Handler>): Promise<string[]> {
+export async function stubApi(page: Page, given: Record<string, Handler>): Promise<string[]> {
+	const handlers: Record<string, Handler> = {
+		'GET /services': () => ({ status: 200, json: [WOLFBET] }),
+		...given
+	};
 	const calls: string[] = [];
 	await page.route('**/api/**', async (route: Route) => {
 		const request = route.request();

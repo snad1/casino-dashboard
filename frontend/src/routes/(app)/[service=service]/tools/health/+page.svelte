@@ -1,9 +1,13 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import { page } from '$app/state';
 	import ActionButton from '#components/ActionButton';
 	import JobOutput from '#components/JobOutput';
 	import { control } from '#lib/control.svelte';
+	import { services } from '#lib/services.svelte';
 	import { ToolJob } from '#lib/tool-job.svelte';
+
+	const ctl = $derived(services.info(page.params.service)?.ctl ?? 'ctl');
 
 	let report: string | null = $state(null);
 	let diagnosing = $state(false);
@@ -92,7 +96,7 @@
 
 	<section class={section} aria-labelledby="version-title">
 		<h2 id="version-title" class="font-semibold">Version</h2>
-		<p class="mb-3 text-sm text-muted">The bot and wolfctl versions on the host.</p>
+		<p class="mb-3 text-sm text-muted">The bot and {ctl} versions on the host.</p>
 		<ActionButton name="version" busy={reading} onpress={() => void readVersion()} />
 		{#if version !== null}
 			<pre

@@ -57,6 +57,9 @@ class Resync:
         self._lanes: set[int] | None = None
         self._enabled: set[int] = set()
         self._agent_failing = False
+        # Whether the host agent drives this bot: None until it answers, False when it has
+        # no such bot (its ctl is not installed).
+        self.installed: bool | None = None
 
     def _wanted(self, now: float) -> set[int]:
         if self.reconnects() != self._reconnects_seen:
@@ -149,10 +152,13 @@ class Resync:
         try:
             data = await agent.call(cmd, args)
         except AgentError as error:
+            if error.code == "unknown_command":
+                self.installed = False
             if not self._agent_failing:
                 log.warning("agent unavailable", svc=self.aggregator.svc, error=error.code)
                 self._agent_failing = True
             return None
+        self.installed = True
         if self._agent_failing:
             log.info("agent back", svc=self.aggregator.svc)
             self._agent_failing = False

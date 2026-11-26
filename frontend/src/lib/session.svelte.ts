@@ -2,9 +2,6 @@ import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
 import { createApi, unwrap } from '#lib/api/client';
 import type { Me } from '#lib/permissions';
-import { SERVICE } from '#lib/service';
-
-export const DEFAULT_SERVICE = SERVICE;
 
 /** The signed-in user, as the api reported it; null when signed out or not loaded yet. */
 export const session = $state<{ me: Me | null }>({ me: null });
@@ -40,7 +37,7 @@ function nextParam(link: string): string | null {
 	}
 }
 
-/** A local path to return to after sign-in; anything else falls back to the dashboard. */
+/** A local path to return to after sign-in; anything else falls back to the dashboard's home. */
 export function safeNext(next: string | null): string {
 	// Several requests failing at once on an expired session each build a sign-in link, and the
 	// later ones see /login as the current page. Returning there would loop, so follow its own next.
@@ -51,7 +48,7 @@ export function safeNext(next: string | null): string {
 		if (next.split(/[?#]/, 1)[0] !== LOGIN_PATH) return next;
 		next = nextParam(next);
 	}
-	return `/${DEFAULT_SERVICE}`;
+	return '/';
 }
 
 /** Load the current user; returns null when there is no valid session. */

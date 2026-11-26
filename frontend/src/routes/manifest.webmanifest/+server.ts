@@ -1,16 +1,15 @@
 import tokens from '../../lib/theme/tokens.css?raw';
-import { SERVICE_LABEL } from '#lib/service';
 
 export const prerender = true;
 
 const canvas = tokens.match(/--color-canvas:\s*(#[0-9a-fA-F]{3,8})/)?.[1] ?? '#0f1115';
 
-/** The install manifest: named for this deployment's bot, coloured from the theme tokens. */
+/** The install manifest: one app for every service, coloured from the theme tokens. */
 export function GET(): Response {
 	const manifest = {
-		name: `${SERVICE_LABEL} dashboard`,
-		short_name: SERVICE_LABEL,
-		description: `Live ${SERVICE_LABEL} betting bot dashboard`,
+		name: 'Casino dashboard',
+		short_name: 'Casino',
+		description: 'Live casino betting bot dashboard',
 		start_url: '/',
 		scope: '/',
 		display: 'standalone',

@@ -456,6 +456,26 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/services': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/**
+		 * Services
+		 * @description The enabled services the user holds a role on, in `DASHBOARD_SERVICES` order.
+		 */
+		get: operations['services_services_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/status': {
 		parameters: {
 			query?: never;
@@ -2878,6 +2898,19 @@ export interface components {
 			/** Series */
 			series: components['schemas']['LaneSeries'][];
 		};
+		/** ServiceOut */
+		ServiceOut: {
+			/** Ctl */
+			ctl: string;
+			/** Installed */
+			installed: boolean | null;
+			/** Label */
+			label: string;
+			/** Live */
+			live: boolean;
+			/** Name */
+			name: string;
+		};
 		/** SessionDetail */
 		SessionDetail: {
 			/** Base Bet */
@@ -3902,6 +3935,26 @@ export interface operations {
 				};
 				content: {
 					'application/json': components['schemas']['Health'];
+				};
+			};
+		};
+	};
+	services_services_get: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['ServiceOut'][];
 				};
 			};
 		};

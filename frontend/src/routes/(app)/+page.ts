@@ -1,8 +1,10 @@
 import { redirect } from '@sveltejs/kit';
-import { DEFAULT_SERVICE } from '#lib/session.svelte';
+import { services } from '#lib/services.svelte';
 import { tgHome } from '#lib/tg';
 
 export async function load({ parent }) {
 	const { me } = await parent();
-	redirect(307, tgHome(me) ?? `/${DEFAULT_SERVICE}`);
+	const service = services.picked();
+	const home = tgHome(me) ?? (service === null ? null : `/${service}`);
+	if (home !== null) redirect(307, home);
 }

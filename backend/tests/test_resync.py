@@ -28,12 +28,13 @@ class FakeAgent:
         self.registry: str | None = None
         self.enabled: str | None = None
         self.failing = False
+        self.error = "unreachable"
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
     async def call(self, cmd: str, args: dict[str, Any] | None = None) -> dict[str, Any]:
         self.calls.append((cmd, args or {}))
         if self.failing:
-            raise AgentError("unreachable")
+            raise AgentError(self.error)
         if cmd.endswith(".config_show"):
             return {"json": {"v": 1, "config": {"events_enabled": self.events_enabled}}}
         if cmd.endswith((".lane_ids", ".lane_ids_enabled")):
@@ -242,3 +243,18 @@ def test_the_registry_is_read_while_every_lane_bets(rig: Rig, seed: Seed) -> Non
     rig.aggregator.apply(bet(lane=1, session_id=1))
     rig.sync()
     assert 5 in rig.aggregator.lanes
+
+
+def test_installed_follows_whether_the_agent_drives_the_bot(rig: Rig) -> None:
+    assert rig.resync.installed is None
+    rig.agent.registry = "1"
+    rig.sync()
+    assert rig.resync.installed is True
+    rig.agent.failing = True
+    rig.clock.now += RESYNC_EVERY_S * 100
+    rig.sync()
+    assert rig.resync.installed is True, "an unreachable agent says nothing about the bot"
+    rig.agent.error = "unknown_command"
+    rig.clock.now += RESYNC_EVERY_S * 100
+    rig.sync()
+    assert rig.resync.installed is False

@@ -39,7 +39,9 @@ def demo(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(
         registry.KNOWN,
         DEMO,
-        registry.ServiceEntry(DEMO, "Demo", DemoAdapter, ACTIONS, registry.KNOWN[WOLFBET].files),
+        registry.ServiceEntry(
+            DEMO, "Demo", "democtl", DemoAdapter, ACTIONS, registry.KNOWN[WOLFBET].files
+        ),
     )
     monkeypatch.setattr(registry, "_enabled", registry.enabled())
 

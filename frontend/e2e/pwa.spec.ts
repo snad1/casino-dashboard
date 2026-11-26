@@ -31,8 +31,8 @@ test('the manifest names the app and its icons load', async ({ page, request }) 
 	const response = await request.get('/manifest.webmanifest');
 	const manifest = await response.json();
 	expect(manifest).toMatchObject({
-		name: 'WolfBet dashboard',
-		short_name: 'WolfBet',
+		name: 'Casino dashboard',
+		short_name: 'Casino',
 		start_url: '/',
 		display: 'standalone',
 		theme_color: '#0f1115',

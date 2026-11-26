@@ -6,7 +6,8 @@
 	import { keysText, laneLabel, lanesText } from '#lib/lanes';
 	import { liveFor } from '#lib/live/index';
 	import { ON_SOME_KEYS, ON_SOME_LANES, ROLE_INFO } from '#lib/permissions';
-	import { api, DEFAULT_SERVICE, session } from '#lib/session.svelte';
+	import { services } from '#lib/services.svelte';
+	import { api, session } from '#lib/session.svelte';
 	import Button from '#ui/Button';
 	import ConfirmDialog from '#ui/ConfirmDialog';
 	import Field from '#ui/Field';
@@ -29,7 +30,9 @@
 
 	const ROLES: Role[] = ['viewer', 'operator', 'admin', 'lane_manager'];
 	const LANE_ROLES = new Set<Role>(['viewer', 'operator']);
-	const live = $derived(liveFor(DEFAULT_SERVICE));
+	/** The picked service: where lanes, keys and quotas apply. A user manager always has one. */
+	const here = $derived(services.picked() ?? '');
+	const live = $derived(liveFor(here));
 	let users: User[] = $state([]);
 	let inviteEmail = $state('');
 	let inviteRole: Role = $state('viewer');
@@ -114,25 +117,28 @@
 	}
 
 	/** The bot's lanes, so a friend can be given a lane that is not betting right now. */
-	async function loadLanes() {
-		const { data } = await api.GET('/{service}/config', {
-			params: { path: { service: DEFAULT_SERVICE } }
-		});
+	async function loadLanes(service: string) {
+		registry = [];
+		if (!service) return;
+		const { data } = await api.GET('/{service}/config', { params: { path: { service } } });
 		if (data) registry = data.lane_ids;
 	}
 
 	/** The bot's casino keys, so a friend can be given everything that bets with one. */
-	async function loadKeys() {
-		const { data } = await api.GET('/{service}/keys', {
-			params: { path: { service: DEFAULT_SERVICE } }
-		});
+	async function loadKeys(service: string) {
+		vault = [];
+		if (!service) return;
+		const { data } = await api.GET('/{service}/keys', { params: { path: { service } } });
 		if (data) vault = data.keys.filter((k) => k.kind === 'key');
 	}
 
 	onMount(() => {
 		refresh().catch((e) => (notice = { tone: 'error', text: message(e) }));
-		void loadLanes();
-		void loadKeys();
+	});
+
+	$effect(() => {
+		void loadLanes(here);
+		void loadKeys(here);
 	});
 
 	function message(e: unknown): string {
@@ -165,7 +171,7 @@
 		confirmOpen = true;
 	}
 
-	/** A lane manager or a lane is always on this dashboard's service, as on the role picker. */
+	/** A lane manager or a lane is always on the picked service, as on the role picker. */
 	function invite(event: SubmitEvent) {
 		event.preventDefault();
 		const email = inviteEmail.trim();
@@ -174,7 +180,7 @@
 		const { lanes, keys } = limit;
 		const service =
 			role === 'lane_manager' || lanes.length || keys.length
-				? DEFAULT_SERVICE
+				? here
 				: inviteScope === 'all'
 					? null
 					: inviteScope;
@@ -197,7 +203,7 @@
 		if (quota === null) return;
 		ask({
 			title: `Let ${user.email} run ${lanes(quota)}?`,
-			body: `They may create up to ${lanes(quota)} on ${DEFAULT_SERVICE}, each with their own keys.`,
+			body: `They may create up to ${lanes(quota)} on ${here}, each with their own keys.`,
 			label: 'Set quota',
 			danger: false,
 			run: async () => {
@@ -212,17 +218,13 @@
 		});
 	}
 
-	/** A role on every service, or (with lanes or keys) on those of this dashboard's service. */
+	/** A role on every service, or (with lanes or keys) on those of the picked service. */
 	function changeRole(user: User, role: Role, chosen: Limit = userLimit(user)) {
 		const limit = LANE_ROLES.has(role) ? chosen : NONE;
 		const { lanes, keys } = limit;
 		const narrowed = limitText(limit);
 		const onService = role === 'lane_manager' || narrowed !== '';
-		const where = narrowed
-			? `${DEFAULT_SERVICE} ${narrowed}`
-			: onService
-				? DEFAULT_SERVICE
-				: 'every service';
+		const where = narrowed ? `${here} ${narrowed}` : onService ? here : 'every service';
 		ask({
 			title: `Make ${user.email} ${role}${narrowed ? ` on ${narrowed}` : ''}?`,
 			body: `Their current roles (${describe(user)}) are replaced by ${role} on ${where}.`,
@@ -232,7 +234,7 @@
 				await unwrap(
 					api.PUT('/admin/users/{user_id}/role', {
 						params: { path: { user_id: user.id } },
-						body: { role, service: onService ? DEFAULT_SERVICE : null, lanes, keys }
+						body: { role, service: onService ? here : null, lanes, keys }
 					})
 				);
 				drafts[user.id] = undefined;
@@ -293,14 +295,16 @@
 					class="min-h-11 rounded-md border border-line-strong bg-surface px-3 text-ink"
 				>
 					<option value="all">All services</option>
-					<option value={DEFAULT_SERVICE}>{DEFAULT_SERVICE}</option>
+					{#each services.list as option (option.name)}
+						<option value={option.name}>{option.label}</option>
+					{/each}
 				</select>
 			</label>
 			<Button type="submit" variant="primary">Invite</Button>
 			{#if LANE_ROLES.has(inviteRole)}
 				<div class="grid gap-4 sm:col-span-full sm:grid-cols-2">
 					<Checklist
-						legend="Lanes on {DEFAULT_SERVICE}"
+						legend="Lanes on {here}"
 						choices={laneChoices}
 						value={inviteLimit.lanes}
 						{label}
@@ -308,7 +312,7 @@
 						onchange={(next) => (inviteLimit = withLanes(inviteLimit, next))}
 					/>
 					<Checklist
-						legend="Keys on {DEFAULT_SERVICE}"
+						legend="Keys on {here}"
 						choices={keyChoices}
 						value={inviteLimit.keys}
 						label={keyLabel}

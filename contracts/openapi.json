@@ -3195,6 +3195,46 @@
         "title": "SeriesOut",
         "type": "object"
       },
+      "ServiceOut": {
+        "properties": {
+          "ctl": {
+            "title": "Ctl",
+            "type": "string"
+          },
+          "installed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installed"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "live": {
+            "title": "Live",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "ctl",
+          "installed",
+          "live"
+        ],
+        "title": "ServiceOut",
+        "type": "object"
+      },
       "SessionDetail": {
         "properties": {
           "base_bet": {
@@ -5350,6 +5390,32 @@
           }
         },
         "summary": "Healthz"
+      }
+    },
+    "/services": {
+      "get": {
+        "description": "The enabled services the user holds a role on, in `DASHBOARD_SERVICES` order.",
+        "operationId": "services_services_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ServiceOut"
+                  },
+                  "title": "Response Services Services Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Services",
+        "tags": [
+          "services"
+        ]
       }
     },
     "/status": {

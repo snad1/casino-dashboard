@@ -22,7 +22,8 @@
 	import { liveFor } from '#lib/live/index';
 	import { ApiError, unwrap } from '#lib/api/client';
 	import { can } from '#lib/permissions';
-	import { DEFAULT_SERVICE, api, session } from '#lib/session.svelte';
+	import { services } from '#lib/services.svelte';
+	import { api, session } from '#lib/session.svelte';
 	import { toast } from '#lib/toast.svelte';
 	import Button from '#ui/Button';
 	import ConfirmDialog from '#ui/ConfirmDialog';
@@ -30,9 +31,9 @@
 	import Guard from '#ui/Guard';
 	import Notice from '#ui/Notice';
 
-	const service = DEFAULT_SERVICE;
+	const service = $derived(services.picked() ?? '');
 	const live = $derived(liveFor(service));
-	const path = { service };
+	const path = $derived({ service });
 	const manage = $derived(can(session.me, 'alerts.manage', service));
 
 	let rules = $state<Rule[] | null>(null);
@@ -110,7 +111,11 @@
 	}
 
 	$effect(() => {
-		if (session.me) void load();
+		if (!session.me || !service) return;
+		rules = null;
+		events = [];
+		registry = [];
+		void load();
 	});
 
 	function startNew() {
@@ -216,7 +221,7 @@
 
 <svelte:head><title>Alerts · Casino dashboard</title></svelte:head>
 
-<Guard perm="view">
+<Guard perm="view" service={service || null}>
 	<div class="mx-auto flex max-w-5xl flex-col gap-4">
 		<div class="flex flex-wrap items-center justify-between gap-3">
 			<h1 class="text-xl font-semibold">Alerts</h1>
