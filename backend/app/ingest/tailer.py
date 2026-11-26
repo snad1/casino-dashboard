@@ -34,8 +34,11 @@ from zoneinfo import ZoneInfo
 
 import asyncpg  # type: ignore[import-untyped]  # ships no type hints
 
-LIVE_DB = ".wolfbet_autobot.db"
-ARCHIVE_GLOB = ".wolfbet_autobot-*.db"
+from app import registry
+
+# WolfBet's names, the defaults; every service's own come from the registry.
+LIVE_DB = registry.KNOWN["wolfbet"].files.live_db
+ARCHIVE_GLOB = registry.KNOWN["wolfbet"].files.archive_glob
 BATCH_SIZE = 5000
 SESSION_SYNC_SECONDS = 5.0
 LAG_LOG_SECONDS = 30.0
@@ -234,7 +237,11 @@ class Tailer:
             self._missing_logged_at is None or now - self._missing_logged_at >= MISSING_LOG_SECONDS
         ):
             self._missing_logged_at = now
-            logger.error("no bot database in %s: is the bot data mounted?", self.data_dir)
+            logger.error(
+                "no bot database in %s for %s: is the bot data mounted?",
+                self.data_dir,
+                self.service,
+            )
 
     async def _live_moved(self) -> None:
         """A reset leaves the live path empty or missing until the bot's next session; find

@@ -64,7 +64,9 @@ def test_a_restart_keeps_the_row_as_it_is(app_settings: Settings) -> None:
 
 # ── which services this deployment serves ────────────────────────────────
 
-DEMO = registry.ServiceEntry("demo", "Demo", WolfBetAdapter, ACTIONS)
+DEMO = registry.ServiceEntry(
+    "demo", "Demo", WolfBetAdapter, ACTIONS, registry.KNOWN["wolfbet"].files
+)
 
 
 @pytest.fixture

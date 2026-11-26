@@ -37,7 +37,9 @@ class DemoAdapter(WolfBetAdapter):
 @pytest.fixture
 def demo(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(
-        registry.KNOWN, DEMO, registry.ServiceEntry(DEMO, "Demo", DemoAdapter, ACTIONS)
+        registry.KNOWN,
+        DEMO,
+        registry.ServiceEntry(DEMO, "Demo", DemoAdapter, ACTIONS, registry.KNOWN[WOLFBET].files),
     )
     monkeypatch.setattr(registry, "_enabled", registry.enabled())
 

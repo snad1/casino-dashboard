@@ -395,6 +395,7 @@ async def test_a_stopped_bots_closed_live_database_is_copied(
 async def test_a_folder_without_a_bot_database_is_reported_again_and_again(
     tmp_path: Path,
     make_tailer: Any,
+    service: str,
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -406,6 +407,27 @@ async def test_a_folder_without_a_bot_database_is_reported_again_and_again(
     await tailer.step()
     missing = [r for r in caplog.records if "no bot database in" in r.getMessage()]
     assert len(missing) == 1 and missing[0].levelname == "ERROR"
+    assert f"for {service}:" in missing[0].getMessage()
     monkeypatch.setattr(tailer_module, "MISSING_LOG_SECONDS", 0.0)
     await tailer.step()
     assert len([r for r in caplog.records if "no bot database in" in r.getMessage()]) == 2
+
+
+async def test_a_service_is_read_from_its_own_files_only(
+    wolfbet: ModuleType, tmp_path: Path, pg: asyncpg.Connection, service: str
+) -> None:
+    own = BotDb(wolfbet, tmp_path / ".demo_autobot.db")
+    own.bets(own.session(lane=1), 7, T0)
+    other = BotDb(wolfbet, tmp_path / LIVE_DB)
+    other.bets(other.session(lane=1), 30, T0)
+    tailer = Tailer(
+        pg,
+        service,
+        tmp_path,
+        "UTC",
+        live_name=".demo_autobot.db",
+        archive_glob=".demo_autobot-*.db",
+    )
+    await tailer.prepare()
+    await drain(tailer)
+    assert await count(pg, service) == 7

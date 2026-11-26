@@ -29,9 +29,10 @@ from zoneinfo import ZoneInfo
 
 import asyncpg  # type: ignore[import-untyped]  # ships no type hints
 
+from app import registry
 from app.ingest.tailer import LIVE_DB, Source, aware, read_once
 
-BOT_CONFIG = ".wolfbet_autobot.json"
+BOT_CONFIG = registry.KNOWN["wolfbet"].files.config
 DEFAULT_PURGE_DAYS = 3
 FULL_EVERY = timedelta(hours=24)
 CHUNK_IDS = 50_000
@@ -71,11 +72,11 @@ class Totals:
         return {"count": self.count, "profit": str(self.profit), "amount": str(self.amount)}
 
 
-def read_purge_days(data_dir: Path) -> int:
+def read_purge_days(data_dir: Path, config_name: str = BOT_CONFIG) -> int:
     """The bot's bet retention in days. The config also holds the API key, so only this one
     key is read and nothing from the file is ever logged."""
     try:
-        config = json.loads((data_dir / BOT_CONFIG).read_text())
+        config = json.loads((data_dir / config_name).read_text())
         days = config.get("purge_days", DEFAULT_PURGE_DAYS)
         if isinstance(days, int) and not isinstance(days, bool) and 1 <= days <= 30:
             return days
@@ -88,12 +89,21 @@ def read_purge_days(data_dir: Path) -> int:
 class Reconciler:
     """Compares one service's live epoch between SQLite and Timescale, one run at a time."""
 
-    def __init__(self, db: asyncpg.Connection, service: str, data_dir: Path, host_tz: str) -> None:
+    def __init__(
+        self,
+        db: asyncpg.Connection,
+        service: str,
+        data_dir: Path,
+        host_tz: str,
+        live_name: str = LIVE_DB,
+        config_name: str = BOT_CONFIG,
+    ) -> None:
         self.db = db
         self.service = service
         self.data_dir = data_dir
         self.zone = ZoneInfo(host_tz)
-        self.source = Source(data_dir / LIVE_DB, archived=False)
+        self.config_name = config_name
+        self.source = Source(data_dir / live_name, archived=False)
         self.max_read_seconds = 0.0
 
     async def run_once(self) -> dict[str, Any] | None:
@@ -133,7 +143,7 @@ class Reconciler:
         lag_seconds = 0.0
         if lag_rows and newest_ts and copied_ts:
             lag_seconds = max((aware(newest_ts, self.zone) - copied_ts).total_seconds(), 0.0)
-        purge_days = await asyncio.to_thread(read_purge_days, self.data_dir)
+        purge_days = await asyncio.to_thread(read_purge_days, self.data_dir, self.config_name)
 
         first_ids = [
             i

@@ -15,15 +15,31 @@ from app.adapters.wolfbet.control import ACTIONS as WOLFBET_ACTIONS
 
 
 @dataclass(frozen=True)
+class BotFiles:
+    """The bot's files that ingest reads, by name inside the bot's data dir."""
+
+    live_db: str
+    archive_glob: str
+    config: str
+
+
+@dataclass(frozen=True)
 class ServiceEntry:
     name: str
     label: str
     adapter: type[ServiceAdapter]
     controls: Mapping[str, ControlAction]
+    files: BotFiles
 
 
 KNOWN: dict[str, ServiceEntry] = {
-    "wolfbet": ServiceEntry("wolfbet", "WolfBet", WolfBetAdapter, WOLFBET_ACTIONS),
+    "wolfbet": ServiceEntry(
+        "wolfbet",
+        "WolfBet",
+        WolfBetAdapter,
+        WOLFBET_ACTIONS,
+        BotFiles(".wolfbet_autobot.db", ".wolfbet_autobot-*.db", ".wolfbet_autobot.json"),
+    ),
 }
 
 _enabled: tuple[str, ...] = ("wolfbet",)

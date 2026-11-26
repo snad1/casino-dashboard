@@ -9,7 +9,7 @@ from typing import Any
 import asyncpg  # type: ignore[import-untyped]  # ships no type hints
 import pytest
 
-from app.ingest.reconcile import BOT_CONFIG, Reconciler
+from app.ingest.reconcile import BOT_CONFIG, Reconciler, read_purge_days
 from app.ingest.tailer import LIVE_DB, Tailer
 from tests.wolfbet_db import BotDb, needs_wolfbet
 
@@ -195,3 +195,10 @@ async def test_every_sqlite_read_is_short(
     assert (row["hi_id"], row["mismatched"]) == (120_000, 0)
     assert reconcile.reconciler.max_read_seconds < 0.2
     bot.close()
+
+
+def test_purge_days_come_from_the_services_own_config(tmp_path: Path) -> None:
+    (tmp_path / BOT_CONFIG).write_text(json.dumps({"purge_days": 3}))
+    (tmp_path / ".demo_autobot.json").write_text(json.dumps({"purge_days": 9, "api_key": "x" * 40}))
+    assert read_purge_days(tmp_path, ".demo_autobot.json") == 9
+    assert read_purge_days(tmp_path) == 3

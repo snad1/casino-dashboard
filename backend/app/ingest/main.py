@@ -13,6 +13,7 @@ from pathlib import Path
 
 import asyncpg  # type: ignore[import-untyped]  # ships no type hints
 
+from app import registry
 from app.alerts.engine import after_reconcile
 from app.db.engine import create_engine, create_sessionmaker
 from app.ingest.reconcile import Reconciler
@@ -53,25 +54,30 @@ async def connect(settings: IngestSettings) -> asyncpg.Connection:
     )
 
 
-async def tail(stop: asyncio.Event, settings: IngestSettings, retry: float = RETRY_SECONDS) -> None:
-    """Run the tailer until stop is set, reconnecting after any failure."""
+async def tail(
+    stop: asyncio.Event, settings: IngestSettings, service: str, retry: float = RETRY_SECONDS
+) -> None:
+    """Run one service's tailer until stop is set, reconnecting after any failure."""
+    files = registry.KNOWN[service].files
     while not stop.is_set():
         try:
             db = await connect(settings)
             try:
                 tailer = Tailer(
                     db,
-                    settings.ingest_service,
+                    service,
                     settings.bot_data_dir,
                     settings.host_tz,
                     closed_ok=True,
+                    live_name=files.live_db,
+                    archive_glob=files.archive_glob,
                 )
                 await tailer.prepare()
                 await tailer.run(stop)
             finally:
                 await db.close()
         except Exception:
-            logger.exception("ingest pass failed; retrying in %s s", retry)
+            logger.exception("ingest pass for %s failed; retrying in %s s", service, retry)
             await _sleep(stop, retry)
 
 
@@ -95,6 +101,7 @@ async def tail_users(
 async def reconcile(
     stop: asyncio.Event,
     settings: IngestSettings,
+    service: str,
     first: float = RECONCILE_FIRST_SECONDS,
     interval: float = RECONCILE_SECONDS,
 ) -> None:
@@ -110,17 +117,23 @@ async def reconcile(
         try:
             db = await connect(settings)
             try:
+                files = registry.KNOWN[service].files
                 reconciler = Reconciler(
-                    db, settings.ingest_service, settings.bot_data_dir, settings.host_tz
+                    db,
+                    service,
+                    settings.bot_data_dir,
+                    settings.host_tz,
+                    live_name=files.live_db,
+                    config_name=files.config,
                 )
                 row = await reconciler.run_once()
             finally:
                 await db.close()
         except Exception:
-            logger.exception("reconcile run failed; next one in %s s", interval)
+            logger.exception("reconcile run for %s failed; next one in %s s", service, interval)
         if row is not None:
             try:
-                await after_reconcile(sessionmaker, settings.ingest_service, row)
+                await after_reconcile(sessionmaker, service, row)
             except Exception:
                 logger.exception("ingest alerts could not be checked")
         await _sleep(stop, interval)
@@ -129,7 +142,10 @@ async def reconcile(
 
 async def run(stop: asyncio.Event, heartbeat: Path = HEARTBEAT) -> None:
     settings = load_ingest_settings()
-    loops = [beat(stop, heartbeat), tail(stop, settings), reconcile(stop, settings)]
+    # One tail and one reconcile loop per served service, each retrying on its own.
+    loops = [beat(stop, heartbeat)]
+    for service in settings.dashboard_services:
+        loops += [tail(stop, settings, service), reconcile(stop, settings, service)]
     if settings.ingest_tg_data_dir is not None:
         loops.append(tail_users(stop, settings, settings.ingest_tg_data_dir))
     await asyncio.gather(*loops)
