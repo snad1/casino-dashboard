@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from app import registry
 from app.auth.models import Role
 from app.settings import Settings
 from tests.conftest import Account, make_client
@@ -128,3 +129,19 @@ def test_goateds_keys_go_to_goateds_vault(
     assert added.status_code == 201 and SECRET not in added.text
     assert [c["cmd"] for c in fake_agent.calls] == ["goated.key_list", "goated.key_put"]
     assert fake_agent.calls[-1]["args"]["owner_user_id"] == account.id
+
+
+def test_the_menu_names_the_fields_each_services_action_takes(admin: TestClient) -> None:
+    menus = {
+        svc: {a["name"]: a["fields"] for a in admin.get(f"/{svc}/control").json()["actions"]}
+        for svc in ("wolfbet", "goated")
+    }
+    assert menus["wolfbet"]["update"] == {"branch": False}
+    assert menus["goated"]["update"] == {}
+    assert menus["wolfbet"]["export"] == {"session_id": False, "format": False}
+    assert menus["goated"]["export"] == {"session_id": True, "format": False}
+    assert menus["goated"]["benchmark"] == {"count": False}
+    for svc, menu in menus.items():
+        for name, fields in menu.items():
+            body = registry.KNOWN[svc].controls[name].body
+            assert fields == {f: i.is_required() for f, i in body.model_fields.items()}, name

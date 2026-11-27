@@ -1954,6 +1954,13 @@ export interface components {
 			confirm_first: boolean;
 			/** Effect */
 			effect: string;
+			/**
+			 * Fields
+			 * @description The body's fields this service's action takes, each true when required.
+			 */
+			fields: {
+				[key: string]: boolean;
+			};
 			/** Job */
 			job: boolean;
 			/** Label */

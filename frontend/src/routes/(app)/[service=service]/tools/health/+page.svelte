@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import ActionButton from '#components/ActionButton';
 	import JobOutput from '#components/JobOutput';
+	import { fill } from '#lib/control';
 	import { control } from '#lib/control.svelte';
 	import { services } from '#lib/services.svelte';
 	import { ToolJob } from '#lib/tool-job.svelte';
@@ -16,6 +17,10 @@
 	let count = $state(20);
 	let lanes = $state('');
 	const job = new ToolJob();
+	const benchmarkEffect = $derived.by(() => {
+		const action = control.action('benchmark');
+		return action && control.service ? fill(action.effect, { count }, control.service) : '';
+	});
 
 	async function diagnose() {
 		diagnosing = true;
@@ -33,7 +38,7 @@
 
 	function benchmark() {
 		const body: Record<string, number> = { count };
-		if (lanes.trim()) body.lanes = Number(lanes);
+		if (lanes.trim() && control.takes('benchmark', 'lanes')) body.lanes = Number(lanes);
 		void job.start('benchmark', body);
 	}
 
@@ -67,7 +72,7 @@
 	<section class={section} aria-labelledby="checks-title">
 		<h2 id="checks-title" class="font-semibold">Doctor and benchmark</h2>
 		<p class="mb-3 text-sm text-muted">
-			Doctor checks the host and lists fixes. Benchmark times api calls and places no bets.
+			Doctor checks the host and lists fixes. Benchmark: {benchmarkEffect}
 		</p>
 		<div class="flex flex-wrap items-end gap-3">
 			<ActionButton name="doctor" busy={job.running} onpress={() => void job.start('doctor')} />
@@ -75,10 +80,12 @@
 				Calls
 				<input type="number" min="3" max="200" class={input} bind:value={count} />
 			</label>
-			<label class="flex flex-col gap-1 text-sm font-medium">
-				Lanes (blank for one)
-				<input type="text" inputmode="numeric" class={input} bind:value={lanes} />
-			</label>
+			{#if control.takes('benchmark', 'lanes')}
+				<label class="flex flex-col gap-1 text-sm font-medium">
+					Lanes (blank for one)
+					<input type="text" inputmode="numeric" class={input} bind:value={lanes} />
+				</label>
+			{/if}
 			<ActionButton name="benchmark" busy={job.running} onpress={benchmark} />
 		</div>
 		{#if job.job}

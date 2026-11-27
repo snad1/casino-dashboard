@@ -86,7 +86,7 @@
 
 	const updateBody = $derived.by(() => {
 		const body: ActionBody = {};
-		if (branch.trim()) body.branch = branch.trim();
+		if (branch.trim() && control.takes('update', 'branch')) body.branch = branch.trim();
 		return body;
 	});
 
@@ -250,10 +250,12 @@
 					<div class="pt-6"><ActionButton name="cleanup" body={{ days }} danger /></div>
 				</div>
 				<div class={row}>
-					<label class="flex flex-col gap-1 text-sm font-medium">
-						Branch (blank keeps the current one)
-						<input type="text" class={input} bind:value={branch} autocomplete="off" />
-					</label>
+					{#if control.takes('update', 'branch')}
+						<label class="flex flex-col gap-1 text-sm font-medium">
+							Branch (blank keeps the current one)
+							<input type="text" class={input} bind:value={branch} autocomplete="off" />
+						</label>
+					{/if}
 					<div class="pt-6"><ActionButton name="update" body={updateBody} danger /></div>
 				</div>
 			</div>

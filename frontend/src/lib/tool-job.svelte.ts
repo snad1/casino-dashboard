@@ -25,7 +25,9 @@ export class ToolJob {
 		this.lines = [];
 		this.job = null;
 		this.starting = true;
-		const out = await control.run(name, body);
+		// An action that must be confirmed (a real bet) opens the confirm dialog first.
+		const confirm = control.action(name)?.confirm_first === true;
+		const out = await (confirm ? control.ask(name, body) : control.run(name, body));
 		this.starting = false;
 		const jobId = out?.job_id;
 		if (!jobId || !control.service) return;

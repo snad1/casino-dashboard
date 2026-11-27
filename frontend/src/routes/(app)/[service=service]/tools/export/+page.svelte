@@ -5,12 +5,13 @@
 	import { ToolJob } from '#lib/tool-job.svelte';
 	import { downloadUrl } from '#lib/tools';
 
-	let format: 'csv' | 'json' = $state('csv');
+	let format = $state<'csv' | 'json'>('csv');
 	let sessionId = $state('');
 	let exported: 'csv' | 'json' = $state('csv');
 	const job = new ToolJob();
 
 	const ready = $derived(job.job?.status === 'succeeded');
+	const sessionNeeded = $derived(format === 'json' || control.needs('export', 'session_id'));
 
 	function start(event: SubmitEvent) {
 		event.preventDefault();
@@ -42,13 +43,17 @@
 			</select>
 		</label>
 		<label class="flex flex-col gap-1 text-sm font-medium">
-			Session id {format === 'json' ? '(needed for JSON)' : '(blank for all)'}
+			Session id {format === 'json'
+				? '(needed for JSON)'
+				: sessionNeeded
+					? '(needed)'
+					: '(blank for all)'}
 			<input
 				type="text"
 				inputmode="numeric"
 				class="{input} w-36"
 				bind:value={sessionId}
-				required={format === 'json'}
+				required={sessionNeeded}
 			/>
 		</label>
 		<ActionButton name="export" busy={job.running} submit />

@@ -24,7 +24,7 @@ from typing import Annotated, Any, Literal
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Request, Response, status
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
@@ -142,6 +142,9 @@ class ActionOut(BaseModel):
     typed_confirm: bool
     confirm_first: bool
     job: bool
+    fields: dict[str, bool] = Field(
+        description="The body's fields this service's action takes, each true when required."
+    )
 
 
 class ControlMenu(BaseModel):
@@ -560,6 +563,9 @@ async def control_menu(
                 typed_confirm=spec.perm == Perm.CONTROL_DESTRUCTIVE,
                 confirm_first=spec.confirm_first,
                 job=spec.job,
+                fields={
+                    field: info.is_required() for field, info in spec.body.model_fields.items()
+                },
             )
             for name, spec in actions.items()
         ],

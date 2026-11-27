@@ -52,6 +52,16 @@ class Control {
 		return this.menu?.actions.find((a) => a.name === name);
 	}
 
+	/** Whether this service's action takes `field`; false until the menu has loaded. */
+	takes(name: ActionName, field: string): boolean {
+		return field in (this.action(name)?.fields ?? {});
+	}
+
+	/** Whether this service's action needs `field`; false until the menu has loaded. */
+	needs(name: ActionName, field: string): boolean {
+		return this.action(name)?.fields[field] === true;
+	}
+
 	text(template: string): string {
 		return this.pending && this.service
 			? fill(template, this.pending.body, this.service)

@@ -2,6 +2,7 @@
 	import { onDestroy } from 'svelte';
 	import ActionButton from '#components/ActionButton';
 	import JobOutput from '#components/JobOutput';
+	import { control } from '#lib/control.svelte';
 	import { ToolJob } from '#lib/tool-job.svelte';
 	import { parseBacktest, parseProgress, resultRows } from '#lib/tools';
 
@@ -35,11 +36,10 @@
 		const body: Record<string, number | string> = {};
 		if (source === 'simulate') body.simulate = bets;
 		else body.replay_session = Number(sessionId);
-		const numbers = { seed, sessions, runs } as const;
+		const numbers = { seed, sessions, runs, balance } as const;
 		for (const [key, value] of Object.entries(numbers)) {
-			if (value.trim()) body[key] = Number(value);
+			if (value.trim() && control.takes('backtest', key)) body[key] = Number(value);
 		}
-		if (balance.trim()) body.balance = Number(balance);
 		if (preset.trim()) body.preset = preset.trim();
 		void job.start('backtest', body);
 	}
@@ -81,18 +81,24 @@
 				Seed
 				<input type="text" inputmode="numeric" class={input} bind:value={seed} />
 			</label>
-			<label class="flex flex-col gap-1 text-sm font-medium">
-				Sessions
-				<input type="text" inputmode="numeric" class={input} bind:value={sessions} />
-			</label>
-			<label class="flex flex-col gap-1 text-sm font-medium">
-				Runs
-				<input type="text" inputmode="numeric" class={input} bind:value={runs} />
-			</label>
-			<label class="flex flex-col gap-1 text-sm font-medium">
-				Balance
-				<input type="text" inputmode="decimal" class={input} bind:value={balance} />
-			</label>
+			{#if control.takes('backtest', 'sessions')}
+				<label class="flex flex-col gap-1 text-sm font-medium">
+					Sessions
+					<input type="text" inputmode="numeric" class={input} bind:value={sessions} />
+				</label>
+			{/if}
+			{#if control.takes('backtest', 'runs')}
+				<label class="flex flex-col gap-1 text-sm font-medium">
+					Runs
+					<input type="text" inputmode="numeric" class={input} bind:value={runs} />
+				</label>
+			{/if}
+			{#if control.takes('backtest', 'balance')}
+				<label class="flex flex-col gap-1 text-sm font-medium">
+					Balance
+					<input type="text" inputmode="decimal" class={input} bind:value={balance} />
+				</label>
+			{/if}
 			<label class="flex flex-col gap-1 text-sm font-medium">
 				Preset
 				<input type="text" class={input} bind:value={preset} autocomplete="off" />
