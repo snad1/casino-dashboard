@@ -1,12 +1,14 @@
 """goated's control buttons: WolfBet's, for the verbs goatedctl has.
 
 goated has no live IPC, so it has no pause, resume or reload; its benchmark times 0-amount
-bets (goated has no read-only endpoint) and takes no lane count; its backtest takes only
-the flags `goated.py --backtest` reads; its update has no branch switch. Every other
-button, body and check is WolfBet's.
+bets (goated has no read-only endpoint), takes no lane count and asks first; its export
+writes one session, so it needs one; its backtest takes only the flags `goated.py
+--backtest` reads; its update has no branch switch. Every other button, body and check is
+WolfBet's.
 """
 
 from dataclasses import replace
+from typing import Literal
 
 from pydantic import Field, model_validator
 
@@ -34,13 +36,25 @@ class GoatedBacktestArgs(Args):
         return self
 
 
+class GoatedExportArgs(Args):
+    """goated writes one session per file, its format from the file's extension."""
+
+    session_id: int = Field(ge=1)
+    format: Literal["csv", "json"] = "csv"
+
+
 def _goated(name: str, action: ControlAction) -> ControlAction:
     if name == "benchmark":
+        # Each call is a real 0-amount bet, which goated.py asks to confirm; the agent says
+        # yes for it, so the owner confirms here.
         return replace(
             action,
             body=GoatedBenchmarkArgs,
             effect="Times {count} calls. Each is a 0-amount bet, so no balance is risked.",
+            confirm_first=True,
         )
+    if name == "export":
+        return replace(action, body=GoatedExportArgs)
     if name == "backtest":
         return replace(action, body=GoatedBacktestArgs)
     if name == "update":

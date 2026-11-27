@@ -1860,6 +1860,31 @@
         "title": "GoatedBenchmarkArgs",
         "type": "object"
       },
+      "GoatedExportArgs": {
+        "additionalProperties": false,
+        "description": "goated writes one session per file, its format from the file's extension.",
+        "properties": {
+          "format": {
+            "default": "csv",
+            "enum": [
+              "csv",
+              "json"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "session_id": {
+            "minimum": 1.0,
+            "title": "Session Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "GoatedExportArgs",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -8048,7 +8073,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ExportArgs"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ExportArgs"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GoatedExportArgs"
+                  }
+                ],
+                "title": "Body"
               }
             }
           },

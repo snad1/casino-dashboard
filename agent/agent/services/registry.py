@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from agent.config import ConfigError
 from agent.files import FileStore
-from agent.services import wolfbet
+from agent.services import goated, wolfbet
 from agent.services.common import BotService
 
 
@@ -17,6 +17,7 @@ class ServiceModule:
 
 SERVICES: dict[str, ServiceModule] = {
     "wolfbet": ServiceModule(wolfbet.build, wolfbet.UNIT),
+    "goated": ServiceModule(goated.build, goated.UNIT),
 }
 
 

@@ -122,6 +122,7 @@ def test_the_menu_is_wolfbets_without_what_goated_cannot_do() -> None:
     assert NOT_OFFERED == {"pause", "resume", "reload"}
     assert set(ACTIONS) == set(WOLFBET_ACTIONS) - NOT_OFFERED
     assert "0-amount bet" in ACTIONS["benchmark"].effect
+    assert ACTIONS["benchmark"].confirm_first, "each call is a real bet, so the owner confirms"
     assert "goatedctl" in ACTIONS["version"].effect
     assert "{branch}" not in ACTIONS["update"].effect
     for name, action in ACTIONS.items():
@@ -142,6 +143,7 @@ def test_the_menu_is_wolfbets_without_what_goated_cannot_do() -> None:
         ("backtest", {"sessions": 10}),
         ("backtest", {"simulate": 10, "replay_session": 3}),
         ("update", {"branch": "main"}),
+        ("export", {"format": "csv"}),
     ],
 )
 def test_a_flag_goated_does_not_take_is_refused_before_the_agent(

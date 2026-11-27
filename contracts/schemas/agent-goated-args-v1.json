@@ -8,19 +8,17 @@
   "backtest": {
     "additionalProperties": false,
     "properties": {
-      "simulate": {
+      "preset": {
         "anyOf": [
           {
-            "maximum": 5000000,
-            "minimum": 1,
-            "type": "integer"
+            "type": "string"
           },
           {
             "type": "null"
           }
         ],
         "default": null,
-        "title": "Simulate"
+        "title": "Preset"
       },
       "replay_session": {
         "anyOf": [
@@ -49,17 +47,19 @@
         "default": null,
         "title": "Seed"
       },
-      "preset": {
+      "simulate": {
         "anyOf": [
           {
-            "type": "string"
+            "maximum": 5000000,
+            "minimum": 1,
+            "type": "integer"
           },
           {
             "type": "null"
           }
         ],
         "default": null,
-        "title": "Preset"
+        "title": "Simulate"
       }
     },
     "title": "GoatedBacktestArgs",
@@ -139,6 +139,7 @@
   },
   "export": {
     "additionalProperties": false,
+    "description": "goated writes one session per file, its format from the file's extension.",
     "properties": {
       "format": {
         "default": "csv",
@@ -150,20 +151,15 @@
         "type": "string"
       },
       "session_id": {
-        "anyOf": [
-          {
-            "minimum": 1,
-            "type": "integer"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Session Id"
+        "minimum": 1,
+        "title": "Session Id",
+        "type": "integer"
       }
     },
-    "title": "ExportArgs",
+    "required": [
+      "session_id"
+    ],
+    "title": "GoatedExportArgs",
     "type": "object"
   },
   "lane_add": {

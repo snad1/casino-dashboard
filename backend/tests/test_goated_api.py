@@ -56,6 +56,7 @@ def test_goateds_own_bodies_reach_the_agent(admin: TestClient, fake_agent: FakeA
         ("benchmark", {"count": 5, "lanes": 2}),
         ("update", {"branch": "main"}),
         ("backtest", {"sessions": 10}),
+        ("export", {"format": "csv"}),
     ],
 )
 def test_a_body_only_wolfbet_takes_is_refused_before_the_agent(
@@ -95,7 +96,7 @@ def test_goateds_menu_lists_its_own_buttons(admin: TestClient) -> None:
     names = {action["name"] for action in menu}
     assert {"pause", "resume", "reload"}.isdisjoint(names) and "benchmark" in names
     benchmark = next(a for a in menu if a["name"] == "benchmark")
-    assert "0-amount bet" in benchmark["effect"]
+    assert "0-amount bet" in benchmark["effect"] and benchmark["confirm_first"] is True
 
 
 SECRET = "gt_live_FRIEND_0123456789abcdef7777"  # noqa: S105  # a fake key for tests

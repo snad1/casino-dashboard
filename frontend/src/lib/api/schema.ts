@@ -2504,6 +2504,20 @@ export interface components {
 			 */
 			count: number;
 		};
+		/**
+		 * GoatedExportArgs
+		 * @description goated writes one session per file, its format from the file's extension.
+		 */
+		GoatedExportArgs: {
+			/**
+			 * Format
+			 * @default csv
+			 * @enum {string}
+			 */
+			format: 'csv' | 'json';
+			/** Session Id */
+			session_id: number;
+		};
 		/** HTTPValidationError */
 		HTTPValidationError: {
 			/** Detail */
@@ -5375,7 +5389,8 @@ export interface operations {
 		};
 		requestBody: {
 			content: {
-				'application/json': components['schemas']['ExportArgs'];
+				'application/json':
+					components['schemas']['ExportArgs'] | components['schemas']['GoatedExportArgs'];
 			};
 		};
 		responses: {
