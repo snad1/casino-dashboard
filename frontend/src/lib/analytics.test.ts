@@ -15,7 +15,7 @@ import {
 
 describe('filter', () => {
 	it('round trips through the query string', () => {
-		const filter = { since: '2026-11-01', until: '2026-11-15', lane: 2, epoch: 4 };
+		const filter = { since: '2026-11-01', until: '2026-11-15', lane: 2, epoch: 4, all: false };
 		expect(parseFilter(new URLSearchParams(filterQuery(filter)))).toEqual(filter);
 	});
 
@@ -25,15 +25,27 @@ describe('filter', () => {
 
 	it('drops values the form could not send', () => {
 		const params = new URLSearchParams(
-			'since=yesterday&until=2026-11-01 10:00 PM&lane=100&epoch=0'
+			'since=yesterday&until=2026-11-01 10:00 PM&lane=100&epoch=0&range=week'
 		);
-		const none = { since: null, until: null, lane: null, epoch: null };
+		const none = { since: null, until: null, lane: null, epoch: null, all: false };
 		expect(parseFilter(params)).toEqual(none);
 		expect(filterQuery(none)).toEqual({});
 	});
 
+	it('asks for all time only when no window is set', () => {
+		const every = { since: null, until: null, lane: 2, epoch: null, all: true };
+		expect(parseFilter(new URLSearchParams(filterQuery(every)))).toEqual(every);
+		expect(filterQuery({ ...every, since: '2026-11-01' })).toEqual({
+			since: '2026-11-01',
+			lane: '2'
+		});
+		expect(exportUrl('wolfbet', every, 'csv')).toBe(
+			'/api/wolfbet/analytics/export?lane=2&range=all&format=csv'
+		);
+	});
+
 	it('builds the export link with the filter and format', () => {
-		const filter = { since: '2026-11-01', until: null, lane: 3, epoch: 2 };
+		const filter = { since: '2026-11-01', until: null, lane: 3, epoch: 2, all: false };
 		expect(exportUrl('wolfbet', filter, 'json')).toBe(
 			'/api/wolfbet/analytics/export?since=2026-11-01&lane=3&epoch=2&format=json'
 		);

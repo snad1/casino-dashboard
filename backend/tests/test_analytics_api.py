@@ -1,6 +1,8 @@
 """The analytics api: the bot's report through the agent, history when the agent fails."""
 
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
 
@@ -129,3 +131,20 @@ def test_anonymous_users_and_unknown_services_get_nothing(
         assert anonymous.get(URL).status_code == 401
     assert _viewer(signed_in_as).get("/goated/analytics").status_code == 404
     assert fake_agent.calls == []
+
+
+def test_with_no_window_the_bot_is_asked_for_today_only(
+    control_settings: Settings, signed_in_as: Any, fake_agent: FakeAgent
+) -> None:
+    fake_agent.reply = _replying(REPORT)
+    viewer = _viewer(signed_in_as)
+    today = datetime.now(ZoneInfo(control_settings.host_tz)).date().isoformat()
+    for query, args in (
+        ("", {"since": f"{today}T00:00:00"}),
+        ("range=all", {}),
+        ("since=2026-11-01", {"since": "2026-11-01"}),
+        ("until=2026-11-01", {"until": "2026-11-01"}),
+    ):
+        assert viewer.get(f"/wolfbet/analytics?{query}").status_code == 200, query
+        assert fake_agent.calls[-1]["args"] == args, query
+    assert viewer.get("/wolfbet/analytics?range=week").status_code == 422

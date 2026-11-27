@@ -85,13 +85,13 @@ def test_json_has_the_same_rows_and_the_lane_filter_applies(
     signed_in_as: Any, history: None
 ) -> None:
     operator = signed_in_as(Role.OPERATOR)
-    response = operator.get(f"{URL}?lane=2&format=json")
+    response = operator.get(f"{URL}?lane=2&format=json&range=all")
     assert response.status_code == 200
     assert response.headers["content-disposition"].endswith('-all-all.json"')
     rows = json.loads(response.text)
     assert [(r["id"], r["lane"]) for r in rows] == [(2, 2), (4, 2)]
     assert rows[0]["strategy"] == '=HYPERLINK("http://x.test")'
-    everything = _rows(operator.get(URL))
+    everything = _rows(operator.get(f"{URL}?range=all"))
     assert len(everything) == 4
 
 
@@ -108,3 +108,13 @@ def test_only_operators_get_a_file_and_bad_input_is_refused(
     assert bad.json()["detail"] == INVALID_WINDOW
     assert operator.get(f"{URL}?format=xml").status_code == 422
     assert operator.get(f"{URL}?lane=100").status_code == 422
+
+
+def test_with_no_window_the_file_holds_only_todays_sessions(
+    signed_in_as: Any, history: None
+) -> None:
+    operator = signed_in_as(Role.OPERATOR)
+    response = operator.get(f"{URL}?format=json")
+    assert response.status_code == 200
+    assert json.loads(response.text) == []
+    assert operator.get(f"{URL}?range=everything").status_code == 422

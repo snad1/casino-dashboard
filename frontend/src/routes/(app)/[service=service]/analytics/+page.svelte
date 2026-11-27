@@ -52,7 +52,6 @@
 	let data = $state<AnalyticsOut | null>(null);
 	let error = $state<string | null>(null);
 	let loading = $state(true);
-	let since = $state('');
 	let until = $state('');
 	let lane = $state('all');
 	let epoch = $state<number | null>(null);
@@ -75,8 +74,17 @@
 	);
 	let request = 0;
 
+	/** With no window in the URL the api picks today; show the start it used. */
+	const shownSince = $derived(
+		filter.since ??
+			(filter.all || filter.until || filter.epoch !== null
+				? null
+				: (data?.report.window.since ?? null))
+	);
+
+	let since = $derived(inputValue(shownSince, false));
+
 	$effect(() => {
-		since = inputValue(filter.since, false);
 		until = inputValue(filter.until, true);
 		lane = filter.lane === null ? 'all' : String(filter.lane);
 		epoch = filter.epoch;
@@ -112,7 +120,7 @@
 
 	function apply(event: SubmitEvent) {
 		event.preventDefault();
-		show(since || null, until || null);
+		show(since || null, until || null, !since && !until);
 	}
 
 	function quick(preset: Preset) {
@@ -120,13 +128,14 @@
 		show(range.since, range.until);
 	}
 
-	function show(from: string | null, to: string | null) {
+	function show(from: string | null, to: string | null, all = false) {
 		const query = new URLSearchParams(
 			filterQuery({
 				since: from,
 				until: to,
 				lane: lane === 'all' ? null : Number(lane),
-				epoch
+				epoch,
+				all
 			})
 		).toString();
 		const suffix = query ? `?${query}` : '';
@@ -247,7 +256,14 @@
 					onclick={() => quick(preset.id)}>{preset.label}</button
 				>
 			{/each}
-			<span id="analytics-zone" class="text-xs text-muted">Times in {zone} (bot time)</span>
+			<button
+				type="button"
+				class="min-h-9 rounded-md border border-line-strong px-3 text-sm"
+				onclick={() => show(null, null, true)}>All time</button
+			>
+			<span id="analytics-zone" class="text-xs text-muted"
+				>Times in {zone} (bot time). Opens on today; pick a range or All time for more.</span
+			>
 		</div>
 	</form>
 

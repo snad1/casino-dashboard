@@ -10,12 +10,16 @@ const LANE_ID_MAX = 99;
 /** A date, or a date and time to the minute or second, in the bot's clock. */
 const DATE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/;
 
-/** The page's filter; it lives in the URL so a range can be shared and reloaded. */
+/**
+ * The page's filter; it lives in the URL so a range can be shared and reloaded. With no
+ * dates and no epoch the api shows today; `all` asks for every session instead.
+ */
 export interface Filter {
 	since: string | null;
 	until: string | null;
 	lane: number | null;
 	epoch: number | null;
+	all: boolean;
 }
 
 /** Read the filter from a query string, dropping anything the form could not have sent. */
@@ -29,7 +33,8 @@ export function parseFilter(params: Pick<URLSearchParams, 'get'>): Filter {
 		since: date('since'),
 		until: date('until'),
 		lane: Number.isInteger(lane) && lane >= 1 && lane <= LANE_ID_MAX ? lane : null,
-		epoch: parseEpoch(params)
+		epoch: parseEpoch(params),
+		all: params.get('range') === 'all'
 	};
 }
 
@@ -40,6 +45,7 @@ export function filterQuery(filter: Filter): Record<string, string> {
 	if (filter.until) out.until = filter.until;
 	if (filter.lane !== null) out.lane = String(filter.lane);
 	if (filter.epoch !== null) out.epoch = String(filter.epoch);
+	if (filter.all && !filter.since && !filter.until && filter.epoch === null) out.range = 'all';
 	return out;
 }
 

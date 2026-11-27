@@ -238,10 +238,10 @@ def test_analytics_and_its_export_cover_one_of_their_lanes(
     seed.session(epoch, 2, lane=3)
     fake_agent.reply = lambda request: [ok(request, {"exit_code": 0, "stderr": "", "json": REPORT})]
     one = client_as(_lane_user(control_settings, WOLFBET, 3, role=Role.OPERATOR))
-    assert one.get(f"/{WOLFBET}/analytics").status_code == 200
+    assert one.get(f"/{WOLFBET}/analytics?range=all").status_code == 200
     assert fake_agent.calls[0]["args"] == {"lane": 3}
     assert _refused(one.get(f"/{WOLFBET}/analytics?lane=1"))
-    rows = one.get(f"/{WOLFBET}/analytics/export?format=json").json()
+    rows = one.get(f"/{WOLFBET}/analytics/export?format=json&range=all").json()
     assert [(r["id"], r["lane"]) for r in rows] == [(2, 3)]
     assert _refused(one.get(f"/{WOLFBET}/analytics/export?lane=1"))
 

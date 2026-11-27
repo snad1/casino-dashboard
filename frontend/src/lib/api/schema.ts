@@ -4712,6 +4712,7 @@ export interface operations {
 				lane?: number | null;
 				epoch?: number | null;
 				key?: string | null;
+				range?: 'all' | null;
 			};
 			header?: never;
 			path: {
@@ -4750,6 +4751,7 @@ export interface operations {
 				format?: 'csv' | 'json';
 				epoch?: number | null;
 				key?: string | null;
+				range?: 'all' | null;
 			};
 			header?: never;
 			path: {

@@ -130,13 +130,29 @@ test('quick ranges fill the window on the bot clock', async ({ page }) => {
 	await page.clock.setFixedTime(new Date('2026-11-25T23:30:00Z'));
 	const urls = await rig(page, viewerMe);
 	await page.goto('/wolfbet/analytics');
-	await expect(page.getByText('Times in Europe/Berlin (bot time)')).toBeVisible();
+	await expect(page.getByText(/Times in Europe\/Berlin \(bot time\)/)).toBeVisible();
 	await page.getByRole('button', { name: 'Yesterday' }).click();
 	await expect.poll(() => urls.at(-1)?.search).toBe('?since=2026-11-25T00%3A00&until=2026-11-25');
 	await expect(page.getByLabel('From', { exact: true })).toHaveValue('2026-11-25T00:00');
 	await expect(page.getByLabel('To', { exact: true })).toHaveValue('2026-11-25T23:59:59');
 	await page.getByRole('button', { name: 'Today' }).click();
 	await expect.poll(() => urls.at(-1)?.search).toBe('?since=2026-11-26T00%3A00');
+});
+
+test('the page opens on today and All time asks for every session', async ({ page }) => {
+	const today = { ...REPORT, window: { since: '2026-11-26T00:00:00', until: null, lane: null } };
+	const urls = await rig(page, viewerMe, (_body, url) =>
+		url.searchParams.get('range') === 'all'
+			? answer()
+			: { status: 200, json: { ...answer().json, report: today } }
+	);
+	await page.goto('/wolfbet/analytics');
+	await expect.poll(() => urls.at(-1)?.search).toBe('');
+	await expect(page.getByLabel('From', { exact: true })).toHaveValue('2026-11-26T00:00');
+	await page.getByRole('button', { name: 'All time' }).click();
+	await expect(page).toHaveURL(/\/wolfbet\/analytics\?range=all$/);
+	await expect.poll(() => urls.at(-1)?.search).toBe('?range=all');
+	await expect(page.getByLabel('From', { exact: true })).toHaveValue('');
 });
 
 test('a key read from history is not called unreachable', async ({ page }) => {

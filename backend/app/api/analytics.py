@@ -1,5 +1,8 @@
 """Analytics for a date range and lane: the bot's own report plus breakdown charts.
 
+With no dates and no archived epoch the window is today from 00:00 on the bot's clock, so
+opening the page does not scan the whole reset; `range=all` asks for every session.
+
 The report is the bot's `--analytics --json`, read through the host agent and kept 60 s,
 so every screen shows the numbers `wolfctl analytics` prints. When the agent is down,
 slow or answers with something that is not a valid report, the same report is rebuilt
@@ -113,6 +116,15 @@ def _bound(value: str | None) -> str | None:
     except ValueError:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, INVALID_WINDOW) from None
     return parsed.date().isoformat() if len(value) == 10 else parsed.isoformat()
+
+
+def _default_since(
+    since: str | None, until: str | None, epoch: int | None, every: str | None, zone: ZoneInfo
+) -> str | None:
+    """Today's start on the bot's clock when the caller set no window and did not ask for all."""
+    if since is not None or until is not None or epoch is not None or every == "all":
+        return since
+    return f"{datetime.now(zone).date().isoformat()}T00:00:00"
 
 
 async def _bot_report(
@@ -285,6 +297,7 @@ async def get_analytics(
     lane: Annotated[int | None, Query(ge=1, le=LANE_ID_MAX)] = None,
     epoch: Annotated[int | None, Query(ge=1)] = None,
     key: Annotated[str | None, Query(pattern=KEY_ID)] = None,
+    every: Annotated[Literal["all"] | None, Query(alias="range")] = None,
 ) -> BaseModel:
     """The report for sessions started in the window (a bare `until` date counts whole), from
     the bot for the current epoch, or from history for an archived `epoch` or one `key` (the
@@ -293,7 +306,9 @@ async def get_analytics(
     if not registry.is_enabled(service):
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
     lane = scope.one(lane)
+    zone = ZoneInfo(request.app.state.host_tz)
     since, until = _bound(since), _bound(until)
+    since = _default_since(since, until, epoch, every, zone)
     cache, cache_key = _cache(request, scope, "analytics_cache", BOT_SECONDS)
     if (hit := cache.get(cache_key)) is not None:
         return hit
@@ -301,7 +316,6 @@ async def get_analytics(
         k: v for k, v in {"since": since, "until": until, "lane": lane}.items() if v is not None
     }
     view = await epoch_view(db, service, epoch)
-    zone = ZoneInfo(request.app.state.host_tz)
     keys = scope.report_keys(key)
     window = SessionWindow(service, since, until, lane, zone, view.ids, keys)
     report = await _bot_report(request, service, args) if epoch is None and keys is None else None
@@ -348,22 +362,17 @@ async def export_analytics(
     file_format: Annotated[Literal["csv", "json"], Query(alias="format")] = "csv",
     epoch: Annotated[int | None, Query(ge=1)] = None,
     key: Annotated[str | None, Query(pattern=KEY_ID)] = None,
+    every: Annotated[Literal["all"] | None, Query(alias="range")] = None,
 ) -> Response:
     """The window's sessions, the ones the report counts, oldest first, as a download."""
     if not registry.is_enabled(service):
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
     lane = scope.one(lane)
+    zone = ZoneInfo(request.app.state.host_tz)
     since, until = _bound(since), _bound(until)
+    since = _default_since(since, until, epoch, every, zone)
     view = await epoch_view(db, service, epoch)
-    window = SessionWindow(
-        service,
-        since,
-        until,
-        lane,
-        ZoneInfo(request.app.state.host_tz),
-        view.ids,
-        scope.report_keys(key),
-    )
+    window = SessionWindow(service, since, until, lane, zone, view.ids, scope.report_keys(key))
     query = (
         select(HistorySession)
         .where(text(window.in_epochs).bindparams(**window.params))
