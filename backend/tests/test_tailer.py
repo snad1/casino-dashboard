@@ -285,6 +285,69 @@ async def test_an_older_session_is_read_once_more_then_left_alone(
     bot.close()
 
 
+async def test_a_restarted_tailer_resumes_sessions_and_keeps_totals_written_while_down(
+    wolfbet: ModuleType,
+    tmp_path: Path,
+    pg: asyncpg.Connection,
+    service: str,
+    make_tailer: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(tailer_module, "SESSION_SYNC_SECONDS", 0.0)
+    bot = BotDb(wolfbet, tmp_path / LIVE_DB)
+    done = bot.session(lane=1)
+    _save(bot, done, 4, 0.2, "2026-01-05T09:00:00")
+    bot.session(lane=1, started="2026-01-05T09:30:00")
+    running = bot.session(lane=2)
+    _save(bot, running, 2, 0.1, "2026-01-05T10:00:01")
+    await drain(await make_tailer())
+    _save(bot, running, 9, 0.9, "2026-01-05T10:00:05")
+    newer = bot.session(lane=2, started="2026-01-05T10:00:06")
+    restarted = await make_tailer()
+    source = await restarted._live_source()
+    assert source is not None
+    assert source.max_session_id == running
+    assert running in source.open_sessions
+    assert done not in source.open_sessions
+    await drain(restarted)
+    assert await _totals(pg, service, running) == (9, 0.9)
+    assert await _totals(pg, service, newer) == (0, 0)
+    assert source.open_sessions == {done + 1, newer}
+    bot.close()
+
+
+async def test_a_copy_from_id_0_reads_sessions_by_rowid_from_the_first_batch(
+    wolfbet: ModuleType,
+    tmp_path: Path,
+    pg: asyncpg.Connection,
+    service: str,
+    make_tailer: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(tailer_module, "SESSION_SYNC_SECONDS", 0.0)
+    monkeypatch.setattr(tailer_module, "BATCH_SIZE", 3)
+    primed: list[bool] = []
+    real = tailer_module._read_sessions
+
+    def spy(
+        connection: Any, after_id: int, still_open: set[int], *, primed_: bool = False, **kw: Any
+    ) -> Any:
+        primed.append(kw["primed"])
+        return real(connection, after_id, still_open, primed=kw["primed"])
+
+    monkeypatch.setattr(tailer_module, "_read_sessions", spy)
+    bot = BotDb(wolfbet, tmp_path / LIVE_DB)
+    ids = [bot.session(lane=n % 2 + 1) for n in range(8)]
+    for done in ids[:-2]:
+        _save(bot, done, 1, 0.1, "2026-01-05T10:00:01")
+    await drain(await make_tailer())
+    assert len(primed) >= 3
+    assert all(primed)
+    rows = await pg.fetch("SELECT src_id FROM sessions WHERE service = $1 ORDER BY src_id", service)
+    assert [r["src_id"] for r in rows] == ids
+    bot.close()
+
+
 def _fingerprint(path: Path) -> tuple[str, int]:
     return hashlib.sha256(path.read_bytes()).hexdigest(), path.stat().st_mtime_ns
 
