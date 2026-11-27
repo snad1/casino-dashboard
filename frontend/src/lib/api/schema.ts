@@ -2485,6 +2485,25 @@ export interface components {
 			/** Wins */
 			wins: number;
 		};
+		/** GoatedBacktestArgs */
+		GoatedBacktestArgs: {
+			/** Preset */
+			preset?: string | null;
+			/** Replay Session */
+			replay_session?: number | null;
+			/** Seed */
+			seed?: number | null;
+			/** Simulate */
+			simulate?: number | null;
+		};
+		/** GoatedBenchmarkArgs */
+		GoatedBenchmarkArgs: {
+			/**
+			 * Count
+			 * @default 20
+			 */
+			count: number;
+		};
 		/** HTTPValidationError */
 		HTTPValidationError: {
 			/** Detail */
@@ -5032,7 +5051,8 @@ export interface operations {
 		};
 		requestBody: {
 			content: {
-				'application/json': components['schemas']['BacktestArgs'];
+				'application/json':
+					components['schemas']['BacktestArgs'] | components['schemas']['GoatedBacktestArgs'];
 			};
 		};
 		responses: {
@@ -5078,7 +5098,8 @@ export interface operations {
 		};
 		requestBody: {
 			content: {
-				'application/json': components['schemas']['BenchmarkArgs'];
+				'application/json':
+					components['schemas']['BenchmarkArgs'] | components['schemas']['GoatedBenchmarkArgs'];
 			};
 		};
 		responses: {
@@ -6596,7 +6617,7 @@ export interface operations {
 		};
 		requestBody: {
 			content: {
-				'application/json': components['schemas']['UpdateArgs'];
+				'application/json': components['schemas']['UpdateArgs'] | components['schemas']['NoArgs'];
 			};
 		};
 		responses: {

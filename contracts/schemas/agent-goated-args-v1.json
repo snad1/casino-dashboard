@@ -62,7 +62,7 @@
         "title": "Preset"
       }
     },
-    "title": "BacktestArgs",
+    "title": "GoatedBacktestArgs",
     "type": "object"
   },
   "benchmark": {
@@ -76,7 +76,7 @@
         "type": "integer"
       }
     },
-    "title": "BenchmarkArgs",
+    "title": "GoatedBenchmarkArgs",
     "type": "object"
   },
   "cleanup": {

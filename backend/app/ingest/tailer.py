@@ -145,8 +145,10 @@ class Tailer:
         archive_glob: str | None = ARCHIVE_GLOB,
         tg_uid: int | None = None,
         closed_ok: bool = False,
+        bet_columns: registry.BetColumns = registry.WOLFBET_BETS,
     ) -> None:
         self.db = db
+        self.bet_columns = bet_columns
         self.service = service
         self.data_dir = data_dir
         self.live_name = live_name
@@ -303,7 +305,7 @@ class Tailer:
 
     async def _copy_bets(self, source: Source) -> bool:
         rows, newest_id, newest_ts = await self._read(
-            source, lambda c: _read_bets(c, source.watermark)
+            source, lambda c: _read_bets(c, source.watermark, self.bet_columns)
         )
         if rows:
             records = [self._bet_record(source, row) for row in rows]
@@ -564,11 +566,12 @@ def _probe_epoch(connection: sqlite3.Connection, path: Path) -> tuple[int, str] 
 
 
 def _read_bets(
-    connection: sqlite3.Connection, after_id: int
+    connection: sqlite3.Connection, after_id: int, columns: registry.BetColumns
 ) -> tuple[list[tuple[Any, ...]], int | None, str | None]:
     rows = connection.execute(
-        "SELECT b.id, b.timestamp, b.session_id, coalesce(s.lane, 1), b.amount, b.multiplier,"
-        " b.rule, b.bet_value, b.result_value, b.state, b.profit, b.balance_after"
+        "SELECT b.id, b.timestamp, b.session_id, coalesce(s.lane, 1), b.amount,"  # noqa: S608  # nosec B608: registry constants, never request data
+        f" {columns.multiplier}, {columns.rule}, {columns.bet_value},"
+        " b.result_value, b.state, b.profit, b.balance_after"
         " FROM bets b LEFT JOIN sessions s ON s.id = b.session_id"
         " WHERE b.id > ? ORDER BY b.id LIMIT ?",
         (after_id, BATCH_SIZE),

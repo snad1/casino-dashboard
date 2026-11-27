@@ -17,18 +17,18 @@ from app.adapters.wolfbet.control import Args, Name, NoArgs
 NOT_OFFERED = frozenset({"pause", "resume", "reload"})
 
 
-class BenchmarkArgs(Args):
+class GoatedBenchmarkArgs(Args):
     count: int = Field(default=20, ge=3, le=200)
 
 
-class BacktestArgs(Args):
+class GoatedBacktestArgs(Args):
     simulate: int | None = Field(default=None, ge=1, le=5_000_000)
     replay_session: int | None = Field(default=None, ge=1)
     seed: int | None = Field(default=None, ge=0, le=2**32 - 1)
     preset: Name | None = None
 
     @model_validator(mode="after")
-    def _one_source(self) -> "BacktestArgs":
+    def _one_source(self) -> "GoatedBacktestArgs":
         if self.simulate is not None and self.replay_session is not None:
             raise ValueError("simulate and replay_session are exclusive")
         return self
@@ -38,11 +38,11 @@ def _goated(name: str, action: ControlAction) -> ControlAction:
     if name == "benchmark":
         return replace(
             action,
-            body=BenchmarkArgs,
+            body=GoatedBenchmarkArgs,
             effect="Times {count} calls. Each is a 0-amount bet, so no balance is risked.",
         )
     if name == "backtest":
-        return replace(action, body=BacktestArgs)
+        return replace(action, body=GoatedBacktestArgs)
     if name == "update":
         return replace(
             action,

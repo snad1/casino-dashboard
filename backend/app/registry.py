@@ -26,6 +26,22 @@ class BotFiles:
 
 
 @dataclass(frozen=True)
+class BetColumns:
+    """How the bot's `bets b` table gives the history columns that differ between bots.
+
+    Each is a fixed SQL expression over `b`, never request data; `NULL` where the bot keeps
+    no such value. The game is a session's, so no bet carries it.
+    """
+
+    multiplier: str
+    rule: str
+    bet_value: str
+
+
+WOLFBET_BETS = BetColumns("b.multiplier", "b.rule", "b.bet_value")
+
+
+@dataclass(frozen=True)
 class ServiceEntry:
     name: str
     label: str
@@ -33,6 +49,7 @@ class ServiceEntry:
     adapter: type[ServiceAdapter]
     controls: Mapping[str, ControlAction]
     files: BotFiles
+    bets: BetColumns = WOLFBET_BETS
 
 
 KNOWN: dict[str, ServiceEntry] = {
@@ -51,6 +68,7 @@ KNOWN: dict[str, ServiceEntry] = {
         GoatedAdapter,
         GOATED_ACTIONS,
         BotFiles(".goated_autobot.db", ".goated_autobot-*.db", ".goated_autobot.json"),
+        BetColumns("b.multiplier_target", "NULL", "NULL"),
     ),
 }
 
