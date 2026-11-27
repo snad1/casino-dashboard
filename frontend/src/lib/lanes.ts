@@ -102,6 +102,11 @@ export interface LaneAction {
 	danger?: boolean;
 }
 
+/** Whether a lane with this live status has a process to stop (else it can only be started). */
+export function isUp(status: LaneStatus | undefined): boolean {
+	return status === 'running' || status === 'paused' || status === 'events_off';
+}
+
 /** The buttons a lane card offers for its live status; every lane, lane 1 included, has its own. */
 export function laneActions(n: number, status: LaneStatus): LaneAction[] {
 	const pause: LaneAction = { name: 'pause', body: { target: n }, label: 'Pause' };
@@ -119,15 +124,14 @@ export function laneActions(n: number, status: LaneStatus): LaneAction[] {
 	};
 	const stop: LaneAction = { name: 'lane_stop', body: { lane: n }, label: 'Stop', danger: true };
 	const start: LaneAction = { name: 'lane_start', body: { lane: n }, label: 'Start' };
+	if (!isUp(status)) return [start];
 	switch (status) {
 		case 'running':
 			return [pause, restart, restartNow, stop];
 		case 'paused':
 			return [resume, restart, restartNow, stop];
-		case 'events_off':
-			return [pause, resume, stop];
 		default:
-			return [start];
+			return [pause, resume, stop];
 	}
 }
 

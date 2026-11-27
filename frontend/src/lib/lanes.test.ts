@@ -3,6 +3,7 @@ import type { ConfigOut } from './config';
 import {
 	configTab,
 	LANE_NAME_HELP,
+	isUp,
 	laneActions,
 	laneNameError,
 	lanePlan,
@@ -111,6 +112,16 @@ describe('parseArchives', () => {
 	it('is empty when there are none', () => {
 		const none = 'No archives found (~/.wolfbet_autobot-*.db).\nCreate one with: wolfctl reset';
 		expect(parseArchives(none)).toEqual({ rows: [], total: null });
+	});
+});
+
+describe('isUp', () => {
+	it('is true only while the lane has a process', () => {
+		for (const status of ['running', 'paused', 'events_off'] as const)
+			expect(isUp(status)).toBe(true);
+		for (const status of ['stopped', 'stale', 'down', undefined] as const) {
+			expect(isUp(status)).toBe(false);
+		}
 	});
 });
 

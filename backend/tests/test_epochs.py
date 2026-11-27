@@ -26,5 +26,13 @@ def test_a_start_on_a_bucket_edge_is_kept() -> None:
 
 
 def test_only_the_live_file_name_is_live() -> None:
-    assert is_live("/botdata/.wolfbet_autobot.db")
-    assert not is_live("/botdata/.wolfbet_autobot-20261121-192227.db")
+    assert is_live("wolfbet", "/botdata/.wolfbet_autobot.db")
+    assert not is_live("wolfbet", "/botdata/.wolfbet_autobot-20261121-192227.db")
+
+
+def test_each_service_is_live_on_its_own_file() -> None:
+    assert is_live("goated", "/botdata/.goated_autobot.db")
+    assert not is_live("goated", "/botdata/.goated_autobot-20261127-120000.db")
+    assert not is_live("goated", "/botdata/.wolfbet_autobot.db")
+    assert not is_live("wolfbet", "/botdata/.goated_autobot.db")
+    assert is_live("svc-unknown", "/botdata/.wolfbet_autobot.db"), "WolfBet's name by default"

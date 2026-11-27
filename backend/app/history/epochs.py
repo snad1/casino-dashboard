@@ -18,6 +18,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import registry
 from app.history.models import DbEpoch
 from app.ingest.tailer import LIVE_DB
 
@@ -46,8 +47,11 @@ def _bucket(moment: datetime, step: timedelta, *, up: bool) -> datetime:
     return datetime.fromtimestamp((whole + (1 if up and rest else 0)) * seconds, UTC)
 
 
-def is_live(source_path: str) -> bool:
-    return PurePosixPath(source_path).name == LIVE_DB
+def is_live(service: str, source_path: str) -> bool:
+    """Whether the epoch was read from the service's live file (WolfBet's name for a service
+    the registry does not know)."""
+    entry = registry.KNOWN.get(service)
+    return PurePosixPath(source_path).name == (entry.files.live_db if entry else LIVE_DB)
 
 
 async def epoch_view(db: AsyncSession, service: str, epoch: int | None = None) -> EpochView:
@@ -60,7 +64,7 @@ async def epoch_view(db: AsyncSession, service: str, epoch: int | None = None) -
         )
     ).all()
     if epoch is None:
-        if not rows or not is_live(rows[-1].source_path):
+        if not rows or not is_live(service, rows[-1].source_path):
             return EpochView(ids=[])
         index = len(rows) - 1
     else:
