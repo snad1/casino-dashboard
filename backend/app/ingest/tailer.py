@@ -120,6 +120,9 @@ class Source:
     watermark: int = 0
     max_session_id: int = 0
     open_sessions: set[int] = field(default_factory=set)
+    # False until one full session sync has run: only then is open_sessions complete, and the
+    # cheap rowid-only read is safe.
+    sessions_primed: bool = False
     last_session_sync: float = 0.0
 
 
@@ -351,7 +354,9 @@ class Tailer:
         while True:
             rows = await self._read(
                 source,
-                lambda c: _read_sessions(c, source.max_session_id, source.open_sessions),
+                lambda c: _read_sessions(
+                    c, source.max_session_id, source.open_sessions, primed=source.sessions_primed
+                ),
             )
             if rows:
                 await self._upsert_sessions(source, rows)
@@ -361,6 +366,7 @@ class Tailer:
                 }
             if len(rows) < BATCH_SIZE:
                 break
+        source.sessions_primed = True
         source.last_session_sync = time.monotonic()
 
     async def _upsert_sessions(self, source: Source, rows: list[dict[str, Any]]) -> None:
@@ -591,26 +597,61 @@ def _read_bets(
 
 NEWEST_PER_LANE = "SELECT max(id) FROM sessions GROUP BY lane"
 NEWEST = "SELECT max(id) FROM sessions"
+# The same test per row, by rowid range instead of a GROUP BY over every session.
+IS_NEWEST_PER_LANE = (
+    "NOT EXISTS (SELECT 1 FROM sessions s2 WHERE s2.lane IS s.lane AND s2.id > s.id)"
+)
+IS_NEWEST = "NOT EXISTS (SELECT 1 FROM sessions s2 WHERE s2.id > s.id)"
 
 
 def _read_sessions(
-    connection: sqlite3.Connection, after_id: int, still_open: set[int]
+    connection: sqlite3.Connection,
+    after_id: int,
+    still_open: set[int],
+    *,
+    primed: bool = False,
 ) -> list[dict[str, Any]]:
-    """Archives made before a column existed lack it; it reads as NULL."""
+    """New sessions plus every one that is or may still be open, each flagged `lane_newest`.
+
+    The bot stamps ended_at on every save while a session runs, so a set ended_at does not
+    mean final. A lane's session is final once a newer one starts on that lane, which the bot
+    does only after its last save; until then it is re-read on every sync.
+
+    The first read of a file (`primed` False) finds open and lane-newest sessions by scanning,
+    since nothing is known yet. After it, every such session either has an id above `after_id`
+    or is in `still_open`, so a primed read touches only those rows by rowid. The scan took
+    over a second on a 147k-session file, every 5 s; the primed read is a few rowid lookups.
+    Archives made before a column existed lack it; it reads as NULL.
+    """
     present = {row[1] for row in connection.execute("PRAGMA table_info(sessions)")}
     selected = ", ".join(c if c in present else f"NULL AS {c}" for c in SESSION_COLUMNS)
     if "lane" not in present:
         selected = selected.replace("NULL AS lane", "1 AS lane")
-    marks = ", ".join("?" * len(still_open))
-    reopen = f" OR id IN ({marks})" if still_open else ""
-    # The bot stamps ended_at on every save while a session runs, so a set ended_at does not
-    # mean final. A lane's session is final once a newer one starts on that lane, which the
-    # bot does only after its last save; until then it is re-read on every sync.
-    newest = NEWEST_PER_LANE if "lane" in present else NEWEST
-    cursor = connection.execute(
-        f"SELECT id, {selected}, id IN ({newest}) AS lane_newest FROM sessions"  # noqa: S608  # nosec B608: fixed column names
-        f" WHERE id > ? OR ended_at IS NULL OR id IN ({newest}){reopen} ORDER BY id LIMIT ?",
-        (after_id, *sorted(still_open), BATCH_SIZE),
-    )
+    if primed:
+        newest = IS_NEWEST_PER_LANE if "lane" in present else IS_NEWEST
+        marks = ", ".join("?" * len(still_open))
+        older = (
+            f" UNION ALL SELECT id, {selected}, {newest} AS lane_newest FROM sessions s"  # noqa: S608  # nosec B608: fixed column names
+            f" WHERE id IN ({marks}) AND id <= ?"
+            if still_open
+            else ""
+        )
+        params: tuple[Any, ...] = (
+            (after_id, *sorted(still_open), after_id) if still_open else (after_id,)
+        )
+        cursor = connection.execute(
+            f"SELECT * FROM (SELECT id, {selected}, {newest} AS lane_newest FROM sessions s"  # noqa: S608  # nosec B608: fixed column names
+            f" WHERE id > ?{older}) ORDER BY id LIMIT ?",
+            (*params, BATCH_SIZE),
+        )
+    else:
+        marks = ", ".join("?" * len(still_open))
+        reopen = f" OR id IN ({marks})" if still_open else ""
+        newest = NEWEST_PER_LANE if "lane" in present else NEWEST
+        cursor = connection.execute(
+            f"SELECT id, {selected}, id IN ({newest}) AS lane_newest FROM sessions"  # noqa: S608  # nosec B608: fixed column names
+            f" WHERE id > ? OR ended_at IS NULL OR id IN ({newest}){reopen} ORDER BY id LIMIT ?",
+            (after_id, *sorted(still_open), BATCH_SIZE),
+        )
     names = [d[0] for d in cursor.description]
     return [dict(zip(names, row, strict=True)) for row in cursor.fetchall()]
