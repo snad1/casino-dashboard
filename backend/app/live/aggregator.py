@@ -26,6 +26,7 @@ from typing import Any, Protocol
 import structlog
 
 from app.adapters.base import Event
+from app.adapters.goated.events import GoatedBetEvent, GoatedLifecycleEvent, GoatedStateEvent
 from app.adapters.wolfbet.events import BetEvent, LifecycleEvent, StateEvent
 from app.live.consumer import Gap
 
@@ -210,14 +211,14 @@ class Aggregator:
         lane.last_seen = now
         lane.last_event_ts_ms = item.ts_ms
         lane.agent_running = True
-        if isinstance(item, BetEvent):
+        if isinstance(item, BetEvent | GoatedBetEvent):
             self._bet(lane, item, now)
-        elif isinstance(item, StateEvent):
+        elif isinstance(item, StateEvent | GoatedStateEvent):
             self._state(lane, item.payload)
-        elif isinstance(item, LifecycleEvent):
+        elif isinstance(item, LifecycleEvent | GoatedLifecycleEvent):
             self._lifecycle(lane, item.payload.kind, item.payload.data, item.ts_ms)
 
-    def _bet(self, lane: Lane, event: BetEvent, now: float) -> None:
+    def _bet(self, lane: Lane, event: BetEvent | GoatedBetEvent, now: float) -> None:
         bet = event.payload
         if bet.session_id != lane.session_id:
             lane.new_session(bet.session_id)
@@ -244,7 +245,7 @@ class Aggregator:
         else:
             lane.candle.add(lane.profit, bet.balance_after)
         self._candles_new[(lane.lane, second)] = lane.candle
-        row = {
+        row: dict[str, Any] = {
             "lane": lane.lane,
             "seq": event.seq,
             "ts_ms": event.ts_ms,
@@ -255,6 +256,8 @@ class Aggregator:
             "profit": bet.profit,
             "balance": bet.balance_after,
         }
+        if isinstance(event, GoatedBetEvent) and event.payload.result_display:
+            row["display"] = event.payload.result_display
         self._tape.append(row)
         self._tape_new.append(row)
 

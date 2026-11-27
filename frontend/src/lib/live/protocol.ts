@@ -33,7 +33,10 @@ export type LaneStatus = 'running' | 'paused' | 'stopped' | 'stale' | 'down' | '
 export type Lanes = Record<number, LaneFields>;
 
 /** One lane's second: open, high, low and close of its session profit and its balance. */
-/** One bet as the live tape carries it. `seq` counts per daemon process and lane. */
+/**
+ * One bet as the live tape carries it. `seq` counts per daemon process and lane. `display` is
+ * the casino's own text for the result (`2.31x`), from bots that send one.
+ */
 export interface TapeRow {
 	lane: number;
 	seq: number;
@@ -41,6 +44,7 @@ export interface TapeRow {
 	amount: number;
 	multiplier: number;
 	result: number;
+	display?: string;
 	state: string;
 	profit: number;
 	balance: number;
@@ -215,7 +219,11 @@ const TAPE_NUMBERS = [
 function isTapeRow(value: unknown): value is TapeRow {
 	if (typeof value !== 'object' || value === null) return false;
 	const r = value as Record<string, unknown>;
-	return TAPE_NUMBERS.every((key) => typeof r[key] === 'number') && typeof r.state === 'string';
+	return (
+		TAPE_NUMBERS.every((key) => typeof r[key] === 'number') &&
+		typeof r.state === 'string' &&
+		(r.display === undefined || typeof r.display === 'string')
+	);
 }
 
 function tapeOf(value: unknown): TapeRow[] {

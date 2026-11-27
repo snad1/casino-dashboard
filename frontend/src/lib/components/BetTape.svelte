@@ -104,7 +104,9 @@
 						role="row"
 						tabindex="-1"
 						class="grid h-full grid-cols-[4.5rem_2rem_4.5rem_1fr_3.5rem_1fr] items-center gap-2 px-1 font-mono text-xs tabular-nums"
-						title="Roll {bet.result}, balance {formatAmount(bet.balance)}"
+						title="{bet.display
+							? `Result ${bet.display}`
+							: `Roll ${bet.result}`}, balance {formatAmount(bet.balance)}"
 					>
 						<span role="cell" class="text-muted">{clock(bet.ts_ms)}</span>
 						<span role="cell" class="text-muted">{bet.lane}</span>

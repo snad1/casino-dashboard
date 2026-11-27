@@ -10,6 +10,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 from app.adapters.base import ControlAction, ServiceAdapter
+from app.adapters.goated import GoatedAdapter
+from app.adapters.goated.control import ACTIONS as GOATED_ACTIONS
 from app.adapters.wolfbet import WolfBetAdapter
 from app.adapters.wolfbet.control import ACTIONS as WOLFBET_ACTIONS
 
@@ -41,6 +43,14 @@ KNOWN: dict[str, ServiceEntry] = {
         WolfBetAdapter,
         WOLFBET_ACTIONS,
         BotFiles(".wolfbet_autobot.db", ".wolfbet_autobot-*.db", ".wolfbet_autobot.json"),
+    ),
+    "goated": ServiceEntry(
+        "goated",
+        "Goated",
+        "goatedctl",
+        GoatedAdapter,
+        GOATED_ACTIONS,
+        BotFiles(".goated_autobot.db", ".goated_autobot-*.db", ".goated_autobot.json"),
     ),
 }
 

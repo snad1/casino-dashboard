@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from app.adapters.base import Event
+from app.adapters.goated.events import GoatedBetEvent, GoatedLifecycleEvent, GoatedStateEvent
 from app.adapters.wolfbet.events import BetEvent, LifecycleEvent, StateEvent
 from app.live.aggregator import STALE_AFTER_S, TAPE_SIZE, Aggregator, Tick, run_ticker
 from app.live.consumer import Gap
@@ -482,3 +483,68 @@ def test_the_lane_key_comes_from_the_state_and_the_stored_session() -> None:
     lanes, _ = aggregator.snapshot()
     assert lanes[5]["key_ref"] == "lakai"
     assert lanes[6]["key_ref"] == "default"
+
+
+def _goated(kind: str, payload: dict[str, Any], seq: int = 0) -> dict[str, Any]:
+    return {**_envelope(kind, 2, seq, 1_000_000), "svc": "goated", "payload": payload}
+
+
+def goated_bet(seq: int = 0, *, game: str = "limbo", display: str = "2.31x") -> GoatedBetEvent:
+    payload = {
+        "session_id": 9,
+        "game": game,
+        "amount": 0.001,
+        "multiplier_target": 2.5,
+        "result_value": 2.31,
+        "result_display": display,
+        "state": "loss",
+        "profit": -0.001,
+        "balance_after": 12.0,
+        "session_profit": -0.001,
+        "total_bets": 1,
+        "current_streak": -1,
+        "api_ms": 30.0,
+    }
+    return GoatedBetEvent.model_validate(_goated("bet", payload, seq))
+
+
+class TestGoated:
+    def test_a_goated_bet_updates_its_lane_and_the_tape(self) -> None:
+        aggregator = Aggregator("goated", clock=Clock())
+        aggregator.apply(GoatedStateEvent.model_validate(_goated("state", {"currency": "usdt"})))
+        aggregator.apply(goated_bet(seq=1))
+        tick = aggregator.tick()
+        assert tick.tape_new == [
+            {
+                "lane": 2,
+                "seq": 1,
+                "ts_ms": 1_000_000,
+                "amount": 0.001,
+                "multiplier": 2.5,
+                "result": 2.31,
+                "state": "loss",
+                "profit": -0.001,
+                "balance": 12.0,
+                "display": "2.31x",
+            }
+        ]
+        lane = tick.snapshot_diff[2]
+        assert (lane["total_bets"], lane["losses"], lane["balance"]) == (1, 1, 12.0)
+
+    def test_a_dice_bet_without_result_text_has_no_display(self) -> None:
+        aggregator = Aggregator("goated", clock=Clock())
+        aggregator.apply(goated_bet(game="dice", display=""))
+        assert "display" not in aggregator.tick().tape_new[0]
+
+    def test_a_goated_stop_is_read(self) -> None:
+        aggregator = Aggregator("goated", clock=Clock())
+        aggregator.apply(goated_bet(seq=1))
+        stop = {"kind": "stop", "data": {"reason": "Profit target reached"}}
+        aggregator.apply(GoatedLifecycleEvent.model_validate(_goated("lifecycle", stop, 2)))
+        lane = aggregator.lanes[2]
+        assert (lane.stopped, lane.stop_reason) == (True, "Profit target reached")
+
+    def test_wolfbet_rows_never_carry_display(self) -> None:
+        aggregator = Aggregator("wolfbet", clock=Clock())
+        aggregator.apply(bet())
+        assert "display" not in aggregator.tick().tape_new[0]
