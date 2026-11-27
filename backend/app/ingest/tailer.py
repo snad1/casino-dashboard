@@ -580,8 +580,11 @@ def _probe_epoch(connection: sqlite3.Connection, path: Path) -> tuple[int, str] 
 def _read_bets(
     connection: sqlite3.Connection, after_id: int, columns: registry.BetColumns
 ) -> tuple[list[tuple[Any, ...]], int | None, str | None]:
+    # A database the bot has not opened since lanes came has no sessions.lane: lane 1.
+    present = {row[1] for row in connection.execute("PRAGMA table_info(sessions)")}
+    lane = "coalesce(s.lane, 1)" if "lane" in present else "1"
     rows = connection.execute(
-        "SELECT b.id, b.timestamp, b.session_id, coalesce(s.lane, 1), b.amount,"  # noqa: S608  # nosec B608: registry constants, never request data
+        f"SELECT b.id, b.timestamp, b.session_id, {lane}, b.amount,"  # noqa: S608  # nosec B608: fixed column names and registry constants, never request data
         f" {columns.multiplier}, {columns.rule}, {columns.bet_value},"
         " b.result_value, b.state, b.profit, b.balance_after"
         " FROM bets b LEFT JOIN sessions s ON s.id = b.session_id"
