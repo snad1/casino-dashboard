@@ -185,9 +185,7 @@ def test_api_reaches_the_agent_only_through_its_group_and_a_read_only_mount(
 ) -> None:
     api = _service(compose, "api")
     assert api["group_add"] == ["${AGENT_GID:?set AGENT_GID in deploy/.env}"]
-    assert (
-        api["volumes"][0] == "${AGENT_RUNTIME_DIR:-/run/user/0/casino-agent}:/run/casino-agent:ro"
-    )
+    assert api["volumes"][0] == "${AGENT_RUNTIME_DIR:-/run/casino-agent}:/run/casino-agent:ro"
     assert api["environment"]["AGENT_SOCKET"] == "/run/casino-agent/agent.sock"
     others = [name for name in SERVICES if name != "api"]
     assert not any("agent_token" in _secrets(_service(compose, name)) for name in others)

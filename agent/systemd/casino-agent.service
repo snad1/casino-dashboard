@@ -1,17 +1,16 @@
-# Installed by agent/install.sh, which fills in @AGENT_DIR@.
+# Installed by agent/install.sh as a system unit; it fills in @AGENT_DIR@, @CONF_DIR@ and @HOME@.
+# A system unit, not --user: the socket lives in /run/casino-agent, which the api bind-mounts.
+# install.sh removes any older --user copy, which would crash-loop against this one.
 [Unit]
 Description=Casino dashboard host agent (allowlisted commands for the dashboard api)
-After=default.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 WorkingDirectory=@AGENT_DIR@
-# "+" runs this step outside the sandbox: in a user unit the sandbox maps only the user's own
-# ids, so the agent itself cannot give its socket to the casino-agent group. The setgid
-# directory does it instead: the socket created in it gets the directory's group.
-ExecStartPre=+/bin/sh -c 'chgrp casino-agent "%t/casino-agent" && chmod 2750 "%t/casino-agent"'
 ExecStart=@AGENT_DIR@/.venv/bin/python -m agent serve
-EnvironmentFile=%h/.config/casino-agent/agent.env
+EnvironmentFile=@CONF_DIR@/agent.env
 Restart=on-failure
 RestartSec=5
 
@@ -20,6 +19,8 @@ Nice=10
 IOSchedulingClass=idle
 CPUWeight=20
 
+# /run/casino-agent. The agent runs as root, so it gives the socket and this directory to
+# the casino-agent group itself; no ExecStartPre is needed.
 RuntimeDirectory=casino-agent
 RuntimeDirectoryMode=0750
 # Kept across restarts: the api bind-mounts this directory, and a recreated one leaves that
@@ -29,9 +30,9 @@ StateDirectory=casino-agent
 UMask=0007
 ProtectSystem=strict
 # wolfctl and wolfbet.py write the bots' config, state and DB under HOME.
-ReadWritePaths=%S/casino-agent %h
+ReadWritePaths=/var/lib/casino-agent @HOME@
 NoNewPrivileges=yes
 PrivateTmp=yes
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target

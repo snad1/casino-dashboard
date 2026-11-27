@@ -84,6 +84,7 @@ def metrics(host: Host, clock: Clock) -> Metrics:
         docker=host.docker,
         clock=clock,
         disk=lambda: (1000, 250),
+        uid=0,
     )
 
 
@@ -116,6 +117,17 @@ def test_bot_units_are_found_next_to_the_agent(host: Host, clock: Clock, metrics
         {"unit": "wolfbet", "cpu_pct": 25.0, "rss_bytes": 10_000},
         {"unit": "wolfbet-lane@2", "cpu_pct": 100.0, "rss_bytes": 20_000},
     ]
+
+
+def test_a_system_unit_agent_still_finds_the_user_managers_bot_units(
+    host: Host, clock: Clock, metrics: Metrics
+) -> None:
+    (host.proc / "self" / "cgroup").write_text("0::/system.slice/casino-agent.service\n")
+    (host.cgroup / "system.slice").mkdir(parents=True, exist_ok=True)
+    host.unit("wolfbet.service", usage_usec=0, anon=10_000)
+    host.unit("app-wolfbet\\x2dlane.slice/wolfbet-lane@3.service", usage_usec=0, anon=30_000)
+    names = [unit["unit"] for unit in metrics.sample()["units"]]
+    assert names == ["wolfbet", "wolfbet-lane@3"]
 
 
 def test_only_this_projects_redis_and_timescale_are_reported(
