@@ -249,7 +249,7 @@ def test_env_block_and_config(rig: dict[str, Any]) -> None:
         "BOT_DATA_DIR=/root",
         "HOST_TZ=Europe/Berlin",
         "AGENT_GID=998",
-        "AGENT_RUNTIME_DIR=/run/user/0/casino-agent",
+        "AGENT_RUNTIME_DIR=/run/casino-agent",
         f"SECRETS_DIR={_secrets(rig)}",
         "CADDY_ADDRESS=:80",
     ):

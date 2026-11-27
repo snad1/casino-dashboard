@@ -123,7 +123,7 @@ services:
     group_add:
       - ${AGENT_GID:?set AGENT_GID in deploy/.env}
     volumes:
-      - ${AGENT_RUNTIME_DIR:-/run/user/0/casino-agent}:/run/casino-agent:ro
+      - ${AGENT_RUNTIME_DIR:-/run/casino-agent}:/run/casino-agent:ro
       # The GitHub webhook secret; without the file the hook is off.
       - ${SECRETS_DIR:-./secrets}/hooks:/run/hooks:ro
     depends_on:

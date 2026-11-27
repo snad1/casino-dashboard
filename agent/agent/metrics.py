@@ -4,9 +4,10 @@ Everything comes from files: no command runs and the Docker socket is never touc
 (CPU %, network bytes/s) are deltas against the previous sample, and a sample is reused for
 `CACHE_S`, so any number of callers costs one read per second.
 
-The bot's units are found next to the agent's own unit in the cgroup tree, so the same code
-works wherever systemd places the user manager. Containers are named from Docker's own
-`config.v2.json` labels, and only the dashboard project's Redis and Timescale are reported.
+The bot's units are found next to the agent's own unit in the cgroup tree and in the user
+manager's app.slice: the agent runs as a system unit while the bots are --user units.
+Containers are named from Docker's own `config.v2.json` labels, and only the dashboard
+project's Redis and Timescale are reported.
 """
 
 import json
@@ -72,6 +73,7 @@ class Metrics:
         docker: Path = Path("/var/lib/docker/containers"),
         clock: Callable[[], float] = time.monotonic,
         disk: Callable[[], tuple[int, int]] | None = None,
+        uid: int | None = None,
     ) -> None:
         self.project = project
         self.units = units
@@ -80,6 +82,7 @@ class Metrics:
         self.docker = docker
         self.clock = clock
         self.disk = disk or _root_disk
+        self.uid = os.getuid() if uid is None else uid
         self._previous: _Raw | None = None
         self._cached: tuple[float, dict[str, Any]] | None = None
         self._names: dict[str, str | None] = {}
@@ -191,16 +194,32 @@ class Metrics:
                 return self.cgroup / line[3:].strip().lstrip("/") / ".."
         return None
 
+    def _unit_parents(self) -> list[Path]:
+        """The agent's own cgroup parent, then the user manager's app.slice for its uid."""
+        own = self._own_cgroup_parent()
+        user_apps = (
+            self.cgroup
+            / "user.slice"
+            / f"user-{self.uid}.slice"
+            / f"user@{self.uid}.service"
+            / "app.slice"
+        )
+        parents: list[Path] = []
+        for parent in (own, user_apps):
+            if parent is not None and parent.resolve() not in parents:
+                parents.append(parent.resolve())
+        return parents
+
     def _unit_dirs(self) -> Iterator[tuple[str, Path]]:
-        parent = self._own_cgroup_parent()
-        if parent is None:
-            return
-        parent = parent.resolve()
-        for prefix in self.units:
-            for pattern in (f"{prefix}.service", f"{prefix}-lane@*.service"):
-                for directory in [*parent.glob(pattern), *parent.glob(f"*.slice/{pattern}")]:
-                    if directory.is_dir():
-                        yield directory.name.removesuffix(".service"), directory
+        seen: set[str] = set()
+        for parent in self._unit_parents():
+            for prefix in self.units:
+                for pattern in (f"{prefix}.service", f"{prefix}-lane@*.service"):
+                    for directory in [*parent.glob(pattern), *parent.glob(f"*.slice/{pattern}")]:
+                        name = directory.name.removesuffix(".service")
+                        if directory.is_dir() and name not in seen:
+                            seen.add(name)
+                            yield name, directory
 
     def _container_dirs(self, now: float) -> dict[str, Path]:
         candidates: dict[str, Path] = {}

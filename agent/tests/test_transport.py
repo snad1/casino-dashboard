@@ -150,14 +150,20 @@ async def test_without_setgid_the_socket_and_its_directory_are_given_the_group(
     assert calls == [(str(sock_dir / "agent.sock"), -1, gid), (str(sock_dir), -1, gid)]
 
 
-def test_the_unit_gives_the_runtime_directory_to_the_group_outside_the_sandbox() -> None:
+def test_the_unit_is_a_sandboxed_system_unit_that_keeps_the_mounted_runtime_dir() -> None:
     unit = (Path(__file__).resolve().parents[1] / "systemd" / "casino-agent.service").read_text()
-    assert (
-        'ExecStartPre=+/bin/sh -c \'chgrp casino-agent "%t/casino-agent" '
-        '&& chmod 2750 "%t/casino-agent"\''
-    ) in unit
-    for line in ("ProtectSystem=strict", "PrivateTmp=yes", "NoNewPrivileges=yes"):
-        assert line in unit.splitlines()
+    lines = unit.splitlines()
+    for line in (
+        "WantedBy=multi-user.target",
+        "RuntimeDirectory=casino-agent",
+        "RuntimeDirectoryPreserve=yes",
+        "ProtectSystem=strict",
+        "PrivateTmp=yes",
+        "NoNewPrivileges=yes",
+    ):
+        assert line in lines, line
+    # %t and %h are the user manager's; a system unit must not lean on them.
+    assert "%t" not in unit and "%h" not in unit and "default.target" not in unit
 
 
 # ── refused traffic ──
