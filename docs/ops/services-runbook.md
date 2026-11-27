@@ -60,11 +60,11 @@ After step 5 has deployed, set the bot's events URL, again without printing the 
 
 ```sh
 <ctl> config-set events_enabled=true \
-  "events_url=redis://<svc>-pub:$(cat /opt/wolfbet/secrets/publishers/<svc>.txt)@127.0.0.1:9479"
+  "events_url=redis://<svc>-pub:$(python3 -c 'import urllib.parse; print(urllib.parse.quote(open("/opt/wolfbet/secrets/publishers/<svc>.txt").read().strip(), safe=""))')@127.0.0.1:9479"
 <ctl> status                             # Events: on, connected yes
 ```
 
-`events_url` is a live setting: the running lanes pick it up without a restart. It is stored in the bot's config file (mode 0600). The password is on that one command line for a moment, visible to `ps` on the host; the VPS has no other users.
+The password is percent-encoded: a base64 password can hold `/`, `+` or `=`, which would break the URL (the bot refuses it and saves nothing). `events_url` is a live setting: the running lanes pick it up without a restart. It is stored in the bot's config file (mode 0600). The password is on that one command line for a moment, visible to `ps` on the host; the VPS has no other users.
 
 ### 4. The agent drives the bot (needs a multi-service agent with a module for this bot)
 

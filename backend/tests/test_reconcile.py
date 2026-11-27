@@ -202,3 +202,25 @@ def test_purge_days_come_from_the_services_own_config(tmp_path: Path) -> None:
     (tmp_path / ".demo_autobot.json").write_text(json.dumps({"purge_days": 9, "api_key": "x" * 40}))
     assert read_purge_days(tmp_path, ".demo_autobot.json") == 9
     assert read_purge_days(tmp_path) == 3
+
+
+async def test_a_stopped_bots_closed_database_is_still_reconciled(
+    wolfbet: ModuleType, tmp_path: Path, pg: asyncpg.Connection, service: str
+) -> None:
+    data = tmp_path / "botdata"
+    data.mkdir()
+    bot = BotDb(wolfbet, data / LIVE_DB)
+    bot.bets(bot.session(), 5, T0)
+    bot.close()
+    data.chmod(0o555)
+    try:
+        tailer = Tailer(pg, service, data, "UTC", closed_ok=True)
+        await tailer.prepare()
+        for _ in range(100):
+            if not await tailer.step():
+                break
+        row = await Reconciler(pg, service, data, "UTC").run_once()
+    finally:
+        data.chmod(0o755)
+    assert row is not None
+    assert (row["sessions_checked"], row["mismatched"]) == (1, 0)

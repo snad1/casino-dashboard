@@ -103,7 +103,8 @@ class Reconciler:
         self.data_dir = data_dir
         self.zone = ZoneInfo(host_tz)
         self.config_name = config_name
-        self.source = Source(data_dir / live_name, archived=False)
+        # A stopped bot's closed file is read immutably, guarded as the tailer reads it.
+        self.source = Source(data_dir / live_name, archived=False, closed_ok=True)
         self.max_read_seconds = 0.0
 
     async def run_once(self) -> dict[str, Any] | None:

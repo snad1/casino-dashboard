@@ -26,13 +26,13 @@ CREATE TABLE bets (
 """
 
 
-def _goated_db(path: Path) -> None:
+def _goated_db(path: Path, lanes: bool = True) -> None:
     conn = sqlite3.connect(path)
-    conn.executescript(_GOATED_SCHEMA)
-    conn.execute(
-        "INSERT INTO sessions (started_at, currency, game, strategy, total_bets, lane)"
-        " VALUES ('2026-01-05T10:00:00', 'usdt', 'limbo', 'Flat Bet', 2, 2)"
-    )
+    schema = _GOATED_SCHEMA if lanes else _GOATED_SCHEMA.replace(", lane INTEGER DEFAULT 1", "")
+    conn.executescript(schema)
+    columns = "started_at, currency, game, strategy, total_bets" + (", lane" if lanes else "")
+    values = "'2026-01-05T10:00:00', 'usdt', 'limbo', 'Flat Bet', 2" + (", 2" if lanes else "")
+    conn.execute(f"INSERT INTO sessions ({columns}) VALUES ({values})")  # noqa: S608  # nosec B608: test-only fixed text
     conn.executemany(
         "INSERT INTO bets (session_id, timestamp, game, amount, multiplier_target, result_value,"
         " result_display, state, profit, balance_after) VALUES (1, ?, 'limbo', 0.01, 2.5, ?, ?,"
@@ -82,3 +82,25 @@ def test_wolfbet_keeps_its_own_bet_columns() -> None:
     assert registry.KNOWN["goated"].bets == registry.BetColumns(
         "b.multiplier_target", "NULL", "NULL"
     )
+
+
+async def test_a_database_from_before_lanes_reads_as_lane_one(
+    tmp_path: Path, pg: asyncpg.Connection, service: str
+) -> None:
+    entry = registry.KNOWN["goated"]
+    _goated_db(tmp_path / entry.files.live_db, lanes=False)
+    tailer = Tailer(
+        pg,
+        service,
+        tmp_path,
+        "UTC",
+        live_name=entry.files.live_db,
+        archive_glob=entry.files.archive_glob,
+        bet_columns=entry.bets,
+    )
+    await tailer.prepare()
+    for _ in range(100):
+        if not await tailer.step():
+            break
+    lanes = await pg.fetch("SELECT lane FROM bets WHERE service = $1", service)
+    assert [row["lane"] for row in lanes] == [1, 1]
