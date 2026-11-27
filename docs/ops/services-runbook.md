@@ -129,11 +129,11 @@ Tick a cell when the step is done on the VPS.
 
 | Step | goated | CryptoGames | DuckDice | Shuffle | Stake |
 |---|---|---|---|---|---|
-| 1 Bot up to date | | | | | |
-| 2 Keys in the vault | | | | | |
-| 3 Events | | | | | |
-| 4 Agent | | | | | |
-| 5 Dashboard | | | | | |
-| 6 Updates | | | | | |
-| 7 Check | | | | | |
+| 1 Bot up to date | 2026-11-27 | | | | |
+| 2 Keys in the vault | 2026-11-27 | | | | |
+| 3 Events | 2026-11-27 | | | | |
+| 4 Agent | 2026-11-27 | | | | |
+| 5 Dashboard | 2026-11-27 | | | | |
+| 6 Updates | 2026-11-27 | | | | |
+| 7 Check | open: goated cannot connect yet | | | | |
 | 8 Stake extras | n/a | n/a | n/a | n/a | |
