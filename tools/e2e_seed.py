@@ -25,6 +25,7 @@ from app.auth.passwords import hash_password
 from app.db.engine import create_engine, create_sessionmaker
 from app.db.models import Service
 from app.history.models import Bet, DbEpoch, HistorySession
+from app.ingest.tailer import LIVE_DB
 from app.settings import DEFAULT_SECRETS_DIR, DatabaseSettings
 
 SERVICE = "wolfbet"
@@ -116,7 +117,7 @@ async def seed(email: str, password: str, extra_viewers: int = 0) -> None:
                 return
             first = now - timedelta(hours=SESSIONS)
             epoch = DbEpoch(
-                service=SERVICE, source_path="/botdata/e2e.db", inode=1, first_started_at=first
+                service=SERVICE, source_path=f"/botdata/{LIVE_DB}", inode=1, first_started_at=first
             )
             db.add(epoch)
             await db.flush()
