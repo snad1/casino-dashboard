@@ -28,6 +28,7 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -110,7 +111,12 @@ class Lag:
 
 @dataclass
 class Source:
-    """One database file and how far it has been copied."""
+    """One database file and how far it has been copied.
+
+    `open_sessions` holds every session id at or below `max_session_id` that may still change.
+    `sessions_primed` is set once a full session sync has confirmed that set, after which
+    session reads are rowid lookups.
+    """
 
     path: Path
     archived: bool
@@ -120,8 +126,6 @@ class Source:
     watermark: int = 0
     max_session_id: int = 0
     open_sessions: set[int] = field(default_factory=set)
-    # False until one full session sync has run: only then is open_sessions complete, and the
-    # cheap rowid-only read is safe.
     sessions_primed: bool = False
     last_session_sync: float = 0.0
 
@@ -304,7 +308,28 @@ class Tailer:
             source.epoch_id,
             source.watermark,
         )
+        await self._resume_sessions(source)
         return source
+
+    async def _resume_sessions(self, source: Source) -> None:
+        """Continue the session copy where Timescale left it instead of from id 0.
+
+        Sessions that Timescale still holds as unfinished (no ended_at, or newest on their
+        lane) are re-read, so totals the bot wrote while ingest was down are not lost.
+        """
+        source.max_session_id = await self.db.fetchval(
+            "SELECT coalesce(max(src_id), 0) FROM sessions WHERE service = $1 AND epoch_id = $2",
+            self.service,
+            source.epoch_id,
+        )
+        rows = await self.db.fetch(
+            "SELECT src_id FROM sessions WHERE service = $1 AND epoch_id = $2 AND (ended_at IS NULL"
+            " OR src_id IN (SELECT max(src_id) FROM sessions"
+            " WHERE service = $1 AND epoch_id = $2 GROUP BY lane))",
+            self.service,
+            source.epoch_id,
+        )
+        source.open_sessions = {row["src_id"] for row in rows}
 
     async def _copy_bets(self, source: Source) -> bool:
         rows, newest_id, newest_ts = await self._read(
@@ -350,14 +375,21 @@ class Tailer:
         )
 
     async def _sync_sessions(self, source: Source) -> None:
-        """Upsert new sessions plus every session that was or is still open."""
+        """Upsert new sessions plus every session that was or is still open.
+
+        A copy starting at id 0 is primed from the first read: no session can be older than
+        the watermark yet, so the scan for open ones has nothing to find.
+        """
+        if source.max_session_id == 0:
+            source.sessions_primed = True
         while True:
-            rows = await self._read(
-                source,
-                lambda c: _read_sessions(
-                    c, source.max_session_id, source.open_sessions, primed=source.sessions_primed
-                ),
+            read = partial(
+                _read_sessions,
+                after_id=source.max_session_id,
+                still_open=source.open_sessions,
+                primed=source.sessions_primed,
             )
+            rows = await self._read(source, read)
             if rows:
                 await self._upsert_sessions(source, rows)
                 source.max_session_id = max(source.max_session_id, max(r["id"] for r in rows))
@@ -565,11 +597,11 @@ def read_once[T](source: Source, query: Callable[[sqlite3.Connection], T]) -> tu
 
 
 def _probe_epoch(connection: sqlite3.Connection, path: Path) -> tuple[int, str] | None:
-    # The first session by id, not min(started_at): that column has no index, so min() scanned
-    # every session on each poll (0.25 s on a 147k-session file, several times a second, which
-    # kept a reader open and let the WAL grow without a checkpoint). The rowid lookup is O(1),
-    # matches min(started_at) on every file so far, and cannot move when a later row carries an
-    # earlier clock.
+    """The file's epoch: its inode and the first session's start, or None while it has none.
+
+    The first session is found by rowid, not min(started_at), which has no index and ran on
+    every poll; the rowid row also cannot move when a later session carries an earlier clock.
+    """
     row = connection.execute("SELECT started_at FROM sessions ORDER BY id LIMIT 1").fetchone()
     first = row[0] if row else None
     if not first:
@@ -616,15 +648,15 @@ def _read_sessions(
 ) -> list[dict[str, Any]]:
     """New sessions plus every one that is or may still be open, each flagged `lane_newest`.
 
-    The bot stamps ended_at on every save while a session runs, so a set ended_at does not
-    mean final. A lane's session is final once a newer one starts on that lane, which the bot
-    does only after its last save; until then it is re-read on every sync.
+    A set ended_at does not mean final: the bot stamps it on every save. A lane's session is
+    final once a newer one starts on that lane. Unprimed, open sessions are found by scanning;
+    primed, `still_open` already lists them, so only rowid lookups run. Columns an older
+    archive lacks read as NULL.
 
-    The first read of a file (`primed` False) finds open and lane-newest sessions by scanning,
-    since nothing is known yet. After it, every such session either has an id above `after_id`
-    or is in `still_open`, so a primed read touches only those rows by rowid. The scan took
-    over a second on a 147k-session file, every 5 s; the primed read is a few rowid lookups.
-    Archives made before a column existed lack it; it reads as NULL.
+    Args:
+        after_id: highest session id already copied.
+        still_open: copied ids that may still change.
+        primed: True once `still_open` is known to be complete.
     """
     present = {row[1] for row in connection.execute("PRAGMA table_info(sessions)")}
     selected = ", ".join(c if c in present else f"NULL AS {c}" for c in SESSION_COLUMNS)
