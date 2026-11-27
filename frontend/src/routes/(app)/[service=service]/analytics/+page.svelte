@@ -286,7 +286,7 @@
 					{/if}
 					<dt class="text-muted">Time span</dt>
 					<dd class="font-mono">{formatDuration(report.span.span_sec)}</dd>
-					<dt class="text-muted">Bet time</dt>
+					<dt class="text-muted">Bet time, all lanes</dt>
 					<dd class="font-mono">{formatDuration(report.span.bet_sec)}</dd>
 					<dt class="text-muted">Total sessions</dt>
 					<dd class="font-mono tabular-nums">{formatCount(life.sessions_total)}</dd>

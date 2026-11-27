@@ -98,6 +98,7 @@ test('the report shows formatted like the bot and Apply filters by URL', async (
 	await expect(overall.getByText('-0.0002')).toBeVisible();
 	await expect(overall.getByText('+0.00012345')).toBeVisible();
 	await expect(overall.getByText('1d 2h 0m 0s')).toBeVisible();
+	await expect(overall.getByText('Bet time, all lanes')).toBeVisible();
 	await expect(overall.getByText('2026-11-02 10:00:00 to 2026-11-03 12:00:00')).toBeVisible();
 	await expect(overall.getByText('W+11 L-12')).toBeVisible();
 	await expect(overall.getByText('Max 17 Avg 4')).toBeVisible();
