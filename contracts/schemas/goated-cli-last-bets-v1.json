@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "goated-cli-last-bets-v1.json",
+  "title": "goated.py --last-bets N --json",
+  "description": "The newest N bets across all sessions, newest first, each with its game and the casino's result text.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/ok"
+    },
+    {
+      "$ref": "#/$defs/error"
+    }
+  ],
+  "$defs": {
+    "ok": {
+      "type": "object",
+      "required": [
+        "v",
+        "bets"
+      ],
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "bets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "session_id",
+              "timestamp",
+              "game",
+              "amount",
+              "result_value",
+              "result_display",
+              "state",
+              "profit",
+              "balance_after"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "session_id": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "timestamp": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "game": {
+                "type": "string"
+              },
+              "amount": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "result_value": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "result_display": {
+                "type": "string",
+                "description": "The casino's own result text, e.g. 2.00x on limbo; empty when it sent none."
+              },
+              "state": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "profit": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "balance_after": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "object",
+      "required": [
+        "v",
+        "error"
+      ],
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "error": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "enum": [
+                "no_database"
+              ]
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1790,6 +1790,101 @@
         "title": "GameRow",
         "type": "object"
       },
+      "GoatedBacktestArgs": {
+        "additionalProperties": false,
+        "properties": {
+          "preset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preset"
+          },
+          "replay_session": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replay Session"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "maximum": 4294967295.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "simulate": {
+            "anyOf": [
+              {
+                "maximum": 5000000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simulate"
+          }
+        },
+        "title": "GoatedBacktestArgs",
+        "type": "object"
+      },
+      "GoatedBenchmarkArgs": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "default": 20,
+            "maximum": 200.0,
+            "minimum": 3.0,
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "title": "GoatedBenchmarkArgs",
+        "type": "object"
+      },
+      "GoatedExportArgs": {
+        "additionalProperties": false,
+        "description": "goated writes one session per file, its format from the file's extension.",
+        "properties": {
+          "format": {
+            "default": "csv",
+            "enum": [
+              "csv",
+              "json"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "session_id": {
+            "minimum": 1.0,
+            "title": "Session Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "GoatedExportArgs",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -7451,7 +7546,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/BacktestArgs"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/BacktestArgs"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GoatedBacktestArgs"
+                  }
+                ],
+                "title": "Body"
               }
             }
           },
@@ -7524,7 +7627,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/BenchmarkArgs"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/BenchmarkArgs"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GoatedBenchmarkArgs"
+                  }
+                ],
+                "title": "Body"
               }
             }
           },
@@ -7962,7 +8073,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ExportArgs"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ExportArgs"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GoatedExportArgs"
+                  }
+                ],
+                "title": "Body"
               }
             }
           },
@@ -9933,7 +10052,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateArgs"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/UpdateArgs"
+                  },
+                  {
+                    "$ref": "#/components/schemas/NoArgs"
+                  }
+                ],
+                "title": "Body"
               }
             }
           },

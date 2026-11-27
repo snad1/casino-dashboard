@@ -8,9 +8,12 @@ import json
 import os
 from pathlib import Path
 
+from agent.services import goated
 from agent.services.wolfbet import COMMANDS, ConfigArgs
 
-CONTRACT = Path(__file__).resolve().parents[2] / "contracts/schemas/agent-wolfbet-args-v1.json"
+SCHEMAS = Path(__file__).resolve().parents[2] / "contracts/schemas"
+CONTRACT = SCHEMAS / "agent-wolfbet-args-v1.json"
+GOATED_CONTRACT = SCHEMAS / "agent-goated-args-v1.json"
 CONTROL_COMMANDS = (
     "start",
     "stop",
@@ -56,4 +59,16 @@ def test_control_argument_schemas_match_the_contract() -> None:
     assert CONTRACT.exists(), "the args contract is missing; run this test with CONTRACT_WRITE=1"
     assert CONTRACT.read_text() == document, (
         "the args contract is stale; rerun with CONTRACT_WRITE=1"
+    )
+
+
+def test_goateds_control_argument_schemas_match_its_contract() -> None:
+    names = [name for name in CONTROL_COMMANDS if name in goated.COMMANDS]
+    schemas = {name: goated.COMMANDS[name].args.model_json_schema() for name in names}
+    schemas["config_set"] = ConfigArgs.model_json_schema()
+    document = json.dumps(schemas, indent=2, sort_keys=True) + "\n"
+    if os.environ.get("CONTRACT_WRITE") == "1":
+        GOATED_CONTRACT.write_text(document)
+    assert GOATED_CONTRACT.read_text() == document, (
+        "the goated args contract is stale; rerun with CONTRACT_WRITE=1"
     )

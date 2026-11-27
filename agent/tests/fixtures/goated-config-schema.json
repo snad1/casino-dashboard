@@ -1,0 +1,540 @@
+{
+    "v": 1,
+    "keys": [
+        {
+            "key": "base_bet",
+            "off_allowed": false,
+            "type": "number",
+            "min": 0.0,
+            "aliases": [
+                "basebet"
+            ],
+            "default": 0.0,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Base bet amount"
+        },
+        {
+            "key": "basebet_pct",
+            "off_allowed": true,
+            "type": "number",
+            "aliases": [
+                "bbpct"
+            ],
+            "default": 0.0,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Base bet as fraction of balance (0 = off)"
+        },
+        {
+            "key": "bet_delay",
+            "off_allowed": false,
+            "type": "number",
+            "aliases": [
+                "delay"
+            ],
+            "default": 0,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Seconds between bets (0 = full speed)"
+        },
+        {
+            "key": "currency",
+            "off_allowed": false,
+            "type": "string",
+            "choices": [
+                "btc",
+                "eth",
+                "ltc",
+                "doge",
+                "trx",
+                "bch",
+                "xrp",
+                "usdt",
+                "bnb",
+                "ada",
+                "matic",
+                "shib"
+            ],
+            "aliases": [],
+            "default": "usdt",
+            "live_reload": false,
+            "lane_overridable": true,
+            "restart": "lane",
+            "help": "Betting currency"
+        },
+        {
+            "key": "db_write_mode",
+            "off_allowed": false,
+            "type": "string",
+            "choices": [
+                "async",
+                "sync"
+            ],
+            "aliases": [
+                "dbmode",
+                "dbwritemode"
+            ],
+            "default": "async",
+            "live_reload": true,
+            "lane_overridable": false,
+            "restart": "live",
+            "help": "Bet DB writer: async (default, batched) or sync (per-bet commit)"
+        },
+        {
+            "key": "dice_condition",
+            "off_allowed": false,
+            "type": "string",
+            "choices": [
+                "above",
+                "below"
+            ],
+            "aliases": [
+                "condition"
+            ],
+            "default": "above",
+            "live_reload": false,
+            "lane_overridable": true,
+            "restart": "lane",
+            "help": "Dice direction (above / below)"
+        },
+        {
+            "key": "events_enabled",
+            "off_allowed": false,
+            "type": "boolean",
+            "aliases": [],
+            "default": false,
+            "live_reload": true,
+            "lane_overridable": false,
+            "restart": "live",
+            "help": "Send bets, status and lifecycle events to Redis for the dashboard"
+        },
+        {
+            "key": "events_url",
+            "off_allowed": true,
+            "type": "string",
+            "format": "url",
+            "schemes": [
+                "redis",
+                "rediss",
+                "unix"
+            ],
+            "aliases": [],
+            "default": null,
+            "live_reload": true,
+            "lane_overridable": false,
+            "restart": "live",
+            "help": "Redis URL for events (set via config-set or GOATED_EVENTS_URL)"
+        },
+        {
+            "key": "key_ref",
+            "off_allowed": false,
+            "type": "string",
+            "format": "vault_id",
+            "aliases": [],
+            "default": "default",
+            "live_reload": false,
+            "lane_overridable": true,
+            "restart": "lane",
+            "help": "Vault key this lane bets with (restart to apply)"
+        },
+        {
+            "key": "loss_mult",
+            "off_allowed": false,
+            "type": "number",
+            "aliases": [
+                "lossmult"
+            ],
+            "default": 2.0,
+            "live_reload": false,
+            "lane_overridable": true,
+            "restart": "lane",
+            "help": "Loss multiplier (Martingale)"
+        },
+        {
+            "key": "max_bets",
+            "off_allowed": true,
+            "type": "integer",
+            "aliases": [
+                "maxbets"
+            ],
+            "default": null,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Stop after this many bets"
+        },
+        {
+            "key": "max_loss",
+            "off_allowed": true,
+            "type": "number",
+            "aliases": [
+                "maxloss"
+            ],
+            "default": null,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Stop when loss >= this"
+        },
+        {
+            "key": "max_profit",
+            "off_allowed": true,
+            "type": "number",
+            "aliases": [
+                "maxprofit"
+            ],
+            "default": null,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Stop when profit >= this"
+        },
+        {
+            "key": "max_wins",
+            "off_allowed": true,
+            "type": "integer",
+            "aliases": [
+                "maxwins"
+            ],
+            "default": null,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Stop after this many wins"
+        },
+        {
+            "key": "milestone_bets",
+            "off_allowed": true,
+            "type": "integer",
+            "aliases": [
+                "msbets"
+            ],
+            "default": 0,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Milestone every N bets (0 = off)"
+        },
+        {
+            "key": "milestone_losses",
+            "off_allowed": true,
+            "type": "integer",
+            "aliases": [
+                "mslosses"
+            ],
+            "default": 0,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Milestone every N losses (0 = off)"
+        },
+        {
+            "key": "milestone_profit",
+            "off_allowed": true,
+            "type": "number",
+            "aliases": [
+                "msprofit"
+            ],
+            "default": 0.0,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Milestone every X profit crossed (0 = off)"
+        },
+        {
+            "key": "milestone_wins",
+            "off_allowed": true,
+            "type": "integer",
+            "aliases": [
+                "mswins"
+            ],
+            "default": 0,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Milestone every N wins (0 = off)"
+        },
+        {
+            "key": "multiplier",
+            "off_allowed": false,
+            "type": "number",
+            "min": 1.01,
+            "aliases": [
+                "mult"
+            ],
+            "default": 2.0,
+            "live_reload": false,
+            "lane_overridable": true,
+            "restart": "lane",
+            "help": "Payout multiplier (limbo target; dice target derives from it)"
+        },
+        {
+            "key": "profit_increment",
+            "off_allowed": true,
+            "type": "number",
+            "aliases": [
+                "pi"
+            ],
+            "default": null,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Bump base_bet by this at every profit milestone"
+        },
+        {
+            "key": "profit_increment_scope",
+            "off_allowed": false,
+            "type": "string",
+            "choices": [
+                "session",
+                "run"
+            ],
+            "aliases": [
+                "piscope",
+                "pscope"
+            ],
+            "default": "session",
+            "live_reload": false,
+            "lane_overridable": true,
+            "restart": "lane",
+            "help": "session = each session's profit, run = total since the run started"
+        },
+        {
+            "key": "profit_threshold",
+            "off_allowed": true,
+            "type": "number",
+            "aliases": [
+                "pt"
+            ],
+            "default": null,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Profit interval between increments"
+        },
+        {
+            "key": "proxy",
+            "off_allowed": true,
+            "type": "string",
+            "format": "url",
+            "schemes": [
+                "http",
+                "https",
+                "socks5"
+            ],
+            "aliases": [],
+            "default": null,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "HTTP/HTTPS/SOCKS5 proxy URL (credentials masked)"
+        },
+        {
+            "key": "proxy_ref",
+            "off_allowed": true,
+            "type": "string",
+            "format": "vault_id",
+            "aliases": [],
+            "default": null,
+            "live_reload": false,
+            "lane_overridable": true,
+            "restart": "lane",
+            "help": "Vault proxy this lane uses, off for none (restart to apply)"
+        },
+        {
+            "key": "purge_days",
+            "off_allowed": true,
+            "type": "integer",
+            "min": 1,
+            "max": 30,
+            "clamps": true,
+            "aliases": [
+                "purgedays"
+            ],
+            "default": 3,
+            "live_reload": true,
+            "lane_overridable": false,
+            "restart": "live",
+            "help": "Bet-row retention window in days (1-30)"
+        },
+        {
+            "key": "recurring",
+            "off_allowed": false,
+            "type": "boolean",
+            "aliases": [],
+            "default": false,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Auto-restart cycle on non-loss stop"
+        },
+        {
+            "key": "recurring_delay",
+            "off_allowed": true,
+            "type": "number",
+            "min": 0.0,
+            "max": 86400.0,
+            "clamps": true,
+            "aliases": [
+                "recdelay",
+                "recurringdelay"
+            ],
+            "default": 60,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Seconds to pause between recurring cycles (0 = back-to-back)"
+        },
+        {
+            "key": "stop_on_balance",
+            "off_allowed": true,
+            "type": "number",
+            "aliases": [
+                "minbalance"
+            ],
+            "default": null,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Stop when balance floor reached"
+        },
+        {
+            "key": "streak_delay_bets",
+            "off_allowed": true,
+            "type": "string",
+            "format": "N:X",
+            "aliases": [
+                "sdbets"
+            ],
+            "default": [
+                0,
+                0.0
+            ],
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Extra pause every N bets  (N:sec)"
+        },
+        {
+            "key": "streak_delay_loss",
+            "off_allowed": true,
+            "type": "string",
+            "format": "N:X",
+            "aliases": [
+                "sdloss"
+            ],
+            "default": [
+                0,
+                0.0
+            ],
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Extra pause after N losses in a row  (N:sec)"
+        },
+        {
+            "key": "streak_delay_win",
+            "off_allowed": true,
+            "type": "string",
+            "format": "N:X",
+            "aliases": [
+                "sdwin"
+            ],
+            "default": [
+                0,
+                0.0
+            ],
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Extra pause after N wins in a row  (N:sec)"
+        },
+        {
+            "key": "streak_reset_delay",
+            "off_allowed": true,
+            "type": "number",
+            "min": 0.0,
+            "max": 86400.0,
+            "clamps": true,
+            "aliases": [
+                "srdelay"
+            ],
+            "default": 600,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Seconds to pause before the streak-reset restart"
+        },
+        {
+            "key": "streak_reset_losses",
+            "off_allowed": true,
+            "type": "integer",
+            "min": 1,
+            "aliases": [
+                "srloss"
+            ],
+            "default": 0,
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Restart on first win after N losses in a row (profit >= 0)"
+        },
+        {
+            "key": "streakbet_loss",
+            "off_allowed": true,
+            "type": "string",
+            "format": "N:X",
+            "aliases": [
+                "sbloss"
+            ],
+            "default": [
+                0,
+                1.0
+            ],
+            "live_reload": true,
+            "lane_overridable": true,
+            "restart": "live",
+            "help": "Next bet x factor after N losses  (N:factor)"
+        },
+        {
+            "key": "win_mult",
+            "off_allowed": false,
+            "type": "number",
+            "aliases": [
+                "winmult"
+            ],
+            "default": 1.0,
+            "live_reload": false,
+            "lane_overridable": true,
+            "restart": "lane",
+            "help": "Win multiplier (Paroli / Anti-M)"
+        }
+    ],
+    "lanes": {
+        "count": {
+            "min": 1,
+            "max": 10
+        },
+        "split": {
+            "choices": [
+                "none",
+                "budget",
+                "bet",
+                "both"
+            ]
+        },
+        "override_lanes": {
+            "min": 2,
+            "max": 99
+        },
+        "unset_values": [
+            "default",
+            "unset",
+            "inherit"
+        ]
+    }
+}

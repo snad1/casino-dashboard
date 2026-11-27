@@ -37,6 +37,30 @@ describe('parseMessage', () => {
 		expect(message).toEqual({ op: 'snapshot', topic: 'svc:wolfbet', lanes: {}, tape: [good] });
 	});
 
+	it("keeps a row's result text and drops a row whose text is not a string", () => {
+		const row = {
+			lane: 2,
+			seq: 17,
+			ts_ms: 9,
+			amount: 0.001,
+			multiplier: 2,
+			result: 2.31,
+			state: 'win',
+			profit: 0.001,
+			balance: 12
+		};
+		const shown = { ...row, display: '2.31x' };
+		const message = parseMessage(
+			JSON.stringify({
+				op: 'snapshot',
+				topic: 'svc:goated',
+				lanes: {},
+				tape: [shown, { ...row, seq: 18, display: 2.31 }]
+			})
+		);
+		expect(message).toEqual({ op: 'snapshot', topic: 'svc:goated', lanes: {}, tape: [shown] });
+	});
+
 	it('reads system samples and drops malformed parts', () => {
 		const raw = {
 			op: 'system',

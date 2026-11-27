@@ -14,13 +14,16 @@ permission it was started with; any other id reads as not found.
 
 import hashlib
 import json
+import operator
 import re
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
+from functools import reduce
 from typing import Annotated, Any, Literal
 
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Request, Response, status
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import (
     BigInteger,
@@ -313,11 +316,14 @@ async def _audit(
     await record(request.app.state.sessionmaker, entry)
 
 
-def _guard(name: str, spec: ControlAction) -> Callable[..., Awaitable[User]]:
+def _guard(name: str, first: ControlAction) -> Callable[..., Awaitable[User]]:
     """The user, when they hold the action's permission (and a fresh step-up if it needs one).
 
-    An action on one lane (or a lane add or config change) goes on to the endpoint for a user
-    without the service-wide permission, which then checks the lane in the body.
+    The action is the service's own (`request.state.control_spec`); a service without it is
+    404 after the permission check, which then uses the first service's action so a refusal
+    reads as before. An action on one lane (or a lane add or config change) goes on to the
+    endpoint for a user without the service-wide permission, which then checks the lane in
+    the body.
     """
     fresh = require_fresh()
 
@@ -327,32 +333,47 @@ def _guard(name: str, spec: ControlAction) -> Callable[..., Awaitable[User]]:
         user: Annotated[User, Depends(current_user)],
         db: Db,
     ) -> User:
-        detail = await denial(db, user, service, spec.perm)
+        spec = (registry.controls(service) or {}).get(name)
+        checked = spec or first
+        detail = await denial(db, user, service, checked.perm)
         request.state.lane_refused = detail
-        if detail is not None and not await may_act_on_a_lane(db, user, service, name, spec):
+        if detail is not None and not await may_act_on_a_lane(db, user, service, name, checked):
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail)
-        if (registry.controls(service) or {}).get(name) is not spec:
+        if spec is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONTROLLABLE)
         if spec.fresh:
             await fresh(user, request, db)
+        request.state.control_spec = spec
         return user
 
     return dependency
 
 
-def _endpoint(name: str, spec: ControlAction) -> Callable[..., Awaitable[ControlOut]]:
-    body_model = spec.body
+def _as_service_body(spec: ControlAction, body: BaseModel) -> BaseModel:
+    """The body read with the service's own model, when the route took another service's."""
+    if type(body) is spec.body:
+        return body
+    try:
+        return spec.body.model_validate(body.model_dump(exclude_unset=True))
+    except ValidationError as error:
+        raise RequestValidationError(error.errors(include_url=False)) from None
+
+
+def _endpoint(name: str, specs: list[ControlAction]) -> Callable[..., Awaitable[ControlOut]]:
+    bodies = list(dict.fromkeys(spec.body for spec in specs))
+    body_model = reduce(operator.or_, bodies)
 
     async def control(
         service: ServiceName,
         body: body_model,  # type: ignore[valid-type]  # each route is built with its action's model
         request: Request,
         response: Response,
-        user: Annotated[User, Depends(_guard(name, spec))],
+        user: Annotated[User, Depends(_guard(name, specs[0]))],
         db: Db,
         idempotency_key: Annotated[str, Header(alias="Idempotency-Key", pattern=KEY_PATTERN)],
     ) -> ControlOut:
-        payload: BaseModel = body
+        spec: ControlAction = request.state.control_spec
+        payload = _as_service_body(spec, body)
         refused: str | None = request.state.lane_refused
         if refused is not None:
             await check_lane_action(
@@ -450,12 +471,21 @@ async def _after_lane_change(
         await grant_lane(db, user.id, service, lane)
 
 
-# Each action has its own route and arg model; these are WolfBet's until each service's
-# adapter brings its own.
-for _name, _spec in registry.KNOWN["wolfbet"].controls.items():
+def _actions_by_name() -> dict[str, list[ControlAction]]:
+    """Every known service's actions, by name; each service's own action serves its requests."""
+    found: dict[str, list[ControlAction]] = {}
+    for entry in registry.KNOWN.values():
+        for name, spec in entry.controls.items():
+            found.setdefault(name, []).append(spec)
+    return found
+
+
+# Each action has one route; its body is the one model every service shares, or any of the
+# services' models, read again with the service's own.
+for _name, _specs in _actions_by_name().items():
     router.add_api_route(
         f"/{{service}}/control/{_name}",
-        _endpoint(_name, _spec),
+        _endpoint(_name, _specs),
         methods=["POST"],
         response_model=ControlOut,
         status_code=status.HTTP_200_OK,

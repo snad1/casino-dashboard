@@ -71,6 +71,7 @@ async def tail(
                     closed_ok=True,
                     live_name=files.live_db,
                     archive_glob=files.archive_glob,
+                    bet_columns=registry.KNOWN[service].bets,
                 )
                 await tailer.prepare()
                 await tailer.run(stop)

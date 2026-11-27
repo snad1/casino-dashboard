@@ -1,0 +1,458 @@
+{
+  "archives": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "backtest": {
+    "additionalProperties": false,
+    "properties": {
+      "preset": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Preset"
+      },
+      "replay_session": {
+        "anyOf": [
+          {
+            "minimum": 1,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Replay Session"
+      },
+      "seed": {
+        "anyOf": [
+          {
+            "maximum": 4294967295,
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Seed"
+      },
+      "simulate": {
+        "anyOf": [
+          {
+            "maximum": 5000000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Simulate"
+      }
+    },
+    "title": "GoatedBacktestArgs",
+    "type": "object"
+  },
+  "benchmark": {
+    "additionalProperties": false,
+    "properties": {
+      "count": {
+        "default": 20,
+        "maximum": 200,
+        "minimum": 3,
+        "title": "Count",
+        "type": "integer"
+      }
+    },
+    "title": "GoatedBenchmarkArgs",
+    "type": "object"
+  },
+  "cleanup": {
+    "additionalProperties": false,
+    "properties": {
+      "days": {
+        "anyOf": [
+          {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Days"
+      }
+    },
+    "title": "CleanupArgs",
+    "type": "object"
+  },
+  "config_set": {
+    "additionalProperties": false,
+    "properties": {
+      "pairs": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "maxProperties": 32,
+        "minProperties": 1,
+        "title": "Pairs",
+        "type": "object"
+      }
+    },
+    "required": [
+      "pairs"
+    ],
+    "title": "ConfigArgs",
+    "type": "object"
+  },
+  "diagnose": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "doctor": {
+    "additionalProperties": false,
+    "properties": {
+      "fix": {
+        "default": false,
+        "title": "Fix",
+        "type": "boolean"
+      }
+    },
+    "title": "DoctorArgs",
+    "type": "object"
+  },
+  "export": {
+    "additionalProperties": false,
+    "description": "goated writes one session per file, its format from the file's extension.",
+    "properties": {
+      "format": {
+        "default": "csv",
+        "enum": [
+          "csv",
+          "json"
+        ],
+        "title": "Format",
+        "type": "string"
+      },
+      "session_id": {
+        "minimum": 1,
+        "title": "Session Id",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "session_id"
+    ],
+    "title": "GoatedExportArgs",
+    "type": "object"
+  },
+  "lane_add": {
+    "additionalProperties": false,
+    "properties": {
+      "copy_from": {
+        "anyOf": [
+          {
+            "maximum": 99,
+            "minimum": 1,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Copy From"
+      },
+      "name": {
+        "title": "Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "title": "LaneAddArgs",
+    "type": "object"
+  },
+  "lane_remove": {
+    "additionalProperties": false,
+    "description": "Any lane but lane 1, which holds the base config.",
+    "properties": {
+      "lane": {
+        "maximum": 99,
+        "minimum": 2,
+        "title": "Lane",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "lane"
+    ],
+    "title": "RemovableLaneArgs",
+    "type": "object"
+  },
+  "lane_rename": {
+    "additionalProperties": false,
+    "properties": {
+      "lane": {
+        "maximum": 99,
+        "minimum": 1,
+        "title": "Lane",
+        "type": "integer"
+      },
+      "name": {
+        "title": "Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "lane",
+      "name"
+    ],
+    "title": "LaneRenameArgs",
+    "type": "object"
+  },
+  "lane_restart": {
+    "additionalProperties": false,
+    "properties": {
+      "lane": {
+        "maximum": 99,
+        "minimum": 1,
+        "title": "Lane",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "lane"
+    ],
+    "title": "LaneIdArgs",
+    "type": "object"
+  },
+  "lane_restart_end": {
+    "additionalProperties": false,
+    "properties": {
+      "lane": {
+        "maximum": 99,
+        "minimum": 1,
+        "title": "Lane",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "lane"
+    ],
+    "title": "LaneIdArgs",
+    "type": "object"
+  },
+  "lane_start": {
+    "additionalProperties": false,
+    "properties": {
+      "lane": {
+        "maximum": 99,
+        "minimum": 1,
+        "title": "Lane",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "lane"
+    ],
+    "title": "LaneIdArgs",
+    "type": "object"
+  },
+  "lane_stop": {
+    "additionalProperties": false,
+    "properties": {
+      "lane": {
+        "maximum": 99,
+        "minimum": 1,
+        "title": "Lane",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "lane"
+    ],
+    "title": "LaneIdArgs",
+    "type": "object"
+  },
+  "lanes": {
+    "additionalProperties": false,
+    "properties": {
+      "count": {
+        "maximum": 99,
+        "minimum": 1,
+        "title": "Count",
+        "type": "integer"
+      },
+      "split": {
+        "anyOf": [
+          {
+            "enum": [
+              "none",
+              "budget",
+              "bet",
+              "both"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Split"
+      }
+    },
+    "required": [
+      "count"
+    ],
+    "title": "LanesArgs",
+    "type": "object"
+  },
+  "logs": {
+    "additionalProperties": false,
+    "properties": {
+      "lines": {
+        "default": 200,
+        "maximum": 2000,
+        "minimum": 1,
+        "title": "Lines",
+        "type": "integer"
+      },
+      "service": {
+        "default": "cli",
+        "enum": [
+          "cli",
+          "tg"
+        ],
+        "title": "Service",
+        "type": "string"
+      }
+    },
+    "title": "LogsArgs",
+    "type": "object"
+  },
+  "logs_follow": {
+    "additionalProperties": false,
+    "properties": {
+      "service": {
+        "default": "cli",
+        "enum": [
+          "cli",
+          "tg"
+        ],
+        "title": "Service",
+        "type": "string"
+      }
+    },
+    "title": "FollowArgs",
+    "type": "object"
+  },
+  "reset": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "restart": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "restart_rolling": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "run_reset": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "start": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "start_all": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "status_all": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "stop": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "stop_all": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "tg.restart": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "tg.start": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "tg.status": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "tg.stop": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "update": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  },
+  "version": {
+    "additionalProperties": false,
+    "properties": {},
+    "title": "NoArgs",
+    "type": "object"
+  }
+}

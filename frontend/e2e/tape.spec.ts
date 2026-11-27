@@ -155,3 +155,16 @@ test('a failed sessions load offers to try again', async ({ page }) => {
 	await expect(page.getByRole('alert')).toContainText("Couldn't load sessions. Try again.");
 	await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
 });
+
+test("a row's hover text gives the casino's result text when the bot sends one", async ({
+	page
+}) => {
+	const socket = await rig(page);
+	await page.goto('/wolfbet');
+	await expect(page.getByRole('banner').getByRole('status')).toHaveText('Live');
+	const tape = [{ ...bet(1), result: 2.31, display: '2.31x' }, bet(2)];
+	socket().send(JSON.stringify({ op: 'tick', topic: 'svc:wolfbet', lanes: {}, tape }));
+	const rows = page.getByRole('table', { name: 'Bet tape' }).getByRole('row');
+	await expect(rows.nth(2)).toHaveAttribute('title', 'Result 2.31x, balance 100.00');
+	await expect(rows.nth(1)).toHaveAttribute('title', /^Roll 60, balance /);
+});
