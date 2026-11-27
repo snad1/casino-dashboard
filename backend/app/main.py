@@ -19,9 +19,12 @@ from app.api.config import router as config_router
 from app.api.control import router as control_router
 from app.api.files import router as files_router
 from app.api.history import router as history_router
+from app.api.hooks import load_secret
+from app.api.hooks import router as hooks_router
 from app.api.keys import router as keys_router
 from app.api.services import router as services_router
 from app.api.tg import router as tg_router
+from app.api.updates import router as updates_router
 from app.audit import AuditMiddleware
 from app.audit import router as audit_router
 from app.auth.admin import router as admin_router
@@ -155,6 +158,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         {user_hub.svc: user_hub} if user_hub else {}
     )
     app.state.agent = agent
+    app.state.update_checks = {}
+    app.state.hook_shas = {}
+    app.state.github_hook_secret = load_secret(settings.hooks_dir)
     KEY_LANES.use(agent)
     app.state.host_tz = settings.host_tz
     app.state.pipelines = pipelines
@@ -199,6 +205,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(alerts_router)
     app.include_router(keys_router)
     app.include_router(services_router)
+    app.include_router(updates_router)
+    app.include_router(hooks_router)
     app.include_router(control_router)
     app.include_router(config_router)
     app.include_router(files_router)

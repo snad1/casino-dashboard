@@ -32,6 +32,7 @@ SELF = {
     ("POST", "/auth/logout-all"),
     ("GET", "/auth/me"),
     ("GET", "/services"),
+    ("POST", "/hooks/github/{service}"),
     ("POST", "/auth/step-up"),
     ("POST", "/auth/totp/enrol"),
     ("POST", "/auth/totp/verify"),

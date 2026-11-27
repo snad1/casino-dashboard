@@ -156,7 +156,8 @@ def test_install_makes_every_secret_once_and_never_prints_one(rig: dict[str, Any
     assert (secrets / "telegram_bot_token.txt").read_text() == ""
     assert "PRIVATE KEY" in (secrets / "vapid_private_key.txt").read_text()
     for file in secrets.iterdir():
-        assert stat.S_IMODE(file.stat().st_mode) == 0o644, file.name
+        if file.is_file():
+            assert stat.S_IMODE(file.stat().st_mode) == 0o644, file.name
     output = result.stdout + result.stderr
     for value in [*values.values(), AGENT_TOKEN, BREVO]:
         assert value not in output
@@ -182,6 +183,18 @@ def test_each_extra_service_gets_its_own_publisher_password_once(rig: dict[str, 
     assert "DASHBOARD_SERVICES=wolfbet,goated" in result.stdout.splitlines()
     assert _install(rig, DASHBOARD_SERVICES="wolfbet,goated").returncode == 0
     assert (publishers / "goated.txt").read_text() == password
+
+
+def test_the_webhook_secret_is_made_once_and_never_shown(rig: dict[str, Any]) -> None:
+    result = _install(rig)
+    assert result.returncode == 0, result.stderr
+    hooks = _secrets(rig) / "hooks"
+    assert stat.S_IMODE(hooks.stat().st_mode) == 0o755
+    secret = (hooks / "github_webhook_secret.txt").read_text()
+    assert len(secret) >= 48 and "\n" not in secret
+    assert secret not in result.stdout + result.stderr
+    assert _install(rig).returncode == 0
+    assert (hooks / "github_webhook_secret.txt").read_text() == secret
 
 
 def test_a_bad_service_name_makes_no_publisher(rig: dict[str, Any]) -> None:

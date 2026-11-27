@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import ActionButton from '#components/ActionButton';
+	import UpdatesCard from '#components/UpdatesCard';
 	import { ApiError, unwrap } from '#lib/api/client';
 	import { pendingText, type ConfigOut } from '#lib/config';
 	import type { ActionBody, ActionName } from '#lib/control';
@@ -226,6 +227,8 @@
 					aria-label="{report.title} status">{report.text || 'No output.'}</pre>
 			{/if}
 		</section>
+
+		<UpdatesCard {service} />
 
 		<section class="{section} border-loss" aria-labelledby="danger-title">
 			<h2 id="danger-title" class="font-semibold text-loss">Danger zone</h2>

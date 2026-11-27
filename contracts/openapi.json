@@ -325,6 +325,19 @@
         "title": "AuditPage",
         "type": "object"
       },
+      "AutoUpdateIn": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "AutoUpdateIn",
+        "type": "object"
+      },
       "BacktestArgs": {
         "additionalProperties": false,
         "properties": {
@@ -4333,6 +4346,55 @@
         "title": "UpdateArgs",
         "type": "object"
       },
+      "UpdateOut": {
+        "properties": {
+          "auto_update": {
+            "title": "Auto Update",
+            "type": "boolean"
+          },
+          "behind": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Behind"
+          },
+          "head": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head"
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest"
+          }
+        },
+        "required": [
+          "behind",
+          "head",
+          "latest",
+          "auto_update"
+        ],
+        "title": "UpdateOut",
+        "type": "object"
+      },
       "UserList": {
         "properties": {
           "items": {
@@ -5390,6 +5452,42 @@
           }
         },
         "summary": "Healthz"
+      }
+    },
+    "/hooks/github/{service}": {
+      "post": {
+        "operationId": "github_hook_hooks_github__service__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Service",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Github Hook",
+        "tags": [
+          "hooks"
+        ]
       }
     },
     "/services": {
@@ -10949,6 +11047,102 @@
         "summary": "List Session Bets",
         "tags": [
           "history"
+        ]
+      }
+    },
+    "/{service}/update": {
+      "get": {
+        "operationId": "update_state__service__update_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Service",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update State",
+        "tags": [
+          "updates"
+        ]
+      }
+    },
+    "/{service}/update/auto": {
+      "put": {
+        "operationId": "set_auto_update__service__update_auto_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Service",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoUpdateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Auto Update",
+        "tags": [
+          "updates"
         ]
       }
     }

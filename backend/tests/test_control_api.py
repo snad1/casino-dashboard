@@ -3,7 +3,7 @@
 import json
 import secrets
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from fastapi.testclient import TestClient
@@ -311,6 +311,15 @@ def test_agent_errors_are_one_generic_502(
     assert response.json() == {"detail": AGENT_DOWN}
     assert code not in response.text
     assert TOKEN not in response.text
+
+
+def test_a_slow_control_command_is_waited_for(signed_in_as: Any, fake_agent: FakeAgent) -> None:
+    client = signed_in_as(Role.OPERATOR)
+    cast(Any, client.app).state.agent.timeout = 0.1
+    fake_agent.delay = 0.3
+    response = _post(client, "pause")
+    assert response.status_code == 200
+    assert response.json()["status"] == "succeeded"
 
 
 def test_an_unreachable_agent_is_a_502(app_settings: Settings, account: Account) -> None:

@@ -130,6 +130,9 @@ new_secret() {
 for name in "${RANDOM_SECRETS[@]}"; do
     new_secret "$name"
 done
+# GitHub signs its workflow-run webhook with this; the api reads it from its hooks dir.
+run install -d -m 0755 "$SECRETS/hooks"
+new_secret "hooks/github_webhook_secret"
 # Each served bot but wolfbet publishes as its own Redis user; Redis (uid 999) reads the file.
 SERVICES="${DASHBOARD_SERVICES:-wolfbet}"
 for service in ${SERVICES//,/ }; do

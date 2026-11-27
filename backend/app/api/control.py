@@ -71,6 +71,9 @@ KEY_PATTERN = r"^[A-Za-z0-9_-]{16,128}$"
 JOB_ID_PATTERN = r"^[0-9a-f]{32}$"
 BUSY = "Another control action is running. Try again when it finishes."
 AGENT_DOWN = "The bot host did not respond. Try again."
+# The agent lets a control command run up to 60 s (start, a rolling restart); waiting only
+# the client's 5 s showed a slow success as a host that did not respond.
+CONTROL_TIMEOUT_S = 65.0
 KEY_REUSED = "This request was already sent with different settings. Reload and try again."
 IN_PROGRESS = "This action is still being sent. Wait for it to finish."
 NOT_CONTROLLABLE = "That action is not available for this service."
@@ -265,7 +268,7 @@ def _exit_code(data: dict[str, Any]) -> int:
     raise AgentError("bad_reply")
 
 
-async def _run(
+async def run_action(
     agent: AgentClient, service: str, spec: ControlAction, args: dict[str, Any]
 ) -> tuple[int, ControlOut]:
     cmd = f"{service}.{spec.cmd}"
@@ -275,7 +278,7 @@ async def _run(
         if not isinstance(job_id, str) or not re.fullmatch(JOB_ID_PATTERN, job_id):
             raise AgentError("bad_reply")
         return status.HTTP_202_ACCEPTED, ControlOut(status="running", exit_code=None, job_id=job_id)
-    data = await agent.call(cmd, args)
+    data = await agent.call(cmd, args, limit_s=CONTROL_TIMEOUT_S)
     code = _exit_code(data)
     outcome: Literal["succeeded", "failed"] = "succeeded" if code == 0 else "failed"
     stdout = data.get("stdout")
@@ -373,7 +376,7 @@ def _endpoint(name: str, spec: ControlAction) -> Callable[..., Awaitable[Control
         try:
             await _audit(db, request, user, service, name, args, "requested")
             try:
-                status_code, out = await _run(agent_or_error(request), service, spec, args)
+                status_code, out = await run_action(agent_or_error(request), service, spec, args)
                 stored = out.model_dump()
                 result = f"job:{out.job_id}" if out.job_id else out.status
             except AgentError as error:
@@ -392,6 +395,9 @@ def _endpoint(name: str, spec: ControlAction) -> Callable[..., Awaitable[Control
             log.exception("audit write failed after a control action", action=name)
         if out is None:
             raise HTTPException(status_code, stored["detail"])
+        if name == "update" and out.job_id:
+            # The next update notice asks git again instead of showing the old count.
+            request.app.state.update_checks.pop(service, None)
         if out.status == "succeeded":
             if name in KEY_MOVES:
                 KEY_LANES.forget(service)

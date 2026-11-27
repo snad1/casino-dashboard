@@ -37,6 +37,15 @@ async def test_a_silent_agent_times_out(fake_agent: FakeAgent) -> None:
     assert caught.value.code == "timeout"
 
 
+async def test_a_call_may_wait_longer_than_the_client_default(fake_agent: FakeAgent) -> None:
+    fake_agent.delay = 0.3
+    client = AgentClient(fake_agent.path, TOKEN, timeout=0.1)
+    with pytest.raises(AgentError):
+        await client.call("wolfbet.start")
+    reply = await client.call("wolfbet.start", limit_s=2.0)
+    assert reply == {"exit_code": 0, "stderr": "", "stdout": "done"}
+
+
 async def test_a_missing_socket_is_unreachable() -> None:
     client = AgentClient(Path("/nonexistent/agent.sock"), TOKEN)
     with pytest.raises(AgentError) as caught:

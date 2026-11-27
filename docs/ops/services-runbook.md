@@ -92,10 +92,22 @@ DASHBOARD_SERVICES=wolfbet,<svc>
 
 Then check that `gh run list` in casino-dashboard shows `ci` and `images` green; a red ci means nothing deployed. A redeploy restarts Redis, so each bot drops about a thousand live events; history is unaffected. Redis refuses to start when a listed service has no password file in `/opt/wolfbet/secrets/publishers/`, so make it first (step 3).
 
-### 6. Updates from the dashboard (needs the update notice and webhook)
+### 6. Updates from the dashboard (works once the dashboard serves the service)
 
-- **Notice and button:** the service's Control card shows `Update available: N commits`; **Update** runs the rolling `<ctl> update`.
-- **Auto-update on push (optional, off by default):** on GitHub, in the bot repo's Settings > Webhooks, add `https://casino.snadstudio.com/api/hooks/github/<svc>`, content type JSON, event `Workflow runs`, secret from `/opt/wolfbet/secrets/gh_hook_<svc>.txt` (paste it from the file into the GitHub form; it never goes in the repo). Then turn on **Auto-update** for that service in Settings. Only a green run on `main` triggers it, and every run is in the audit log.
+- **Notice and button:** the service's Control page has an Updates card: `Update available: N commits (old to new)` with **Update**, which runs the rolling `<ctl> update` (each lane moves at its session end). It checks git at most every 2 minutes, and again after an update starts.
+- **Auto-update on push (optional, off by default):**
+  1. Make the webhook secret once, without printing it (one secret serves every bot repo):
+
+     ```
+     install -d -m 0755 /opt/wolfbet/secrets/hooks
+     [ -s /opt/wolfbet/secrets/hooks/github_webhook_secret.txt ] || (umask 022; openssl rand -base64 36 | tr -d '\n' > /opt/wolfbet/secrets/hooks/github_webhook_secret.txt)
+     ```
+
+     Redeploy the dashboard so the api reads it; without the file the hook answers 404.
+  2. On GitHub, in the bot repo's Settings > Webhooks, add `https://casino.snadstudio.com/api/hooks/github/<svc>`, content type `application/json`, event `Workflow runs` only, and the secret from that file (paste it into the GitHub form; it never goes in a repo).
+  3. On the dashboard, open the service's Control page as the owner and tick **Update automatically after a green CI run on main** (it asks for a fresh code).
+
+  Only a completed, successful push run on `main` starts it, once per commit; GitHub's Recent Deliveries shows 202 when an update started and 204 when nothing was due. Each start is in the audit log as `control.update` with trigger `github`.
 
 ### 7. Check it (after step 5)
 

@@ -456,6 +456,23 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/hooks/github/{service}': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** Github Hook */
+		post: operations['github_hook_hooks_github__service__post'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 	'/services': {
 		parameters: {
 			query?: never;
@@ -1879,6 +1896,40 @@ export interface paths {
 		patch?: never;
 		trace?: never;
 	};
+	'/{service}/update': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		/** Update State */
+		get: operations['update_state__service__update_get'];
+		put?: never;
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/{service}/update/auto': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		/** Set Auto Update */
+		put: operations['set_auto_update__service__update_auto_put'];
+		post?: never;
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1986,6 +2037,11 @@ export interface components {
 			items: components['schemas']['AuditOut'][];
 			/** Next Before Id */
 			next_before_id: number | null;
+		};
+		/** AutoUpdateIn */
+		AutoUpdateIn: {
+			/** Enabled */
+			enabled: boolean;
 		};
 		/** BacktestArgs */
 		BacktestArgs: {
@@ -3188,6 +3244,17 @@ export interface components {
 			/** Branch */
 			branch?: string | null;
 		};
+		/** UpdateOut */
+		UpdateOut: {
+			/** Auto Update */
+			auto_update: boolean;
+			/** Behind */
+			behind: number | null;
+			/** Head */
+			head: string | null;
+			/** Latest */
+			latest: string | null;
+		};
 		/** UserList */
 		UserList: {
 			/** Items */
@@ -3935,6 +4002,35 @@ export interface operations {
 				};
 				content: {
 					'application/json': components['schemas']['Health'];
+				};
+			};
+		};
+	};
+	github_hook_hooks_github__service__post: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			204: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content?: never;
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
 				};
 			};
 		};
@@ -7038,6 +7134,72 @@ export interface operations {
 				};
 				content: {
 					'application/json': components['schemas']['BetPage'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	update_state__service__update_get: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody?: never;
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['UpdateOut'];
+				};
+			};
+			/** @description Validation Error */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['HTTPValidationError'];
+				};
+			};
+		};
+	};
+	set_auto_update__service__update_auto_put: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path: {
+				service: string;
+			};
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': components['schemas']['AutoUpdateIn'];
+			};
+		};
+		responses: {
+			/** @description Successful Response */
+			200: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['UpdateOut'];
 				};
 			};
 			/** @description Validation Error */

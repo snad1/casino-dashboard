@@ -100,10 +100,15 @@ class AgentClient:
         writer.close()
         await writer.wait_closed()
 
-    async def call(self, cmd: str, args: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Send one request and return the reply's `data`; raises `AgentError` otherwise."""
+    async def call(
+        self, cmd: str, args: dict[str, Any] | None = None, *, limit_s: float | None = None
+    ) -> dict[str, Any]:
+        """Send one request and return the reply's `data`; raises `AgentError` otherwise.
+
+        `limit_s` replaces the client's timeout for this call, for commands the agent may run long.
+        """
         try:
-            async with asyncio.timeout(self.timeout):
+            async with asyncio.timeout(limit_s or self.timeout):
                 reader, writer = await self._open(cmd, args or {})
                 try:
                     line = await reader.readline()

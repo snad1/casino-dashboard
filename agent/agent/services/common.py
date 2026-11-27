@@ -9,6 +9,7 @@ argv item, secrets on stdin only.
 
 import json
 import os
+import re
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -18,7 +19,7 @@ from pydantic import Field
 
 from agent.errors import Busy
 from agent.files import FileStore
-from agent.runner import STDERR_TAIL, STDOUT_TAIL, RunResult, run, tail
+from agent.runner import STDERR_TAIL, STDOUT_TAIL, CommandTimeout, RunResult, run, tail
 from agent.validators import (
     LANE_ID_MAX,
     Args,
@@ -49,6 +50,7 @@ class BotPaths:
     repo: Path
     export_dir: Path
     journalctl: Path
+    git: Path = Path("/usr/bin/git")
 
     @classmethod
     def from_env(
@@ -80,6 +82,7 @@ class BotPaths:
         repo, repo_var = pick((f"{prefix}REPO",), home / repo_dir)
         export, export_var = pick((f"{prefix}EXPORT_DIR",), state / "exports")
         journalctl, journal_var = pick(("CASINO_AGENT_JOURNALCTL",), Path("/usr/bin/journalctl"))
+        git, git_var = pick(("CASINO_AGENT_GIT",), Path("/usr/bin/git"))
         relative = [
             var
             for var, value in (
@@ -88,6 +91,7 @@ class BotPaths:
                 (repo_var, repo),
                 (export_var, export),
                 (journal_var, journalctl),
+                (git_var, git),
             )
             if not value.is_absolute()
         ]
@@ -100,6 +104,7 @@ class BotPaths:
             repo=repo,
             export_dir=export,
             journalctl=journalctl,
+            git=git,
         )
 
 
@@ -333,6 +338,34 @@ class BotService:
         done = await self.runner(_bot(self.paths, "--config-set", *pairs), _CONFIG_SPEC.timeout_s)
         return {"dry_run": dry, "set": result_data(_TEXT_SPEC, done)}
 
+    async def update_check(self, _raw: dict[str, Any]) -> dict[str, Any]:
+        """How far the checkout is behind its upstream: commits and both short hashes.
+
+        Every value is None when git fails (no network, no upstream); git's own output never
+        leaves the agent.
+        """
+        git = [str(self.paths.git), "-C", str(self.paths.repo)]
+        unknown: dict[str, Any] = {"behind": None, "head": None, "latest": None}
+        try:
+            fetched = await self.runner([*git, "fetch", "--quiet"], _FETCH_TIMEOUT_S)
+            if fetched.exit_code != 0:
+                return unknown
+            count = await self.runner(
+                [*git, "rev-list", "--count", "HEAD..@{upstream}"], _GIT_TIMEOUT_S
+            )
+            hashes = await self.runner(
+                [*git, "rev-parse", "--short", "HEAD", "@{upstream}"], _GIT_TIMEOUT_S
+            )
+        except CommandTimeout:
+            return unknown
+        lines = hashes.stdout.split()
+        behind = count.stdout.strip()
+        if count.exit_code or hashes.exit_code or not behind.isdigit() or len(lines) != 2:
+            return unknown
+        if not all(_SHORT_SHA.fullmatch(line) for line in lines):
+            return unknown
+        return {"behind": int(behind), "head": lines[0], "latest": lines[1]}
+
     def handlers(self) -> dict[str, Handler]:
         """Agent commands for every short command plus the config flow."""
 
@@ -346,9 +379,13 @@ class BotService:
         }
         out[f"{self.name}.config_dry_run"] = self.config_dry_run
         out[f"{self.name}.config_set"] = self.config_set
+        out[f"{self.name}.update_check"] = self.update_check
         return out
 
 
+_FETCH_TIMEOUT_S = 60
+_GIT_TIMEOUT_S = 15
+_SHORT_SHA = re.compile(r"[0-9a-f]{4,40}")
 _CONFIG_SPEC = CommandSpec(ConfigArgs, lambda _a, _p: [], 60, mutating=True, json_output=True)
 _TEXT_SPEC = CommandSpec(NoArgs, lambda _a, _p: [], 60)
 

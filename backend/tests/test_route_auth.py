@@ -27,6 +27,7 @@ PUBLIC = {
     ("POST", "/auth/invites/accept"),
     ("POST", "/auth/password-reset"),
     ("POST", "/auth/password-reset/confirm"),
+    ("POST", "/hooks/github/{service}"),
 }
 
 

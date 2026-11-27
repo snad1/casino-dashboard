@@ -185,7 +185,9 @@ def test_api_reaches_the_agent_only_through_its_group_and_a_read_only_mount(
 ) -> None:
     api = _service(compose, "api")
     assert api["group_add"] == ["${AGENT_GID:?set AGENT_GID in deploy/.env}"]
-    assert api["volumes"] == ["${AGENT_RUNTIME_DIR:-/run/user/0/casino-agent}:/run/casino-agent:ro"]
+    assert (
+        api["volumes"][0] == "${AGENT_RUNTIME_DIR:-/run/user/0/casino-agent}:/run/casino-agent:ro"
+    )
     assert api["environment"]["AGENT_SOCKET"] == "/run/casino-agent/agent.sock"
     others = [name for name in SERVICES if name != "api"]
     assert not any("agent_token" in _secrets(_service(compose, name)) for name in others)
@@ -310,7 +312,7 @@ def test_the_coolify_variant_mounts_the_agent_directory_the_system_unit_creates(
     coolify: dict[str, Any] = yaml.safe_load((DEPLOY / "compose.coolify.yml").read_text())
     unit = (DEPLOY.parent / "agent" / "systemd" / "casino-agent.service").read_text()
     assert "RuntimeDirectory=casino-agent" in unit
-    assert _service(coolify, "api")["volumes"] == ["/run/casino-agent:/run/casino-agent:ro"]
+    assert _service(coolify, "api")["volumes"][0] == "/run/casino-agent:/run/casino-agent:ro"
 
 
 @pytest.fixture(scope="module")
@@ -390,4 +392,21 @@ def test_only_redis_mounts_the_publisher_passwords_read_only(file: str, source: 
         for name, service in data["services"].items()
     }
     assert mounts.pop("redis") == [f"{source}:/run/publishers:ro"]
+    assert all(not found for found in mounts.values()), mounts
+
+
+@pytest.mark.parametrize(
+    ("file", "source"),
+    [
+        ("compose.yml", "${SECRETS_DIR:-./secrets}/hooks"),
+        ("compose.coolify.yml", "/opt/wolfbet/secrets/hooks"),
+    ],
+)
+def test_only_the_api_mounts_the_webhook_secret_read_only(file: str, source: str) -> None:
+    data: dict[str, Any] = yaml.safe_load((DEPLOY / file).read_text())
+    mounts = {
+        name: [v for v in service.get("volumes", []) if "/run/hooks" in str(v)]
+        for name, service in data["services"].items()
+    }
+    assert mounts.pop("api") == [f"{source}:/run/hooks:ro"]
     assert all(not found for found in mounts.values()), mounts

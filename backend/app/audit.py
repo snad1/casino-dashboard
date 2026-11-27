@@ -34,6 +34,8 @@ GENESIS = bytes(32)
 # Any constant works; it only has to be the same for every writer.
 CHAIN_LOCK = 0x617564697400
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+# A webhook is signed, not signed in: its row keeps the outcome, never the sender's body.
+BODYLESS_PREFIX = "/hooks/"
 MAX_BODY = 16 * 1024
 EXTRA_SECRET_KEYS = frozenset({"code"})
 
@@ -216,7 +218,14 @@ class AuditMiddleware:
                 actor_email=actor.email if actor else None,
                 roles=roles,
                 service=service,
-                args={**path_params, **_body_args(body, headers.get("content-type", ""))},
+                args={
+                    **path_params,
+                    **(
+                        {}
+                        if scope["path"].startswith(BODYLESS_PREFIX)
+                        else _body_args(body, headers.get("content-type", ""))
+                    ),
+                },
                 ip=client[0] if client else None,
                 user_agent=headers.get("user-agent"),
                 request_id=current_request_id(),

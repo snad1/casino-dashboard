@@ -125,6 +125,8 @@ services:
       - ${AGENT_GID:?set AGENT_GID in deploy/.env}
     volumes:
       - /run/casino-agent:/run/casino-agent:ro
+      # The GitHub webhook secret; without the file the hook is off.
+      - /opt/wolfbet/secrets/hooks:/run/hooks:ro
     depends_on:
       timescale:
         condition: service_healthy

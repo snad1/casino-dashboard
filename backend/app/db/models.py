@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Identity, MetaData, Text, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Identity, MetaData, Text, func, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 # Stable constraint names, so migrations can drop or alter them by name.
@@ -28,4 +28,6 @@ class Service(Base):
     name: Mapped[str] = mapped_column(Text, unique=True)
     adapter: Mapped[str] = mapped_column(Text)
     host: Mapped[str] = mapped_column(Text)
+    # The owner's opt-in: update the bot after a green CI run on main.
+    auto_update: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

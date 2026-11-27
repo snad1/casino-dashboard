@@ -60,6 +60,7 @@ def test_baseline_creates_services_and_timescale(migrated: Settings) -> None:
         "name": False,
         "adapter": False,
         "host": False,
+        "auto_update": False,
         "created_at": False,
     }
     assert unique == ["uq_services_name"]

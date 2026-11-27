@@ -113,6 +113,7 @@ GENERATED_SECRETS = frozenset(
         "redis_dashboard_password",
         "agent_token",
         "tg_login_secret",
+        "github_webhook_secret",
     }
 )
 DETAIL_ENVS = frozenset({"local", "development", "testing"})
@@ -217,6 +218,9 @@ class Settings(DatabaseSettings):
     redis_port: int = 6379
     redis_user: str = "dashboard"
     agent_socket: Path | None = None
+    # A directory, not a Docker secret: without `github_webhook_secret.txt` in it the GitHub
+    # hook is off, and a deploy never fails for a file not created yet.
+    hooks_dir: Path = Path("/run/hooks")
     vapid_public_key: str | None = None
     dashboard_services: ServiceNames = Field(default_factory=lambda: ["wolfbet"])
     live_service: str | None = "wolfbet"

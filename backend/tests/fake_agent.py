@@ -3,7 +3,7 @@
 It serves sync tests (the app under `TestClient` runs on another loop) and async ones
 alike. `reply` maps each request to the lines it answers with, frames first, either as a
 list or as an async iterator that writes each line as it comes; `hang` makes it read the
-request and never answer.
+request and never answer, and `delay` makes it wait that many seconds before answering.
 """
 
 import asyncio
@@ -79,6 +79,7 @@ class FakeAgent:
         self.calls: list[dict[str, Any]] = []
         self.reply: Reply = default_reply
         self.hang = False
+        self.delay = 0.0
         self._loop = asyncio.new_event_loop()
         self._server: asyncio.Server | None = None
         self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
@@ -93,6 +94,7 @@ class FakeAgent:
         if self.hang:
             await asyncio.sleep(5)
         else:
+            await asyncio.sleep(self.delay)
             lines = self.reply(request)
             with contextlib.suppress(ConnectionError):  # the api may end a stream early
                 if isinstance(lines, list):
