@@ -559,7 +559,13 @@ def read_once[T](source: Source, query: Callable[[sqlite3.Connection], T]) -> tu
 
 
 def _probe_epoch(connection: sqlite3.Connection, path: Path) -> tuple[int, str] | None:
-    first = connection.execute("SELECT min(started_at) FROM sessions").fetchone()[0]
+    # The first session by id, not min(started_at): that column has no index, so min() scanned
+    # every session on each poll (0.25 s on a 147k-session file, several times a second, which
+    # kept a reader open and let the WAL grow without a checkpoint). The rowid lookup is O(1),
+    # matches min(started_at) on every file so far, and cannot move when a later row carries an
+    # earlier clock.
+    row = connection.execute("SELECT started_at FROM sessions ORDER BY id LIMIT 1").fetchone()
+    first = row[0] if row else None
     if not first:
         return None
     return path.stat().st_ino, first
