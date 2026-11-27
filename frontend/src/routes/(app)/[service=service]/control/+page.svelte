@@ -9,7 +9,7 @@
 	import { control } from '#lib/control.svelte';
 	import { lanesOf } from '#lib/accounts';
 	import { keyFilter } from '#lib/key-filter.svelte';
-	import { laneLabel } from '#lib/lanes';
+	import { isUp, laneLabel } from '#lib/lanes';
 	import { liveFor } from '#lib/live/index';
 	import { can } from '#lib/permissions';
 	import { problems } from '#lib/problems';
@@ -159,6 +159,11 @@
 						<ActionButton name="reload" body={{ target: lane }} />
 						<ActionButton name="lane_restart_end" body={{ lane }} />
 						<ActionButton name="lane_restart" body={{ lane }} />
+						{#if isUp(live.lanes[lane]?.status)}
+							<ActionButton name="lane_stop" body={{ lane }} danger />
+						{:else}
+							<ActionButton name="lane_start" body={{ lane }} />
+						{/if}
 						{#if code}
 							<p class="w-full text-sm {code === 'new' ? 'text-muted' : 'text-warn'}">
 								Code: {code}

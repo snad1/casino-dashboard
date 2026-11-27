@@ -390,3 +390,18 @@ def test_an_unknown_or_telegram_epoch_is_not_found(viewer: TestClient, seed: See
         reply = viewer.get(f"/{seed.service}/sessions", params={"epoch": epoch})
         assert reply.status_code == 404
         assert reply.json()["detail"] == EPOCH_NOT_FOUND
+
+
+def test_goateds_sessions_are_read_from_its_own_live_file(viewer: TestClient, seed: Seed) -> None:
+    seed.service = "goated"
+    seed.clean()
+    epoch_id: int = seed._run(
+        "INSERT INTO db_epochs (service, source_path, inode, first_started_at)"
+        " VALUES ('goated', '/botdata/.goated_autobot.db', 7, :t) RETURNING epoch_id",
+        {"t": T0},
+        returning=True,
+    )
+    seed.session(epoch_id, 1)
+    seed.session(epoch_id, 2)
+    items = viewer.get("/goated/sessions").json()["items"]
+    assert sorted(i["id"] for i in items) == [1, 2]

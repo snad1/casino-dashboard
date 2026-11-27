@@ -37,7 +37,12 @@ interface Sent {
 	key: string | undefined;
 }
 
-async function rig(page: Page, me: object, handlers: Record<string, Handler> = {}) {
+async function rig(
+	page: Page,
+	me: object,
+	handlers: Record<string, Handler> = {},
+	snapshot: object = SNAPSHOT
+) {
 	const sent: Sent[] = [];
 	page.on('request', (request) => {
 		const url = new URL(request.url());
@@ -64,7 +69,7 @@ async function rig(page: Page, me: object, handlers: Record<string, Handler> = {
 		ws.onMessage((raw) => {
 			const message = JSON.parse(String(raw));
 			if (message.op !== 'subscribe') return;
-			if (message.topic === 'svc:wolfbet') ws.send(JSON.stringify(SNAPSHOT));
+			if (message.topic === 'svc:wolfbet') ws.send(JSON.stringify(snapshot));
 			if (message.topic === `svc:wolfbet:job:${JOB_ID}`) {
 				const topic = message.topic;
 				for (const [seq, line] of ['Pulling latest from git...', 'Restarted.'].entries()) {
@@ -354,4 +359,40 @@ test('a config that cannot be read shows one message and keeps the lane controls
 	await page.goto('/wolfbet/control');
 	await expect(page.getByText("Could not read the bot's config. Try again.")).toBeVisible();
 	await expect(lane(page, 'Lane 2').getByRole('button', { name: 'Pause' })).toBeVisible();
+});
+
+test('each lane row stops a running lane and starts a lane that is down', async ({ page }) => {
+	const sent = await rig(
+		page,
+		operatorMe,
+		{
+			'GET /wolfbet/config': () => ({ status: 200, json: { ...CONFIG, lane_ids: [1, 2, 3] } }),
+			'POST /wolfbet/control/lane_stop': () => done,
+			'POST /wolfbet/control/lane_start': () => done
+		},
+		{ ...SNAPSHOT, lanes: { ...SNAPSHOT.lanes, 3: { status: 'down' } } }
+	);
+	await page.goto('/wolfbet/control');
+	await expect(
+		lane(page, 'Lane 1').getByRole('button', { name: 'Start', exact: true })
+	).toHaveCount(0);
+	await expect(lane(page, 'Lane 3').getByRole('button', { name: 'Stop', exact: true })).toHaveCount(
+		0
+	);
+	await lane(page, 'Lane 1').getByRole('button', { name: 'Stop', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Stop lane 1?' })
+		.getByRole('button', { name: 'Stop lane 1' })
+		.click();
+	await expect(page.getByText('Stop lane 1: done.')).toBeVisible();
+	await lane(page, 'Lane 3').getByRole('button', { name: 'Start', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Start lane 3?' })
+		.getByRole('button', { name: 'Start lane 3' })
+		.click();
+	await expect(page.getByText('Start lane 3: done.')).toBeVisible();
+	expect(sent.map((s) => [s.path, s.body])).toEqual([
+		['/wolfbet/control/lane_stop', { lane: 1 }],
+		['/wolfbet/control/lane_start', { lane: 3 }]
+	]);
 });
