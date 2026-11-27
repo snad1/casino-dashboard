@@ -72,6 +72,22 @@ export const operatorMe = {
 	roles: [{ service: null, role: 'operator' }]
 };
 
+/** The body fields of WolfBet's actions that the pages read (each true when required). */
+const FIELDS: Record<string, Record<string, boolean>> = {
+	update: { branch: false },
+	export: { session_id: false, format: false },
+	benchmark: { count: false, lanes: false },
+	backtest: {
+		simulate: false,
+		replay_session: false,
+		seed: false,
+		sessions: false,
+		runs: false,
+		balance: false,
+		preset: false
+	}
+};
+
 const action = (
 	name: string,
 	perm: string,
@@ -88,7 +104,8 @@ const action = (
 	perm,
 	typed_confirm: perm === 'control.destructive',
 	confirm_first: !options.read,
-	job: options.job ?? false
+	job: options.job ?? false,
+	fields: FIELDS[name] ?? {}
 });
 
 /** The control menu as `GET /{service}/control` serves it, with nothing running. */
@@ -185,4 +202,31 @@ export const controlMenu = {
 			})
 		])
 	]
+};
+
+/** goated's menu: WolfBet's without the live signals, with goated's own bodies. */
+export const goatedControlMenu = {
+	running_job: null,
+	actions: controlMenu.actions
+		.filter((a) => !['pause', 'resume', 'reload'].includes(a.name))
+		.map((a) => {
+			if (a.name === 'update') return { ...a, fields: {} };
+			if (a.name === 'export') return { ...a, fields: { session_id: true, format: false } };
+			if (a.name === 'benchmark') {
+				return {
+					...a,
+					title: 'Benchmark the {service} api?',
+					effect: 'Times {count} calls. Each is a 0-amount bet, so no balance is risked.',
+					confirm_first: true,
+					fields: { count: false }
+				};
+			}
+			if (a.name === 'backtest') {
+				return {
+					...a,
+					fields: { simulate: false, replay_session: false, seed: false, preset: false }
+				};
+			}
+			return a;
+		})
 };

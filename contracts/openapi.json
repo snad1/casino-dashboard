@@ -50,6 +50,14 @@
             "title": "Effect",
             "type": "string"
           },
+          "fields": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "description": "The body's fields this service's action takes, each true when required.",
+            "title": "Fields",
+            "type": "object"
+          },
           "job": {
             "title": "Job",
             "type": "boolean"
@@ -84,7 +92,8 @@
           "perm",
           "typed_confirm",
           "confirm_first",
-          "job"
+          "job",
+          "fields"
         ],
         "title": "ActionOut",
         "type": "object"

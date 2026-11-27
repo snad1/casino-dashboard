@@ -466,6 +466,7 @@ def test_the_menu_lists_every_action_with_its_confirm_text(
         "typed_confirm": True,
         "confirm_first": True,
         "job": False,
+        "fields": {},
     }
     typed = {name for name, action in by_name.items() if action["typed_confirm"]}
     assert typed == {"reset", "run_reset", "stop_all", "cleanup", "update", "doctor_fix"}

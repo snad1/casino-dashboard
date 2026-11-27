@@ -22,7 +22,8 @@ const action = (perm: string): Action => ({
 	perm,
 	typed_confirm: false,
 	confirm_first: true,
-	job: false
+	job: false,
+	fields: {}
 });
 const me = (role: string): Me => ({
 	email: 'a@b.test',

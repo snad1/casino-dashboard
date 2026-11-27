@@ -113,7 +113,7 @@ Then check that `gh run list` in casino-dashboard shows `ci` and `images` green;
 
 1. Pick the service in the top bar: Live shows its lanes, and bets appear on the tape.
 2. Control > Problems says `No problems.`
-3. **Pause 2**, then **Resume 2**: only lane 2 of that service pauses; WolfBet's lanes keep betting.
+3. **Stop** lane 2, then **Start** lane 2: only lane 2 of that service stops, and its other lanes and WolfBet's keep betting. (goated has no pause, so this check uses Stop.)
 4. Sessions and Analytics list the service's sessions; `<ctl> stats --json --lane 1` agrees.
 
 ### 8. Stake extras (works now; the dashboard's Cloudflare checks come later)
